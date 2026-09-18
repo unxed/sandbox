@@ -8,5 +8,7 @@ cd /tmp/demo
 run_one "/root/mnt/f4 --version" default 1 90
 run_one "/root/mnt/f4 --help" default 1 90
 run_one "/root/mnt/f4 --list-mounts" default 1 120
-run_one "/root/mnt/ptyrun -tag tui -cols 100 -rows 30 -script wait:10000,snap:startup -- /root/mnt/f4 --tty --attached" default 1 150
+run_one "/root/mnt/ptyrun -tag tui -cols 100 -rows 30 -script wait:6000,snap:t6,ctx:f4,wait:6000,snap:t12,ctx:f4 -- /root/mnt/f4 --tty --attached --debug" default 1 150
+echo "=== f4 logs"; find /tmp/cfg /root -type f \( -name '*.log' -o -name '*crash*' \) 2>/dev/null | head
+for f in $(find /tmp/cfg /root -type f -name '*.log' 2>/dev/null | head -5); do echo "--- $f"; tail -60 $f; done
 echo "=== LADDER DONE"

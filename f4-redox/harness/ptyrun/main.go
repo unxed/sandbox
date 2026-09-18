@@ -63,6 +63,46 @@ func unescape(s string) []byte {
 	return out
 }
 
+// respond answers the usual terminal queries so a program that waits for replies
+// does not sit in its timeouts.
+func respond(master *os.File, rows, cols int, data []byte) {
+	type q struct{ pat, reply string }
+	qs := []q{
+		{"\x1b[c", "\x1b[?62;1;2;6;9;15;22c"},
+		{"\x1b[0c", "\x1b[?62;1;2;6;9;15;22c"},
+		{"\x1b[>c", "\x1b[>0;10;1c"},
+		{"\x1b[>0c", "\x1b[>0;10;1c"},
+		{"\x1b[5n", "\x1b[0n"},
+		{"\x1b[6n", "\x1b[1;1R"},
+		{"\x1b[?6n", "\x1b[?1;1;1R"},
+		{"\x1b[?u", "\x1b[?0u"},
+		{"\x1b[18t", fmt.Sprintf("\x1b[8;%d;%dt", rows, cols)},
+		{"\x1b[14t", fmt.Sprintf("\x1b[4;%d;%dt", rows*18, cols*9)},
+		{"\x1b]10;?\x07", "\x1b]10;rgb:cccc/cccc/cccc\x07"},
+		{"\x1b]11;?\x07", "\x1b]11;rgb:0000/0000/0000\x07"},
+		{"\x1b]10;?\x1b\\", "\x1b]10;rgb:cccc/cccc/cccc\x1b\\"},
+		{"\x1b]11;?\x1b\\", "\x1b]11;rgb:0000/0000/0000\x1b\\"},
+	}
+	s := string(data)
+	for _, x := range qs {
+		for i := 0; i < strings.Count(s, x.pat); i++ {
+			master.Write([]byte(x.reply))
+		}
+	}
+	// DECRQM: CSI ? N $ p  ->  CSI ? N ; 2 $ y (reset)
+	for i := 0; i+3 < len(s); i++ {
+		if s[i] == 0x1b && strings.HasPrefix(s[i:], "\x1b[?") {
+			j := i + 3
+			for j < len(s) && s[j] >= '0' && s[j] <= '9' {
+				j++
+			}
+			if j+1 < len(s) && s[j] == '$' && s[j+1] == 'p' && j > i+3 {
+				master.Write([]byte("\x1b[?" + s[i+3:j] + ";2$y"))
+			}
+		}
+	}
+}
+
 func snap(tag, name string) {
 	mu.Lock()
 	chunk := append([]byte(nil), buf[pos:]...)
@@ -101,11 +141,14 @@ func main() {
 		if err != nil {
 			return fmt.Errorf("open ptmx: %w", err)
 		}
+		// relibc's openpty unlocks first; on Redox TIOCGPTN fails with EIO while locked
+		if err := unix.IoctlSetInt(mfd, unix.TIOCSPTLCK, 0); err != nil {
+			fmt.Println("PTYRUN TIOCSPTLCK:", err)
+		}
 		n, err := unix.IoctlGetInt(mfd, unix.TIOCGPTN)
 		if err != nil {
 			return fmt.Errorf("TIOCGPTN: %w", err)
 		}
-		_ = unix.IoctlSetInt(mfd, unix.TIOCSPTLCK, 0)
 		slaveName = fmt.Sprintf("/scheme/pty/%d", n)
 		sfd, err = unix.Open(slaveName, unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
 		if err != nil {
@@ -163,6 +206,7 @@ func main() {
 				mu.Lock()
 				buf = append(buf, b[:k]...)
 				mu.Unlock()
+				respond(master, *rows, *cols, b[:k])
 			}
 			if err != nil {
 				return
@@ -189,6 +233,14 @@ func main() {
 			}
 		case "snap":
 			snap(*tag, arg)
+		case "ctx":
+			if data, err := os.ReadFile("/scheme/sys/context"); err == nil {
+				for i, l := range strings.Split(string(data), "\n") {
+					if i == 0 || strings.Contains(l, arg) {
+						fmt.Println("CTX", l)
+					}
+				}
+			}
 		}
 	}
 	select {

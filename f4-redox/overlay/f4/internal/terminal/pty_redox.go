@@ -59,15 +59,14 @@ func NewPTY() (*PTY, error) {
 
 	master := os.NewFile(uintptr(masterFd), "/scheme/pty/ptmx")
 
+	// Unlock first: on Redox TIOCGPTN fails with EIO while the pty is locked
+	// (relibc's openpty does the same, in this order).
+	_ = unix.IoctlSetInt(masterFd, unix.TIOCSPTLCK, 0)
 	res, err := unix.IoctlGetInt(masterFd, unix.TIOCGPTN)
 	if err != nil {
 		master.Close()
 		return nil, err
 	}
-
-	// TIOCSPTLCK is used on Linux to unlock the slave Pty.
-	// FreeBSD doesn't need/have it for /dev/ptmx.
-	_ = unix.IoctlSetInt(masterFd, unix.TIOCSPTLCK, 0)
 
 	slaveName := fmt.Sprintf("/scheme/pty/%d", res)
 	// The slave is marked close-on-exec too. Run() hands it to the child as
