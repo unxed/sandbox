@@ -1,9 +1,9 @@
 diff --git a/unix/haiku_amd64.go b/unix/haiku_amd64.go
 new file mode 100644
-index 0000000..be4391d
+index 0000000..e6cbc41
 --- /dev/null
 +++ b/unix/haiku_amd64.go
-@@ -0,0 +1,361 @@
+@@ -0,0 +1,396 @@
 +// Minimal Haiku (haiku/amd64) support for golang.org/x/sys/unix.
 +//
 +// Upstream x/sys/unix has no Haiku port — Haiku isn't an upstream Go GOOS
@@ -354,6 +354,41 @@ index 0000000..be4391d
 +	TIOCSPGRP  = 0x8010
 +	TIOCSCTTY  = 0x8011
 +)
++
++type Winsize struct {
++	Row, Col, Xpixel, Ypixel uint16
++}
++
++func IoctlGetWinsize(fd int, req uint) (*Winsize, error) {
++	var ws Winsize
++	if _, _, e1 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(unsafe.Pointer(&ws))); e1 != 0 {
++		return nil, e1
++	}
++	return &ws, nil
++}
++
++// Read/Kill/SIGKILL delegate to the stdlib syscall package (Read is
++// generic across every real Unix in korli/go's syscall_unix.go; Kill and
++// SIGKILL are already implemented/generated for Haiku specifically).
++func Read(fd int, p []byte) (n int, err error) {
++	return syscall.Read(fd, p)
++}
++
++func Kill(pid int, sig syscall.Signal) (err error) {
++	return syscall.Kill(pid, sig)
++}
++
++const SIGKILL = syscall.SIGKILL
++
++// Getpgid delegates to github.com/unxed/go's syscall.Getpgid — like
++// FcntlInt above, korli/go had Setpgid but not the getter, so we added a
++// matching Getpgid to our fork (src/syscall/{syscall_haiku,
++// zsyscall_haiku_amd64}.go), same dynamic-libroot.so-call pattern as
++// every other Getpgid-shaped call already there (getpgid is about as
++// standard a libc symbol as they come).
++func Getpgid(pid int) (pgid int, err error) {
++	return syscall.Getpgid(pid)
++}
 +
 +// --- socket options ---
 +
