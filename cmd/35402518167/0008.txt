@@ -1,0 +1,5 @@
+wait 3
+shot settled
+key ctrl-l
+wait 2
+shot ctrl-l
