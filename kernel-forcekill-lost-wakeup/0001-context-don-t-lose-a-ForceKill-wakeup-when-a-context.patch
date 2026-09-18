@@ -1,0 +1,64 @@
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Fri, 18 Sep 2026 21:30:00 +0000
+Subject: [PATCH] context: don't lose a ForceKill wakeup when a context blocks
+
+procmgr's on_exit_start writes ForceKill to every thread of an exiting
+process. ForceKill makes the context Runnable, sets being_sigkilled and
+sends a wakeup. If it lands just before the target thread blocks (for
+example in a futex wait or sem_wait), Context::block() unconditionally
+overwrote the status with Blocked, so the wakeup was lost for good: the
+thread returns unkilled from its syscall, re-blocks without a timeout, and
+stays in state UB forever while procmgr idles. The process never finishes
+exiting.
+
+Two changes:
+
+* Context::block() refuses to block a context that is being sigkilled.
+* switch_inner's "already current" early return now refreshes the per-CPU
+  copy of being_sigkilled, which is otherwise refreshed only by switch_to
+  and is what the syscall-exit check reads.
+
+Reproduced with a pure C program (3 pthread pairs doing sem ping-pong, main
+calls exit(0) after a random 0-15 ms), no Go involved. Hang counts under
+redoxer/QEMU, kernel 2d2eef7:
+
+  exit(0) variant, 60 runs:  stock image kernel 19, master 16, patched 0
+  default variant, 30 runs:  stock image kernel  1, master  0, patched 0
+---
+diff --git a/src/context/context.rs b/src/context/context.rs
+index 4032c34..70880b2 100644
+--- a/src/context/context.rs
++++ b/src/context/context.rs
+@@ -273,6 +273,13 @@ impl Context {
+ 
+     /// Block the context, and return true if it was runnable before being blocked
+     pub fn block(&mut self, reason: &'static str) -> bool {
++        // A context that has been force-killed (procmgr writes ForceKill to every thread of an
++        // exiting process) must never go to sleep: ForceKill has already made it Runnable and
++        // sent the wakeup, so blocking now would overwrite that with Blocked and the wakeup
++        // would be lost for good (nothing else will ever wake this context).
++        if self.being_sigkilled {
++            return false;
++        }
+         if self.status.is_runnable() {
+             self.status = Status::Blocked;
+             self.status_reason = reason;
+diff --git a/src/context/switch.rs b/src/context/switch.rs
+index e4f6cac..7b09e9d 100644
+--- a/src/context/switch.rs
++++ b/src/context/switch.rs
+@@ -225,6 +225,14 @@ fn switch_inner(
+     ) {
+         // We had already switched the current context to the one now picked by the scheduler, so
+         // no switch needs to be done.
++        //
++        // The per-CPU copy of `being_sigkilled` is only refreshed by switch_to, so refresh it
++        // here too: this context may have been force-killed (by another CPU) while it was on its
++        // way to sleep, and the syscall exit path consults the copy.
++        percpu
++            .switch_internals
++            .being_sigkilled
++            .set(next_sched_guard.being_sigkilled);
+         return SwitchResult::Switched;
+     }
+     let current_context_guard = if Arc::ptr_eq(
