@@ -1,0 +1,7 @@
+click 330 300
+typeln curl -s -o /tmp/agent.sh http://10.0.2.2:8000/haiku-agent.sh
+wait 3
+typeln ls -l /tmp/agent.sh
+typeln sh /tmp/agent.sh &
+wait 3
+shot agent
