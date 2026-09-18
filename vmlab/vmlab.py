@@ -109,6 +109,9 @@ def fetch_image(guest, work):
     img = work / "base.img"
     if img.exists():
         return img
+    op = urllib.request.build_opener()  # some CDNs (Cloudflare) return 403 for Python-urllib's default UA
+    op.addheaders = [("User-Agent", "curl/8.5.0")]
+    urllib.request.install_opener(op)
     url = guest.get("image_url")
     if not url:  # newest file matching image_regex in a directory listing (nightly images)
         listing = urllib.request.urlopen(guest["image_index"]).read().decode()
