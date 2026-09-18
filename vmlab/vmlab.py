@@ -151,7 +151,7 @@ def start_qemu(guest, work, loadvm=None):
     log("KVM used:", kvm)
     args = ["qemu-system-x86_64",
             "-machine", guest.get("machine", "pc-i440fx-8.2") + ",accel=" + ("kvm" if kvm else "tcg"),
-            "-cpu", "host" if kvm else "max",
+            "-cpu", guest.get("cpu", "host" if kvm else "max"),
             "-m", str(guest.get("ram", 2048)), "-smp", str(guest.get("smp", 2)),
             "-display", "none", "-vga", "std",
             "-drive", "file=%s,format=qcow2,if=ide,index=0" % overlay]

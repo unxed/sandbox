@@ -8,5 +8,11 @@
   "ram": 2048,
   "smp": 4,
   "nic": "e1000",
-  "usb": ["-device", "qemu-xhci,id=xhci", "-device", "usb-tablet,bus=xhci.0"]
+  "usb": [
+    "-device",
+    "qemu-xhci,id=xhci",
+    "-device",
+    "usb-tablet,bus=xhci.0"
+  ],
+  "cpu": "Nehalem"
 }
