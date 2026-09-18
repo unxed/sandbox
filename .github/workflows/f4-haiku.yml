@@ -1,0 +1,116 @@
+name: f4-haiku
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'f4-haiku/**'
+      - '.github/workflows/f4-haiku.yml'
+
+jobs:
+  build-toolchain-and-f4:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sandbox
+        uses: actions/checkout@v4
+
+      - name: Set up bootstrap Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Record bootstrap GOROOT
+        run: echo "BOOTSTRAP_GOROOT=$(go env GOROOT)" >> "$GITHUB_ENV"
+
+      - name: Clone korli/go (Haiku fork)
+        run: |
+          git clone --branch golang-1.26-haiku --depth 50 https://github.com/korli/go.git /tmp/korli-go
+          cd /tmp/korli-go
+          echo "--- HEAD ---"
+          git log -5 --oneline
+          echo "--- VERSION ---"
+          cat VERSION 2>/dev/null || echo "(no VERSION file)"
+          echo "--- tags reachable from HEAD ---"
+          git tag --merged HEAD | tail -20
+
+      - name: Build korli/go toolchain (host linux/amd64, cross target support for haiku)
+        id: toolchain
+        run: |
+          cd /tmp/korli-go/src
+          GOROOT_BOOTSTRAP="$BOOTSTRAP_GOROOT" ./make.bash 2>&1 | tee /tmp/toolchain-build.log
+        continue-on-error: true
+
+      - name: Upload toolchain build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: toolchain-build-log
+          path: /tmp/toolchain-build.log
+          if-no-files-found: ignore
+
+      - name: Fail early if toolchain build failed
+        if: steps.toolchain.outcome == 'failure'
+        run: |
+          echo "::error::korli/go toolchain build failed, see toolchain-build-log artifact"
+          exit 1
+
+      - name: Clone f4
+        run: git clone --depth 1 https://github.com/unxed/f4.git /tmp/f4
+
+      - name: Show f4 go directive vs toolchain version
+        run: |
+          echo "--- f4 go.mod go directive ---"
+          grep -m1 '^go ' /tmp/f4/go.mod
+          echo "--- built toolchain version ---"
+          /tmp/korli-go/bin/go version
+
+      - name: Attempt GOOS=haiku GOARCH=amd64 build of f4
+        id: f4build
+        working-directory: /tmp/f4
+        env:
+          GOOS: haiku
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+          GOFLAGS: -v
+        run: |
+          export PATH="/tmp/korli-go/bin:$PATH"
+          export GOROOT=/tmp/korli-go
+          go version
+          go build -o /tmp/f4-haiku-amd64 ./... 2>&1 | tee /tmp/f4-build.log
+        continue-on-error: true
+
+      - name: Upload f4 build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4-build-log
+          path: /tmp/f4-build.log
+          if-no-files-found: ignore
+
+      - name: Upload f4 binary (if built)
+        if: steps.f4build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4-haiku-amd64
+          path: /tmp/f4-haiku-amd64
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## f4 haiku build attempt"
+            echo
+            echo "Toolchain build: ${{ steps.toolchain.outcome }}"
+            echo
+            echo "f4 build: ${{ steps.f4build.outcome }}"
+            echo
+            echo '```'
+            tail -n 100 /tmp/f4-build.log 2>/dev/null || echo "(no f4 build log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail job if f4 build failed
+        if: steps.f4build.outcome == 'failure'
+        run: exit 1
