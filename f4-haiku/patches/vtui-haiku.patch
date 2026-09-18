@@ -1,3 +1,88 @@
+diff --git a/ansi_writer.go b/ansi_writer.go
+index 8bfe69c..48379c8 100644
+--- a/ansi_writer.go
++++ b/ansi_writer.go
+@@ -49,12 +49,27 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
+ 	buf[1] = '['
+ 	n := 2
+ 	first := true
++	params := 0 // SGR parameters in the CSI being built (see maxSGRParams)
+ 	writeSep := func() {
+ 		if !first {
+ 			buf[n] = ';'
+ 			n++
+ 		}
+ 		first = false
++		params++
++	}
++	// splitBefore starts a fresh CSI when appending c more parameters would
++	// exceed maxSGRParams. SGR parameters are applied one after another, so
++	// several short sequences mean exactly what one long one does.
++	splitBefore := func(c int) {
++		if maxSGRParams > 0 && params > 0 && params+c > maxSGRParams {
++			buf[n] = 'm'
++			buf[n+1] = '\x1b'
++			buf[n+2] = '['
++			n += 3
++			first = true
++			params = 0
++		}
+ 	}
+ 
+ 	resetTriggered := false
+@@ -63,6 +78,7 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
+ 		buf[n] = '0'
+ 		n++
+ 		first = false
++		params++
+ 		lastAttr = 0
+ 		resetTriggered = true
+ 	}
+@@ -104,14 +120,24 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
+ 
+ 	fgMask := IsFgRGB | (0xFF << 16)
+ 	if resetTriggered || revFlipped || attr&fgMask != lastAttr&fgMask || (attr&IsFgRGB != 0 && GetRGBFore(attr) != GetRGBFore(lastAttr)) {
++		var tmp [32]byte
++		k := writeColorANSI(tmp[:], false, attr, activePal, profile, quantCache)
++		c := sgrParamCount(tmp[:k])
++		splitBefore(c)
+ 		writeSep()
+-		n += writeColorANSI(buf[n:], false, attr, activePal, profile, quantCache)
++		n += copy(buf[n:], tmp[:k])
++		params += c - 1
+ 	}
+ 
+ 	bgMask := IsBgRGB | (0xFF << 40)
+ 	if resetTriggered || revFlipped || attr&bgMask != lastAttr&bgMask || (attr&IsBgRGB != 0 && GetRGBBack(attr) != GetRGBBack(lastAttr)) {
++		var tmp [32]byte
++		k := writeColorANSI(tmp[:], true, attr, activePal, profile, quantCache)
++		c := sgrParamCount(tmp[:k])
++		splitBefore(c)
+ 		writeSep()
+-		n += writeColorANSI(buf[n:], true, attr, activePal, profile, quantCache)
++		n += copy(buf[n:], tmp[:k])
++		params += c - 1
+ 	}
+ 
+ 	if n > 2 {
+@@ -122,6 +148,17 @@ func formatAttributesCSI(buf []byte, attr, lastAttr uint64, activePal *[256]uint
+ 	return 0
+ }
+ 
++// sgrParamCount returns how many ';'-separated parameters b holds.
++func sgrParamCount(b []byte) int {
++	c := 1
++	for _, ch := range b {
++		if ch == ';' {
++			c++
++		}
++	}
++	return c
++}
++
+ // writeColorANSI appends one colour component — "P;2;R;G;B" (true colour) or
+ // "P;5;N" (palette), P being 38 for fg and 48 for bg — without a CSI prefix
+ // or trailing 'm'; returns the byte count.
 diff --git a/gogpu_customchar_test.go b/gogpu_customchar_test.go
 index f5dbe4a..0e8e269 100644
 --- a/gogpu_customchar_test.go
@@ -188,6 +273,36 @@ index d70f2b4..f6f0095 100644
  
  package vtui
  
+diff --git a/sgr_limit.go b/sgr_limit.go
+new file mode 100644
+index 0000000..358582b
+--- /dev/null
++++ b/sgr_limit.go
+@@ -0,0 +1,8 @@
++package vtui
++
++// maxSGRParams caps how many parameters one SGR (CSI ... m) sequence may carry;
++// 0 means no cap. formatAttributesCSI merges reset, style, fg and bg into one
++// sequence, which reaches 11+ parameters for "0;" plus a true colour pair
++// (0;38;2;R;G;B;48;2;R;G;B). Most terminals take any number, but see
++// sgr_limit_haiku.go.
++var maxSGRParams = 0
+diff --git a/sgr_limit_haiku.go b/sgr_limit_haiku.go
+new file mode 100644
+index 0000000..ffbf0ce
+--- /dev/null
++++ b/sgr_limit_haiku.go
+@@ -0,0 +1,10 @@
++//go:build haiku
++
++package vtui
++
++// Haiku's Terminal parses at most 10 parameters per escape sequence
++// (#define NPARAM 10 in src/apps/terminal/TermParse.cpp in haiku/haiku): the
++// extra ';' are dropped and the digits that follow are appended to the 10th
++// parameter, so "0;38;2;R;G;B;48;2;R;G;B" paints the background with garbage
++// (seen as solid green rows in f4). Keep every SGR sequence within the limit.
++func init() { maxSGRParams = 10 }
 diff --git a/x11_host.go b/x11_host.go
 index d0ba815..0638e88 100644
 --- a/x11_host.go
