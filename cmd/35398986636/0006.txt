@@ -1,0 +1,3 @@
+typeln clear; which curl wget; ip a 2>&1 | head -3; curl -s http://10.0.2.2:8000/ | head -5; echo from-guest-1789768583 > /tmp/o.txt; curl -s -T /tmp/o.txt http://10.0.2.2:8000/o.txt; echo curl-rc=$?
+wait 4
+shot net
