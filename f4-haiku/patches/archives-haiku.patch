@@ -1,0 +1,14 @@
+diff --git a/hardlink_unix.go b/hardlink_unix.go
+index cc5b83d..ac3735e 100644
+--- a/hardlink_unix.go
++++ b/hardlink_unix.go
+@@ -20,5 +20,8 @@ func hardlinkKey(info fs.FileInfo) (inodeKey, bool) {
+ 	if !ok || stat.Nlink <= 1 {
+ 		return inodeKey{}, false
+ 	}
+-	return inodeKey{dev: uint64(stat.Dev), ino: stat.Ino}, true
++	// ino needs an explicit conversion too: on every other platform this
++	// builds for, syscall.Stat_t.Ino is already uint64, but Haiku's
++	// (github.com/korli/go's syscall_haiku port) declares it int64.
++	return inodeKey{dev: uint64(stat.Dev), ino: uint64(stat.Ino)}, true
+ }

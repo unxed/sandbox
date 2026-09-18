@@ -134,6 +134,25 @@ jobs:
           cd /tmp/sftp-haiku
           git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/sftp-haiku.patch"
 
+      - name: Clone tetratelabs/wazero and fix its Haiku Stat_t.Ino conversion
+        run: |
+          set -euo pipefail
+          WAZERO_VER="$(grep -oP 'github.com/tetratelabs/wazero v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins wazero at: $WAZERO_VER"
+          git clone --branch "v${WAZERO_VER}" --depth 1 https://github.com/tetratelabs/wazero.git /tmp/wazero-haiku
+          cd /tmp/wazero-haiku
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/wazero-haiku.patch"
+
+      - name: Clone unxed/archives (pinned commit) and fix its Haiku Stat_t.Ino conversion
+        run: |
+          set -euo pipefail
+          ARCHIVES_REF="$(grep -oP 'github.com/unxed/archives v\K\S+' /tmp/f4/go.mod | grep -oP '(?<=-)[0-9a-f]{12}$')"
+          echo "f4 pins archives at commit: $ARCHIVES_REF"
+          git clone https://github.com/unxed/archives.git /tmp/archives-haiku
+          cd /tmp/archives-haiku
+          git checkout "$ARCHIVES_REF"
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/archives-haiku.patch"
+
       - name: Point f4's build at all patched local checkouts
         working-directory: /tmp/f4
         run: |
@@ -144,7 +163,9 @@ jobs:
             -replace golang.org/x/sys=/tmp/xsys-haiku \
             -replace github.com/unxed/zip=/tmp/zip-haiku \
             -replace github.com/spf13/afero=/tmp/afero-haiku \
-            -replace github.com/pkg/sftp=/tmp/sftp-haiku
+            -replace github.com/pkg/sftp=/tmp/sftp-haiku \
+            -replace github.com/tetratelabs/wazero=/tmp/wazero-haiku \
+            -replace github.com/unxed/archives=/tmp/archives-haiku
           grep replace go.mod
 
       - name: Attempt GOOS=haiku GOARCH=amd64 build of f4

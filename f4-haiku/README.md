@@ -82,14 +82,26 @@
      Не проверено на живой Haiku только направление аргументов
      `SYS_SET_MEMORY_PROTECTION` (по аналогии с POSIX `mprotect`) — как
      и везде в этом проекте, риск чисто рантаймовый, не блокирует сборку.
-   - `patches/zip-haiku.patch` — `unxed/zip`'s `lchmod`/`lchtimes` для
-     haiku идут по тому же пути, что уже есть для linux (символьные
-     ссылки без прав/времени — no-op), а для обычных файлов используют
-     `os.Chmod`/`os.Chtimes` вместо `unix.Fchmodat`/`unix.Lutimes` —
-     этим двум (и `AT_SYMLINK_NOFOLLOW`/`AT_FDCWD`/`NsecToTimeval`/
-     `Timeval`) в шиме сознательно нет места: `Fchmodat`/`Lutimes` на
-     Haiku — тоже динамические `libroot.so`-вызовы без сисколов, портить
-     их ради одной функции избыточно, когда есть эквивалент в stdlib.
+     `Dup2` — тонкая обёртка над `syscall.Dup2` (уже есть в форке).
+     `MmapPtr`/`MunmapPtr` (для `ncruces/go-sqlite3`) — честно слабее
+     остального шима: реальный маппинг по конкретному адресу с
+     `MAP_FIXED` требует того же динамического вызова через `libroot.so`
+     (`sysvicall6`), до которого отсюда не дотянуться без дублирования
+     чужого calling convention (см. отказ от `goffi/internal/fakecgo`
+     выше). Сейчас это заглушка: адрес и `MAP_FIXED` игнорируются, идёт
+     обычный `Mmap` — компилируется, но растущий mmap-регион SQLite
+     (`MappedRegion`) при реальном запуске на Haiku, скорее всего,
+     сломается. Помечено как известный, не просто непроверенный, пробел.
+   - **Первая версия `patches/zip-haiku.patch` была ошибочной**: пыталась
+     обойти `unix.Fchmodat`/`AT_SYMLINK_NOFOLLOW`/`unix.Lutimes` веткой
+     `if runtime.GOOS == "haiku"` — но это runtime-проверка, а не build
+     tag, и компилятор всё равно типизирует `else`-ветку целиком для
+     любой ОС. Правильная версия: `lchmod`/`lchtimes` вынесены из
+     `fs_unix.go` в `fs_chmod_unix.go` (`!windows && !haiku`, старое
+     поведение без изменений) и `fs_chmod_haiku.go` (`haiku`,
+     `os.Chmod`/`os.Chtimes` — Haiku, как и Linux, не различает права
+     символьной ссылки и цели, так что no-op для симлинков плюс обычный
+     `os.Chmod`/`os.Chtimes` эквивалентен старому поведению).
    - `patches/afero-haiku.patch` — haiku переставлен из
      `const_win_unix.go` (`syscall.EBADFD`, которого в haiku-порте нет) в
      `const_bsds.go` (`syscall.EBADF`, который есть) — так же, как уже
@@ -98,10 +110,22 @@
      `attrs_unix.go`/`ls_unix.go` рядом с solaris (структура `Stat_t` в
      korli/go имеет нужные поля `Uid`/`Gid`).
 
+5. **`syscall.Stat_t.Ino` в haiku-порте korli/go имеет тип `int64`**, а не
+   `uint64`, как везде — ломает код, который кладёт `stat.Ino` в
+   `uint64`-поле без явного приведения. Нашли два места:
+   `patches/wazero-haiku.patch` (`internal/sysfs/ino_unix.go`,
+   `sys.Inode` — это alias на `uint64`) и `patches/archives-haiku.patch`
+   (`hardlink_unix.go`, свой репозиторий unxed/archives, закреплённый в
+   go.mod по коммиту, а не тегу — клонируется и патчится тем же
+   способом, без изменений в реальном репозитории). Оба патча — просто
+   явное приведение `uint64(stat.Ino)`, безопасно для всех остальных ОС
+   (там это no-op reinterpret того же размера).
+
 ## Статус
 
-Ждём лог прогона со всеми пятью патчами (vtui, x/sys, zip, afero, sftp)
-поверх тулчейна `unxed/go`. Дальше — по тому же принципу: реальная
+Ждём лог прогона со всеми семью патчами (vtui, x/sys, zip, afero, sftp,
+wazero, archives) поверх тулчейна `unxed/go`. Дальше — по тому же
+принципу: реальная
 ошибка компиляции → патч (в `patches/`, не напрямую в чужие
 репозитории) → коммит → новый прогон. Ожидаем следующий блокер в
 собственном коде f4 (`internal/terminal/pty_*.go` — ни один файл там

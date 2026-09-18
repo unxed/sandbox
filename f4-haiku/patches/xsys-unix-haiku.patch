@@ -1,9 +1,9 @@
 diff --git a/unix/haiku_amd64.go b/unix/haiku_amd64.go
 new file mode 100644
-index 0000000..8898afa
+index 0000000..a120587
 --- /dev/null
 +++ b/unix/haiku_amd64.go
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,177 @@
 +// Minimal Haiku (haiku/amd64) support for golang.org/x/sys/unix.
 +//
 +// Upstream x/sys/unix has no Haiku port — Haiku isn't an upstream Go GOOS
@@ -28,6 +28,7 @@ index 0000000..8898afa
 +//   src/syscall/zerrors_haiku_amd64.go in korli/go (real, generated from
 +//   Haiku's own headers), not guessed.
 +// - Getpagesize is hardcoded to 4096: Haiku's page size on x86_64.
++// - Dup2 delegates to the stdlib syscall package, which already has it.
 +//
 +// Not verified against real Haiku hardware — the SYS_SET_MEMORY_PROTECTION
 +// argument order (address, size, protection) is inferred by analogy with
@@ -38,6 +39,9 @@ index 0000000..8898afa
 +// TODO: verify on real Haiku hardware once available, and consider
 +// upstreaming a proper x/sys/unix Haiku port (korli/go's stdlib syscall
 +// package already has most of the generated groundwork).
++//
++// MmapPtr/MunmapPtr are weaker still — see their own doc comment below,
++// they're a known-incomplete placeholder, not just an unverified one.
 +
 +//go:build haiku && amd64
 +
@@ -95,7 +99,9 @@ index 0000000..8898afa
 +	PROT_WRITE = 0x2
 +	PROT_EXEC  = 0x4
 +
++	MAP_SHARED  = 0x1
 +	MAP_PRIVATE = 0x2
++	MAP_FIXED   = 0x4
 +	MAP_ANON    = 0x8
 +)
 +
@@ -105,6 +111,39 @@ index 0000000..8898afa
 +
 +func Munmap(b []byte) (err error) {
 +	return syscall.Munmap(b)
++}
++
++// MmapPtr and MunmapPtr are a much weaker approximation than everything
++// else in this file: every other function here is believed correct
++// (backed by real Haiku syscall numbers or existing stdlib wrappers), but
++// placing a mapping at a caller-chosen fixed address needs the same
++// dynamic-libroot.so-call machinery the stdlib syscall package uses
++// internally (sysvicall6 in korli/go's syscall_haiku.go/asm_haiku_amd64.s)
++// — machinery this package can't reach from outside package syscall, and
++// reimplementing it here would mean duplicating a whole cgo-free calling
++// convention (see how much of that github.com/unxed/goffi needed for
++// this, which we specifically avoided depending on for Haiku — see
++// f4-haiku/patches/vtui-haiku.patch).
++//
++// So this is a placeholder, not a real MmapPtr: it ignores addr and
++// MAP_FIXED and does a normal Mmap instead, which will NOT land at addr.
++// That's enough for github.com/ncruces/go-sqlite3's internal/sqlite3_wrap
++// to compile; it is NOT enough to run correctly — its MappedRegion.Unmap
++// and .mmap assume the returned address matches what was asked for, to
++// grow a mapping in place. TODO before relying on SQLite on a real Haiku
++// build: extend korli/go's stdlib syscall package with a real
++// address-taking mmap variant (or reimplement the dynamic-call trampoline
++// properly in this package) rather than working around it here.
++func MmapPtr(fd int, offset int64, addr unsafe.Pointer, length uintptr, prot int, flags int) (ret unsafe.Pointer, err error) {
++	data, err := syscall.Mmap(fd, offset, int(length), prot, flags&^MAP_FIXED)
++	if err != nil || len(data) == 0 {
++		return nil, err
++	}
++	return unsafe.Pointer(&data[0]), nil
++}
++
++func MunmapPtr(addr unsafe.Pointer, length uintptr) (err error) {
++	return syscall.Munmap(unsafe.Slice((*byte)(addr), length))
 +}
 +
 +// sysSetMemoryProtection is SYS_SET_MEMORY_PROTECTION from
@@ -127,6 +166,10 @@ index 0000000..8898afa
 +}
 +
 +func Getpagesize() int { return 4096 }
++
++func Dup2(oldfd, newfd int) (err error) {
++	return syscall.Dup2(oldfd, newfd)
++}
 +
 +// --- socket options ---
 +

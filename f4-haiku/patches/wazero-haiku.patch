@@ -1,0 +1,18 @@
+diff --git a/internal/sysfs/ino_unix.go b/internal/sysfs/ino_unix.go
+index 969fcd6..f197143 100644
+--- a/internal/sysfs/ino_unix.go
++++ b/internal/sysfs/ino_unix.go
+@@ -15,7 +15,12 @@ func inoFromFileInfo(_ string, info fs.FileInfo) (sys.Inode, experimentalsys.Err
+ 	case *sys.Stat_t:
+ 		return v.Ino, 0
+ 	case *syscall.Stat_t:
+-		return v.Ino, 0
++		// sys.Inode is uint64, and syscall.Stat_t.Ino is uint64 on every
++		// platform this used to build for — except Haiku, where
++		// github.com/korli/go's syscall_haiku port declares it int64. The
++		// explicit conversion is a no-op bit reinterpretation everywhere
++		// else and makes Haiku's signed Ino usable the same way.
++		return sys.Inode(v.Ino), 0
+ 	default:
+ 		return 0, 0
+ 	}

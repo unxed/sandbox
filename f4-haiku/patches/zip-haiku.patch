@@ -1,57 +1,146 @@
-diff --git a/fs_unix.go b/fs_unix.go
-index d2ff475..71742ac 100644
---- a/fs_unix.go
-+++ b/fs_unix.go
-@@ -16,15 +16,26 @@ import (
- )
- 
- func lchmod(name string, mode os.FileMode) error {
--	var flags int
--	if runtime.GOOS == "linux" {
-+	// x/sys/unix has no Haiku port (see golang.org/x/sys/unix haiku_amd64.go
-+	// shim in this project's f4-haiku sandbox patches), so AT_SYMLINK_NOFOLLOW
-+	// and Fchmodat aren't available there. Haiku, like Linux, treats a
-+	// symlink's own permission bits as meaningless, so this follows the same
-+	// path Linux already takes: skip symlinks, and go through the ordinary
-+	// (link-following) os.Chmod for everything else instead of the
-+	// dirfd-relative unix.Fchmodat — equivalent here since flags would be 0
-+	// on Linux/Haiku anyway (AT_SYMLINK_NOFOLLOW is only set in the else
-+	// branch below, for platforms where it isn't a no-op).
-+	if runtime.GOOS == "linux" || runtime.GOOS == "haiku" {
- 		if mode&os.ModeSymlink != 0 {
- 			return nil
- 		}
--	} else {
--		flags = unix.AT_SYMLINK_NOFOLLOW
-+		if err := os.Chmod(name, mode); err != nil {
-+			return &os.PathError{Op: "lchmod", Path: name, Err: err}
-+		}
+diff --git a/fs_chmod_haiku.go b/fs_chmod_haiku.go
+new file mode 100644
+index 0000000..fe299b4
+--- /dev/null
++++ b/fs_chmod_haiku.go
+@@ -0,0 +1,36 @@
++//go:build haiku
++// +build haiku
++
++package zip
++
++import (
++	"os"
++	"time"
++)
++
++// Haiku, like Linux, treats a symlink's own permission bits and timestamps
++// as meaningless, so this follows the same path fs_chmod_unix.go's linux
++// case takes: skip symlinks, and use the ordinary (link-following) os.Chmod
++// / os.Chtimes for everything else, instead of the dirfd-relative
++// unix.Fchmodat/unix.Lutimes — unavailable here since golang.org/x/sys/unix
++// has no Haiku port (see this project's f4-haiku sandbox patches).
++
++func lchmod(name string, mode os.FileMode) error {
++	if mode&os.ModeSymlink != 0 {
 +		return nil
- 	}
- 
-+	flags := unix.AT_SYMLINK_NOFOLLOW
- 	err := unix.Fchmodat(unix.AT_FDCWD, name, uint32(mode), flags)
- 	if err != nil {
- 		return &os.PathError{Op: "lchmod", Path: name, Err: err}
-@@ -33,6 +44,21 @@ func lchmod(name string, mode os.FileMode) error {
- }
- 
- func lchtimes(name string, mode os.FileMode, atime, mtime time.Time) error {
-+	// Same rationale as lchmod above: no unix.Lutimes/NsecToTimeval/Timeval
-+	// on Haiku (via the current minimal x/sys/unix shim), and symlink
-+	// timestamps are as meaningless there as symlink permissions, so skip
-+	// symlinks and use the ordinary (link-following) os.Chtimes for real
-+	// files.
-+	if runtime.GOOS == "haiku" {
++	}
++	if err := os.Chmod(name, mode); err != nil {
++		return &os.PathError{Op: "lchmod", Path: name, Err: err}
++	}
++	return nil
++}
++
++func lchtimes(name string, mode os.FileMode, atime, mtime time.Time) error {
++	if mode&os.ModeSymlink != 0 {
++		return nil
++	}
++	if err := os.Chtimes(name, atime, mtime); err != nil {
++		return &os.PathError{Op: "lchtimes", Path: name, Err: err}
++	}
++	return nil
++}
+diff --git a/fs_chmod_unix.go b/fs_chmod_unix.go
+new file mode 100644
+index 0000000..b9900df
+--- /dev/null
++++ b/fs_chmod_unix.go
+@@ -0,0 +1,41 @@
++//go:build !windows && !haiku
++// +build !windows,!haiku
++
++package zip
++
++import (
++	"os"
++	"runtime"
++	"time"
++
++	"golang.org/x/sys/unix"
++)
++
++func lchmod(name string, mode os.FileMode) error {
++	var flags int
++	if runtime.GOOS == "linux" {
 +		if mode&os.ModeSymlink != 0 {
 +			return nil
 +		}
-+		if err := os.Chtimes(name, atime, mtime); err != nil {
-+			return &os.PathError{Op: "lchtimes", Path: name, Err: err}
-+		}
-+		return nil
++	} else {
++		flags = unix.AT_SYMLINK_NOFOLLOW
 +	}
 +
- 	at := unix.NsecToTimeval(atime.UnixNano())
- 	mt := unix.NsecToTimeval(mtime.UnixNano())
- 	tv := [2]unix.Timeval{at, mt}
++	err := unix.Fchmodat(unix.AT_FDCWD, name, uint32(mode), flags)
++	if err != nil {
++		return &os.PathError{Op: "lchmod", Path: name, Err: err}
++	}
++	return nil
++}
++
++func lchtimes(name string, mode os.FileMode, atime, mtime time.Time) error {
++	at := unix.NsecToTimeval(atime.UnixNano())
++	mt := unix.NsecToTimeval(mtime.UnixNano())
++	tv := [2]unix.Timeval{at, mt}
++
++	err := unix.Lutimes(name, tv[:])
++	if err != nil {
++		return &os.PathError{Op: "lchtimes", Path: name, Err: err}
++	}
++	return nil
++}
+diff --git a/fs_unix.go b/fs_unix.go
+index d2ff475..2ef597d 100644
+--- a/fs_unix.go
++++ b/fs_unix.go
+@@ -6,43 +6,20 @@ package zip
+ import (
+ 	"os"
+ 	"os/user"
+-	"runtime"
+ 	"strconv"
+ 	"sync"
+ 	"syscall"
+-	"time"
+-
+-	"golang.org/x/sys/unix"
+ )
+ 
+-func lchmod(name string, mode os.FileMode) error {
+-	var flags int
+-	if runtime.GOOS == "linux" {
+-		if mode&os.ModeSymlink != 0 {
+-			return nil
+-		}
+-	} else {
+-		flags = unix.AT_SYMLINK_NOFOLLOW
+-	}
+-
+-	err := unix.Fchmodat(unix.AT_FDCWD, name, uint32(mode), flags)
+-	if err != nil {
+-		return &os.PathError{Op: "lchmod", Path: name, Err: err}
+-	}
+-	return nil
+-}
+-
+-func lchtimes(name string, mode os.FileMode, atime, mtime time.Time) error {
+-	at := unix.NsecToTimeval(atime.UnixNano())
+-	mt := unix.NsecToTimeval(mtime.UnixNano())
+-	tv := [2]unix.Timeval{at, mt}
+-
+-	err := unix.Lutimes(name, tv[:])
+-	if err != nil {
+-		return &os.PathError{Op: "lchtimes", Path: name, Err: err}
+-	}
+-	return nil
+-}
++// lchmod and lchtimes live in fs_chmod_unix.go / fs_chmod_haiku.go: they're
++// the two functions that needed golang.org/x/sys/unix's
++// AT_SYMLINK_NOFOLLOW/Fchmodat/Lutimes/NsecToTimeval/Timeval/AT_FDCWD,
++// which that package doesn't provide for GOOS=haiku (no upstream Haiku
++// port at all — see this project's f4-haiku sandbox patches). Splitting
++// them into their own per-OS files keeps every other symbol used
++// elsewhere in this file available on every platform, haiku included,
++// since a runtime.GOOS check doesn't exempt a branch from needing to
++// compile — only a build tag does.
+ 
+ func lchown(name string, uid, gid int) error {
+ 	return os.Lchown(name, uid, gid)
