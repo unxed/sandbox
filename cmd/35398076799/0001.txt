@@ -1,0 +1,4 @@
+wait 3
+key ret
+stable 8 90
+shot login
