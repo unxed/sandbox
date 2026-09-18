@@ -1,0 +1,12 @@
+{
+  "name": "redox-uefi",
+  "image_index": "https://static.redox-os.org/img/x86_64/",
+  "image_regex": "redox_desktop_x86_64_[0-9_-]+_harddrive\\.img\\.zst",
+  "image_kind": "zst",
+  "machine": "q35",
+  "firmware": "uefi",
+  "ram": 2048,
+  "smp": 4,
+  "nic": "e1000",
+  "usb": ["-device", "qemu-xhci,id=xhci", "-device", "usb-tablet,bus=xhci.0"]
+}

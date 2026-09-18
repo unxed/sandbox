@@ -109,11 +109,20 @@ def fetch_image(guest, work):
     img = work / "base.img"
     if img.exists():
         return img
-    url = guest["image_url"]
+    url = guest.get("image_url")
+    if not url:  # newest file matching image_regex in a directory listing (nightly images)
+        listing = urllib.request.urlopen(guest["image_index"]).read().decode()
+        names = sorted(set(re.findall(guest["image_regex"], listing)))
+        if not names:
+            raise SystemExit("no image matching %s at %s" % (guest["image_regex"], guest["image_index"]))
+        url = guest["image_index"].rstrip("/") + "/" + names[-1]
     log("downloading", url)
     dl = work / "download"
     urllib.request.urlretrieve(url, dl)
-    if guest.get("image_kind") == "zip":
+    if guest.get("image_kind") == "zst":
+        subprocess.run(["zstd", "-d", "-q", "-f", "-o", str(img), str(dl)], check=True)
+        dl.unlink()
+    elif guest.get("image_kind") == "zip":
         with zipfile.ZipFile(dl) as z:
             z.extractall(work / "unz")
         found = sorted(glob.glob(str(work / "unz" / "**" / guest.get("image_glob", "*.iso")),
@@ -134,16 +143,22 @@ def start_qemu(guest, work, loadvm=None):
     if not overlay.exists():
         subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", "-F", "raw",
                         "-b", str(base), str(overlay)], check=True)
-    kvm = os.access("/dev/kvm", os.R_OK | os.W_OK)
-    log("KVM available:", kvm)
+    kvm = os.access("/dev/kvm", os.R_OK | os.W_OK) and os.environ.get("VMLAB_ACCEL") != "tcg"
+    log("KVM used:", kvm)
     args = ["qemu-system-x86_64",
-            "-machine", "pc-i440fx-8.2,accel=" + ("kvm" if kvm else "tcg"),
+            "-machine", guest.get("machine", "pc-i440fx-8.2") + ",accel=" + ("kvm" if kvm else "tcg"),
             "-cpu", "host" if kvm else "max",
             "-m", str(guest.get("ram", 2048)), "-smp", str(guest.get("smp", 2)),
             "-display", "none", "-vga", "std",
-            "-drive", "file=%s,format=qcow2,if=ide,index=0" % overlay,
-            "-usb", "-device", "usb-tablet",
-            "-nic", "user,model=%s" % guest.get("nic", "e1000"),
+            "-drive", "file=%s,format=qcow2,if=ide,index=0" % overlay]
+    if guest.get("firmware") == "uefi":  # Debian/Ubuntu ovmf package
+        vars_fd = work / "OVMF_VARS.fd"
+        if not vars_fd.exists():
+            shutil.copy("/usr/share/OVMF/OVMF_VARS_4M.fd", vars_fd)
+        args += ["-drive", "if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
+                 "-drive", "if=pflash,format=raw,unit=1,file=%s" % vars_fd]
+    args += guest.get("usb", ["-usb", "-device", "usb-tablet"])
+    args += ["-nic", "user,model=%s" % guest.get("nic", "e1000"),
             "-qmp", "unix:%s,server=on,wait=off" % (work / "qmp.sock"),
             "-serial", "file:%s" % (work / "serial.log"),
             "-monitor", "none", "-no-reboot"]
