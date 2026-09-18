@@ -17,6 +17,6 @@ echo "=== sessions"; ls -la /tmp/f4-sessions-0 2>&1 | head
 echo "=== f4 files"; find /tmp/cfg /tmp/f4-sessions-0 -type f 2>/dev/null | head -20
 for f in $(find /tmp/cfg -type f -name 'debug*.log' 2>/dev/null | head -3); do echo "--- $f (tail)"; tail -80 $f; done
 for f in $(find /tmp/cfg/f4/crashes -type f 2>/dev/null | head -6); do echo "--- $f (size $(wc -c < $f))"; done
-for f in $(ls /tmp/cfg/f4/crashes/stderr_* 2>/dev/null | head -2); do echo "=== SIGQUIT dump in $f"; echo "size: $(wc -c < $f)"; head -230 $f; done
+for f in $(ls /tmp/cfg/f4/crashes/stderr_* 2>/dev/null | head -2); do echo "=== SIGQUIT dump in $f"; echo "size: $(wc -c < $f)"; head -400 $f; done
 f=$(ls -t /tmp/cfg/f4/crashes/* 2>/dev/null | head -1); [ -n "$f" ] && { echo "--- newest crash file $f"; head -150 $f; }
 echo "=== LADDER DONE"

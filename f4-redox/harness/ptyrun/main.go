@@ -178,7 +178,7 @@ func main() {
 		cmd := exec.Command(argv[0], argv[1:]...)
 		cmd.Stdin, cmd.Stdout, cmd.Stderr = slave, slave, slave
 		cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor",
-			"LINES="+strconv.Itoa(*rows), "COLUMNS="+strconv.Itoa(*cols))
+			"LINES="+strconv.Itoa(*rows), "COLUMNS="+strconv.Itoa(*cols), "GOTRACEBACK=all")
 		cmd.SysProcAttr = attr
 		return cmd, cmd.Start()
 	}
