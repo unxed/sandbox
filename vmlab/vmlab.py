@@ -19,6 +19,7 @@ Scenario language: one step per line, '#' starts a comment.
   hmp CMD                     raw QEMU human-monitor command
 """
 import argparse
+import base64
 import glob
 import hashlib
 import http.server
@@ -155,11 +156,12 @@ def start_qemu(guest, work, loadvm=None):
             "-display", "none", "-vga", "std",
             "-drive", "file=%s,format=qcow2,if=ide,index=0" % overlay]
     if guest.get("firmware") == "uefi":  # Debian/Ubuntu ovmf package
-        vars_fd = work / "OVMF_VARS.fd"
+        vars_fd = work / "OVMF_VARS.qcow2"  # qcow2, not raw: savevm refuses writable raw pflash
         if not vars_fd.exists():
-            shutil.copy("/usr/share/OVMF/OVMF_VARS_4M.fd", vars_fd)
+            subprocess.run(["qemu-img", "convert", "-q", "-f", "raw", "-O", "qcow2",
+                            "/usr/share/OVMF/OVMF_VARS_4M.fd", str(vars_fd)], check=True)
         args += ["-drive", "if=pflash,format=raw,unit=0,readonly=on,file=/usr/share/OVMF/OVMF_CODE_4M.fd",
-                 "-drive", "if=pflash,format=raw,unit=1,file=%s" % vars_fd]
+                 "-drive", "if=pflash,format=qcow2,unit=1,file=%s" % vars_fd]
     args += guest.get("usb", ["-usb", "-device", "usb-tablet"])
     args += ["-nic", "user,model=%s" % guest.get("nic", "e1000"),
             "-qmp", "unix:%s,server=on,wait=off" % (work / "qmp.sock"),
@@ -313,6 +315,29 @@ class Lab:
     def do_load(self, rest):
         return self.q.hmp("loadvm " + rest.strip()).strip() or "loaded"
 
+    def do_payload(self, rest):
+        """payload NAME BASE64: publish a file to the guest at http://10.0.2.2:8000/NAME."""
+        name, _, b64 = rest.partition(" ")
+        p = WORK / "payload" / name
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data = base64.b64decode(b64)
+        p.write_bytes(data)
+        if name == "job.ion":  # a new job: forget the previous job's output
+            (WORK / "upload" / "job.out").unlink(missing_ok=True)
+        return "%s %d bytes" % (name, len(data))
+
+    def do_waitupload(self, rest):
+        """waitupload NAME [TIMEOUT]: wait until the guest has PUT NAME to the host server."""
+        p = rest.split()
+        end = time.time() + (float(p[1]) if len(p) > 1 else 60)
+        f = WORK / "upload" / p[0]
+        while time.time() < end:
+            if f.exists():
+                time.sleep(0.5)  # let the writer finish
+                return "%s %d bytes" % (p[0], f.stat().st_size)
+            time.sleep(0.5)
+        raise TimeoutError("guest did not upload %s" % p[0])
+
     def do_hmp(self, rest):
         return self.q.hmp(rest).strip()
 
@@ -431,7 +456,9 @@ class Tee:
 def session(args, guest):
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     work = WORK
-    proc, q = start_qemu(guest, work, loadvm=args.loadvm)
+    loadvm = args.loadvm if args.loadvm in snapshot_names(work) else None
+    log("loadvm:", loadvm, "(snapshots: %s)" % snapshot_names(work))
+    proc, q = start_qemu(guest, work, loadvm=loadvm)
     lab = Lab(q, work / "shots")
     start_http(work / "payload", work / "upload")
     bus = Bus(run_id)

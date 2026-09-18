@@ -1,0 +1,15 @@
+# Guest-side agent for Redox (shell: ion). Polls the host for job.ion, runs it, uploads the output.
+# Host side: `ctl.py sh CMD...` (writes job.ion whose first line is a unique nonce comment).
+let last = ""
+while true
+    if curl -sf -o /tmp/job.ion http://10.0.2.2:8000/job.ion
+        let cur = $(head -n 1 /tmp/job.ion)
+        if not test "$cur" = "$last"
+            let last = "$cur"
+            ion /tmp/job.ion &> /tmp/job.out
+            echo "exit=$?" >> /tmp/job.out
+            curl -s -T /tmp/job.out http://10.0.2.2:8000/job.out
+        end
+    end
+    sleep 1
+end

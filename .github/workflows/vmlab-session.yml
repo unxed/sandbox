@@ -9,6 +9,7 @@ on:
       guest:    {description: 'vmlab/guests/<name>.json', default: 'haiku'}
       minutes:  {description: 'max session length',       default: '30'}
       scenario: {description: 'vmlab/scenarios/<name>.txt replayed before hand-over (optional)', default: ''}
+      loadvm:   {description: 'restore this VM snapshot from the newest snapshot cache of the guest (optional)', default: ''}
 
 permissions:
   contents: write
@@ -46,12 +47,45 @@ jobs:
           chmod +x /tmp/vmlab/payload/f4-haiku-amd64 || true
           ls -l /tmp/vmlab/payload
 
+      - name: Payload = guest agent
+        run: |
+          mkdir -p /tmp/vmlab/payload
+          cp vmlab/guests/*.ion /tmp/vmlab/payload/ 2>/dev/null || true
+
+      - name: Restore snapshot cache
+        if: inputs.loadvm != ''
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /tmp/vmlab/base.img
+            /tmp/vmlab/overlay.qcow2
+            /tmp/vmlab/OVMF_VARS.qcow2
+          key: vmlab-snap-${{ inputs.guest }}-none
+          restore-keys: vmlab-snap-${{ inputs.guest }}-
+
       - name: Session
         run: |
           SCEN=""
           [ -n "${{ inputs.scenario }}" ] && SCEN="--scenario vmlab/scenarios/${{ inputs.scenario }}.txt"
+          LOAD=""
+          [ -n "${{ inputs.loadvm }}" ] && LOAD="--loadvm ${{ inputs.loadvm }}"
           python3 vmlab/vmlab.py session --guest vmlab/guests/${{ inputs.guest }}.json \
-            --minutes ${{ inputs.minutes }} $SCEN
+            --minutes ${{ inputs.minutes }} $SCEN $LOAD
+
+      - name: Was a snapshot saved?
+        id: saved
+        if: always()
+        run: '[ -f /tmp/vmlab/SAVED ] && echo saved=1 >> "$GITHUB_OUTPUT" || true'
+
+      - name: Save snapshot cache
+        if: always() && steps.saved.outputs.saved == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /tmp/vmlab/base.img
+            /tmp/vmlab/overlay.qcow2
+            /tmp/vmlab/OVMF_VARS.qcow2
+          key: vmlab-snap-${{ inputs.guest }}-${{ github.run_id }}
 
       - name: Upload logs
         if: always()

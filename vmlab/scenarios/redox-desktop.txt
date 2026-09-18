@@ -1,0 +1,15 @@
+# Redox desktop image, BIOS or UEFI guest: boot -> Orbital login -> terminal -> guest agent running.
+# Coordinates are for 1280x800 (bootloader default resolution). Recorded from an interactive session.
+wait 3
+shot bootloader
+key ret
+stable 5 90
+shot login
+click 640 460
+stable 5 60
+shot desktop
+click 120 775
+stable 3 30
+typeln curl -s -o /tmp/agent.ion http://10.0.2.2:8000/redox-agent.ion; ion /tmp/agent.ion
+wait 2
+shot terminal-agent

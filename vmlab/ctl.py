@@ -3,8 +3,10 @@
 HTTPS + a GitHub token in $GH_TOKEN). Every command you send is appended to
 vmlab-history.txt, so a good interactive run can be turned into a scenario.
 
-  ctl.py start [--guest haiku] [--minutes 30] [--scenario NAME]   dispatch a session
+  ctl.py start [--guest haiku] [--minutes 30] [--scenario NAME] [--loadvm SNAP]   dispatch a session
   ctl.py do "shot a" "key ctrl-alt-t" ...                         run steps, fetch screenshots
+  ctl.py put FILE [NAME]                                          publish a file to the guest (http://10.0.2.2:8000/NAME)
+  ctl.py sh COMMAND...                                            run COMMAND through the guest agent (redox), print its output
   ctl.py stop                                                     end the session
 
 State (session run id, command counter) lives in ./.vmlab-session.
@@ -42,7 +44,8 @@ def start(a):
         api("POST", "git/refs", {"ref": "refs/heads/vmlab-cmd", "sha": sha})
     t0 = time.time()
     api("POST", "actions/workflows/vmlab-session.yml/dispatches",
-        {"ref": "main", "inputs": {"guest": a.guest, "minutes": str(a.minutes), "scenario": a.scenario or ""}})
+        {"ref": "main", "inputs": {"guest": a.guest, "minutes": str(a.minutes), "scenario": a.scenario or "",
+                    "loadvm": a.loadvm or ""}})
     print("dispatched, waiting for run id ...")
     while True:
         time.sleep(3)
@@ -60,8 +63,9 @@ def do(a):
     st["n"] += 1
     n = st["n"]
     lines = [l for arg in a.steps for l in arg.split("\n")]
-    with open("vmlab-history.txt", "a") as h:
-        h.write("\n".join(lines) + "\n")
+    with open("vmlab-history.txt", "a") as h:  # payload data is not recorded, only the fact
+        h.write("\n".join(l if not l.startswith("payload ") else "# " + " ".join(l.split()[:2]) + " <data>"
+                          for l in lines) + "\n")
     api("PUT", "contents/cmd/%d/%04d.txt" % (st["run"], n),
         {"message": "cmd %d" % n, "branch": "vmlab-cmd",
          "content": base64.b64encode(("\n".join(lines) + "\n").encode()).decode()})
@@ -77,18 +81,32 @@ def do(a):
     d = OUT / ("%04d" % n)
     d.mkdir(parents=True, exist_ok=True)
     for f in api("GET", "contents/out/%04d?ref=vmlab-out" % n):
-        for attempt in range(8):  # Contents API is eventually consistent: a fresh file can 404 briefly
-            data = api("GET", f["path"] + "?ref=vmlab-out", raw=True, ok404=True)
-            if data is not None:
-                break
-            time.sleep(1.5)
-        else:
-            raise SystemExit("cannot fetch " + f["path"])
-        (d / f["name"]).write_bytes(data)
+        # fetch by blob sha: the sha comes from the listing, and blobs are immediately consistent
+        # (a by-path GET of a fresh file can 404 for tens of seconds)
+        (d / f["name"]).write_bytes(api("GET", "git/blobs/" + f["sha"], raw=True))
     print((d / "log.txt").read_text(), end="")
     print("status:", s.decode().strip(), "| %.1fs round-trip" % (time.time() - t0))
     for p in sorted(d.glob("*.png")):
         print(p.resolve())
+
+
+def put(a):
+    name = a.name or os.path.basename(a.file)
+    a.steps = ["payload %s %s" % (name, base64.b64encode(open(a.file, "rb").read()).decode())]
+    a.timeout = 120
+    do(a)
+
+
+def sh(a):
+    """Run a command in the guest through the agent (vmlab/guests/redox-agent.ion): no typing, text output."""
+    body = "# %d\n%s\n" % (time.time() * 1000, " ".join(a.command))
+    a.steps = ["payload job.ion " + base64.b64encode(body.encode()).decode(), "waitupload job.out %d" % a.guest_timeout]
+    a.timeout = a.guest_timeout + 60
+    do(a)
+    d = OUT / ("%04d" % load()["n"])
+    out = d / "upload-job.out"
+    print("---- guest output ----")
+    print(out.read_text(errors="replace") if out.exists() else "(none)")
 
 
 def stop(a):
@@ -99,11 +117,13 @@ def stop(a):
 def main():
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
-    s = sp.add_parser("start"); s.add_argument("--guest", default="haiku"); s.add_argument("--minutes", type=int, default=30); s.add_argument("--scenario", default="")
+    s = sp.add_parser("start"); s.add_argument("--guest", default="haiku"); s.add_argument("--minutes", type=int, default=30); s.add_argument("--scenario", default=""); s.add_argument("--loadvm", default="")
     d = sp.add_parser("do"); d.add_argument("steps", nargs="+"); d.add_argument("--timeout", type=int, default=300)
+    u = sp.add_parser("put"); u.add_argument("file"); u.add_argument("name", nargs="?")
+    r = sp.add_parser("sh"); r.add_argument("command", nargs="+"); r.add_argument("--guest-timeout", type=int, default=120)
     sp.add_parser("stop")
     a = ap.parse_args()
-    {"start": start, "do": do, "stop": stop}[a.cmd](a)
+    {"start": start, "do": do, "stop": stop, "put": put, "sh": sh}[a.cmd](a)
 
 
 if __name__ == "__main__":
