@@ -13,7 +13,7 @@ permissions:
 env:
   # Redox Go toolchain: unxed/go branch golang-1.26-redox, pinned on purpose
   # (bump deliberately; another worker keeps pushing to that branch).
-  GO_REDOX_SHA: 9adc5fe1685cf20e56f875f7aa7924363089c4f1
+  GO_REDOX_SHA: c6fbbabdbcd077ce557b7992f513206eb639e2f7
   # f4 is pinned too, so the patches in f4-redox/patches stay applicable.
   F4_SHA: 376b6611317c2032b3957ad74db2689108ef0220
 
