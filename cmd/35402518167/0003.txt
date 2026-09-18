@@ -1,0 +1,6 @@
+click 330 400
+typeln clear; cd /tmp/t; ./f4 --debug
+wait 8
+typeln echo hello-from-f4
+wait 4
+shot f4-echo
