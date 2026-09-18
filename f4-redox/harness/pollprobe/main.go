@@ -18,14 +18,25 @@ func try(name string, fd int, timeoutMs int) {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "edge" {
+	if len(os.Args) > 1 && (os.Args[1] == "edge" || os.Args[1] == "edgeraw" || os.Args[1] == "edgeicrnl" || os.Args[1] == "edgeopost") {
 		t, _ := unix.IoctlGetTermios(0, unix.TCGETS)
 		if t != nil {
 			nt := *t
 			nt.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
 			nt.Cc[unix.VMIN] = 1
 			nt.Cc[unix.VTIME] = 0
-			unix.IoctlSetTermios(0, unix.TCSETS, &nt)
+			switch os.Args[1] {
+			case "edgeraw": // exactly x/term.MakeRaw
+				nt.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
+				nt.Oflag &^= unix.OPOST
+				nt.Cflag &^= unix.CSIZE | unix.PARENB
+				nt.Cflag |= unix.CS8
+			case "edgeicrnl":
+				nt.Iflag &^= unix.ICRNL
+			case "edgeopost":
+				nt.Oflag &^= unix.OPOST
+			}
+			fmt.Printf("EDGEPROBE mode=%s termios before=%+v after=%+v set=%v\n", os.Args[1], *t, nt, unix.IoctlSetTermios(0, unix.TCSETS, &nt))
 		}
 		buf := make([]byte, 64)
 		try("A: poll BEFORE key arrives (key at ~1.0s)", 0, 2500)
