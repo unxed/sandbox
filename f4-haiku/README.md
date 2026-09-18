@@ -21,12 +21,9 @@
   `src/runtime`/`src/syscall`. Реально прогонять результат на настоящей
   Haiku не требуется для того, чтобы "добиться сборки" — нужен успешный
   `go build` с `GOOS=haiku`.
-- `f4/go.mod` требует `go 1.26.6` (директива toolchain-минимума). Последний
-  явный релизный тег форка на момент старта — `go1.26.1-haiku1`, поэтому в
-  workflow собирается **HEAD ветки** `golang-1.26-haiku` (может быть новее
-  тега) и сборка форсируется через `GOTOOLCHAIN=local`, чтобы `go build` не
-  попытался тихо скачать ванильный (не-haiku) тулчейн нужной версии поверх
-  нашего.
+- Сборка форсируется через `GOTOOLCHAIN=local`, чтобы `go build` не
+  попытался тихо скачать ванильный (не-haiku) тулчейн поверх нашего, если
+  `go.mod` попросит версию новее той, что мы собрали.
 
 ## Пройденные блокеры (по логам реальных прогонов CI)
 
@@ -63,8 +60,49 @@
    (сама версия в go.mod у f4 не трогается — просто `go mod edit
    -replace` на пропатченный локальный чекаут).
 
+4. **`golang.org/x/sys/unix` вообще не знает про `GOOS=haiku`** — блокировало
+   `unxed/vtinput` (чтение клавиатуры через `poll`), `wazero` и
+   `ncruces/go-sqlite3` (`mmap`/`mprotect`), `google.golang.org/grpc`
+   (`setsockopt`), плюс отдельно `syscall.EBADFD` в `spf13/afero` и
+   два `undefined` в `pkg/sftp` (`fileStatFromInfoOs`, `lsLinksUIDGID`) —
+   не из x/sys, а из собственных per-OS файлов этих пакетов.
+   Решение — минимальный шим, не полный порт x/sys/unix:
+   - `patches/xsys-unix-haiku.patch` — новый файл `unix/haiku_amd64.go`.
+     `Poll` и `Mprotect` идут через настоящие номера сисколов Haiku
+     (`SYS_POLL=127`, `SYS_SET_MEMORY_PROTECTION=206` — есть в
+     `github.com/korli/go` `src/syscall/zsysnum_haiku_amd64.go`) через
+     уже экспортированный `syscall.Syscall`. `Mmap`/`Munmap`/
+     `SetsockoptInt` — тонкие обёртки над уже существующими
+     `syscall.Mmap`/`Munmap`/`SetsockoptInt` (эти зовут `libroot.so`/
+     `libnetwork.so` динамически — так на Haiku устроены сами эти
+     вызовы, не сырые сисколы). Значения `PROT_*`/`MAP_*`/`SOL_SOCKET`/
+     `SO_KEEPALIVE` скопированы из `zerrors_haiku_amd64.go` (реального,
+     сгенерированного из хедеров Haiku), а не придуманы. `Getpagesize`
+     захардкожен в 4096 (реальный page size Haiku/x86_64).
+     Не проверено на живой Haiku только направление аргументов
+     `SYS_SET_MEMORY_PROTECTION` (по аналогии с POSIX `mprotect`) — как
+     и везде в этом проекте, риск чисто рантаймовый, не блокирует сборку.
+   - `patches/zip-haiku.patch` — `unxed/zip`'s `lchmod`/`lchtimes` для
+     haiku идут по тому же пути, что уже есть для linux (символьные
+     ссылки без прав/времени — no-op), а для обычных файлов используют
+     `os.Chmod`/`os.Chtimes` вместо `unix.Fchmodat`/`unix.Lutimes` —
+     этим двум (и `AT_SYMLINK_NOFOLLOW`/`AT_FDCWD`/`NsecToTimeval`/
+     `Timeval`) в шиме сознательно нет места: `Fchmodat`/`Lutimes` на
+     Haiku — тоже динамические `libroot.so`-вызовы без сисколов, портить
+     их ради одной функции избыточно, когда есть эквивалент в stdlib.
+   - `patches/afero-haiku.patch` — haiku переставлен из
+     `const_win_unix.go` (`syscall.EBADFD`, которого в haiku-порте нет) в
+     `const_bsds.go` (`syscall.EBADF`, который есть) — так же, как уже
+     сделано для aix/darwin/BSD.
+   - `patches/sftp-haiku.patch` — haiku добавлен в allow-листы
+     `attrs_unix.go`/`ls_unix.go` рядом с solaris (структура `Stat_t` в
+     korli/go имеет нужные поля `Uid`/`Gid`).
+
 ## Статус
 
-Ждём лог прогона с применённым патчем vtui. Дальше — по тому же
-принципу: реальная ошибка компиляции → патч (сюда, в `patches/`, а не
-напрямую в чужие репозитории) → коммит → новый прогон.
+Ждём лог прогона со всеми пятью патчами (vtui, x/sys, zip, afero, sftp)
+поверх тулчейна `unxed/go`. Дальше — по тому же принципу: реальная
+ошибка компиляции → патч (в `patches/`, не напрямую в чужие
+репозитории) → коммит → новый прогон. Ожидаем следующий блокер в
+собственном коде f4 (`internal/terminal/pty_*.go` — ни один файл там
+пока не подключается под `GOOS=haiku`, `NewPTY` будет undefined).

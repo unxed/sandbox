@@ -1,0 +1,57 @@
+diff --git a/fs_unix.go b/fs_unix.go
+index d2ff475..71742ac 100644
+--- a/fs_unix.go
++++ b/fs_unix.go
+@@ -16,15 +16,26 @@ import (
+ )
+ 
+ func lchmod(name string, mode os.FileMode) error {
+-	var flags int
+-	if runtime.GOOS == "linux" {
++	// x/sys/unix has no Haiku port (see golang.org/x/sys/unix haiku_amd64.go
++	// shim in this project's f4-haiku sandbox patches), so AT_SYMLINK_NOFOLLOW
++	// and Fchmodat aren't available there. Haiku, like Linux, treats a
++	// symlink's own permission bits as meaningless, so this follows the same
++	// path Linux already takes: skip symlinks, and go through the ordinary
++	// (link-following) os.Chmod for everything else instead of the
++	// dirfd-relative unix.Fchmodat — equivalent here since flags would be 0
++	// on Linux/Haiku anyway (AT_SYMLINK_NOFOLLOW is only set in the else
++	// branch below, for platforms where it isn't a no-op).
++	if runtime.GOOS == "linux" || runtime.GOOS == "haiku" {
+ 		if mode&os.ModeSymlink != 0 {
+ 			return nil
+ 		}
+-	} else {
+-		flags = unix.AT_SYMLINK_NOFOLLOW
++		if err := os.Chmod(name, mode); err != nil {
++			return &os.PathError{Op: "lchmod", Path: name, Err: err}
++		}
++		return nil
+ 	}
+ 
++	flags := unix.AT_SYMLINK_NOFOLLOW
+ 	err := unix.Fchmodat(unix.AT_FDCWD, name, uint32(mode), flags)
+ 	if err != nil {
+ 		return &os.PathError{Op: "lchmod", Path: name, Err: err}
+@@ -33,6 +44,21 @@ func lchmod(name string, mode os.FileMode) error {
+ }
+ 
+ func lchtimes(name string, mode os.FileMode, atime, mtime time.Time) error {
++	// Same rationale as lchmod above: no unix.Lutimes/NsecToTimeval/Timeval
++	// on Haiku (via the current minimal x/sys/unix shim), and symlink
++	// timestamps are as meaningless there as symlink permissions, so skip
++	// symlinks and use the ordinary (link-following) os.Chtimes for real
++	// files.
++	if runtime.GOOS == "haiku" {
++		if mode&os.ModeSymlink != 0 {
++			return nil
++		}
++		if err := os.Chtimes(name, atime, mtime); err != nil {
++			return &os.PathError{Op: "lchtimes", Path: name, Err: err}
++		}
++		return nil
++	}
++
+ 	at := unix.NsecToTimeval(atime.UnixNano())
+ 	mt := unix.NsecToTimeval(mtime.UnixNano())
+ 	tv := [2]unix.Timeval{at, mt}

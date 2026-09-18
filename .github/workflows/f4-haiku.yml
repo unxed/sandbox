@@ -95,12 +95,56 @@ jobs:
           echo "--- patched files ---"
           git diff --stat
 
-      - name: Point f4's build at the patched local vtui checkout
+      - name: Clone golang.org/x/sys and add a minimal haiku unix shim
+        run: |
+          set -euo pipefail
+          XSYS_VER="$(grep -oP 'golang.org/x/sys v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins x/sys at: $XSYS_VER"
+          git clone --branch "v${XSYS_VER#v}" --depth 1 https://github.com/golang/sys.git /tmp/xsys-haiku
+          cd /tmp/xsys-haiku
+          # x/sys/unix has no Haiku port at all (see patch header for the
+          # full rationale + provenance of every value). Adds one new file,
+          # unix/haiku_amd64.go, touches nothing existing.
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/xsys-unix-haiku.patch"
+
+      - name: Clone unxed/zip and patch its symlink chmod/chtimes path for haiku
+        run: |
+          set -euo pipefail
+          ZIP_VER="$(grep -oP 'github.com/unxed/zip v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins zip at: $ZIP_VER"
+          git clone --branch "v${ZIP_VER}" --depth 1 https://github.com/unxed/zip.git /tmp/zip-haiku
+          cd /tmp/zip-haiku
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/zip-haiku.patch"
+
+      - name: Clone spf13/afero and move haiku to its BSD-style errno fallback
+        run: |
+          set -euo pipefail
+          AFERO_VER="$(grep -oP 'github.com/spf13/afero v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins afero at: $AFERO_VER"
+          git clone --branch "v${AFERO_VER}" --depth 1 https://github.com/spf13/afero.git /tmp/afero-haiku
+          cd /tmp/afero-haiku
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/afero-haiku.patch"
+
+      - name: Clone pkg/sftp and add haiku to its unix attrs/ls allow-lists
+        run: |
+          set -euo pipefail
+          SFTP_VER="$(grep -oP 'github.com/pkg/sftp v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins sftp at: $SFTP_VER"
+          git clone --branch "v${SFTP_VER}" --depth 1 https://github.com/pkg/sftp.git /tmp/sftp-haiku
+          cd /tmp/sftp-haiku
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/sftp-haiku.patch"
+
+      - name: Point f4's build at all patched local checkouts
         working-directory: /tmp/f4
         run: |
           set -euo pipefail
           export PATH="/tmp/korli-go/bin:$PATH"
-          go mod edit -replace github.com/unxed/vtui=/tmp/vtui-haiku
+          go mod edit \
+            -replace github.com/unxed/vtui=/tmp/vtui-haiku \
+            -replace golang.org/x/sys=/tmp/xsys-haiku \
+            -replace github.com/unxed/zip=/tmp/zip-haiku \
+            -replace github.com/spf13/afero=/tmp/afero-haiku \
+            -replace github.com/pkg/sftp=/tmp/sftp-haiku
           grep replace go.mod
 
       - name: Attempt GOOS=haiku GOARCH=amd64 build of f4

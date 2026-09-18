@@ -1,0 +1,30 @@
+diff --git a/const_bsds.go b/const_bsds.go
+index 30855de..a93ec67 100644
+--- a/const_bsds.go
++++ b/const_bsds.go
+@@ -11,8 +11,8 @@
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+ 
+-//go:build aix || darwin || openbsd || freebsd || netbsd || dragonfly || zos
+-// +build aix darwin openbsd freebsd netbsd dragonfly zos
++//go:build aix || darwin || openbsd || freebsd || netbsd || dragonfly || zos || haiku
++// +build aix darwin openbsd freebsd netbsd dragonfly zos haiku
+ 
+ package afero
+ 
+diff --git a/const_win_unix.go b/const_win_unix.go
+index 12792d2..ff10fab 100644
+--- a/const_win_unix.go
++++ b/const_win_unix.go
+@@ -10,8 +10,8 @@
+ // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ // See the License for the specific language governing permissions and
+ // limitations under the License.
+-//go:build !darwin && !openbsd && !freebsd && !dragonfly && !netbsd && !aix && !zos
+-// +build !darwin,!openbsd,!freebsd,!dragonfly,!netbsd,!aix,!zos
++//go:build !darwin && !openbsd && !freebsd && !dragonfly && !netbsd && !aix && !zos && !haiku
++// +build !darwin,!openbsd,!freebsd,!dragonfly,!netbsd,!aix,!zos,!haiku
+ 
+ package afero
+ 

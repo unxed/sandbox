@@ -1,0 +1,140 @@
+diff --git a/unix/haiku_amd64.go b/unix/haiku_amd64.go
+new file mode 100644
+index 0000000..8898afa
+--- /dev/null
++++ b/unix/haiku_amd64.go
+@@ -0,0 +1,134 @@
++// Minimal Haiku (haiku/amd64) support for golang.org/x/sys/unix.
++//
++// Upstream x/sys/unix has no Haiku port — Haiku isn't an upstream Go GOOS
++// at all (golang/go#56224 was closed "not planned"); the real Go-for-Haiku
++// toolchain lives in github.com/korli/go. This file provides only the
++// symbols actually referenced by github.com/unxed/f4's current dependency
++// graph on a GOOS=haiku build, not a full x/sys/unix port.
++//
++// - PollFd's layout and the POLL* bits are the same on every real POSIX
++//   poll(2) (Linux, the BSDs, ...); Haiku is no different here.
++// - Poll and Mprotect go through raw numbered syscalls (SYS_POLL,
++//   SYS_SET_MEMORY_PROTECTION) via the stdlib syscall package, which
++//   github.com/korli/go's Haiku port already implements natively
++//   (src/syscall/{zsysnum,zerrors}_haiku_amd64.go) — no dynamic libroot.so
++//   call needed for either.
++// - Mmap/Munmap/SetsockoptInt delegate straight to the stdlib syscall
++//   package, which already wraps Haiku's libroot.so/libnetwork.so calls
++//   for these (mmap, munmap, setsockopt all go through dynamic linking on
++//   Haiku, not raw syscalls — see syscall_haiku.go/zsyscall_haiku_amd64.go
++//   in korli/go).
++// - PROT_*/MAP_*/SOL_SOCKET/SO_KEEPALIVE values are copied from
++//   src/syscall/zerrors_haiku_amd64.go in korli/go (real, generated from
++//   Haiku's own headers), not guessed.
++// - Getpagesize is hardcoded to 4096: Haiku's page size on x86_64.
++//
++// Not verified against real Haiku hardware — the SYS_SET_MEMORY_PROTECTION
++// argument order (address, size, protection) is inferred by analogy with
++// POSIX mprotect(2) and Haiku's own SYS_MMAP-adjacent calls, since we have
++// no header access to confirm it. Wrong argument order would only surface
++// as a runtime bug on real Haiku, never as a build failure, which matches
++// the current scope: get github.com/unxed/f4 to compile for GOOS=haiku.
++// TODO: verify on real Haiku hardware once available, and consider
++// upstreaming a proper x/sys/unix Haiku port (korli/go's stdlib syscall
++// package already has most of the generated groundwork).
++
++//go:build haiku && amd64
++
++package unix
++
++import (
++	"syscall"
++	"unsafe"
++)
++
++// --- poll(2) ---
++
++const (
++	POLLIN   = 0x0001
++	POLLOUT  = 0x0004
++	POLLERR  = 0x0008
++	POLLHUP  = 0x0010
++	POLLNVAL = 0x0020
++)
++
++type PollFd struct {
++	Fd      int32
++	Events  int16
++	Revents int16
++}
++
++// EINTR re-exports the stdlib syscall package's Haiku EINTR (generated from
++// Haiku's own headers in korli/go's src/syscall/zerrors_haiku_amd64.go), so
++// callers can keep comparing against unix.EINTR like on every other OS.
++const EINTR = syscall.EINTR
++
++// sysPoll is SYS_POLL from github.com/korli/go's
++// src/syscall/zsysnum_haiku_amd64.go — a real Haiku kernel syscall, not a
++// libroot.so dynamic call.
++const sysPoll = 127
++
++func Poll(fds []PollFd, timeout int) (n int, err error) {
++	var p *PollFd
++	if len(fds) > 0 {
++		p = &fds[0]
++	}
++	r0, _, e1 := syscall.Syscall(sysPoll, uintptr(unsafe.Pointer(p)), uintptr(len(fds)), uintptr(timeout))
++	n = int(r0)
++	if e1 != 0 {
++		err = e1
++	}
++	return
++}
++
++// --- mmap/mprotect family ---
++
++const (
++	PROT_NONE  = 0x0
++	PROT_READ  = 0x1
++	PROT_WRITE = 0x2
++	PROT_EXEC  = 0x4
++
++	MAP_PRIVATE = 0x2
++	MAP_ANON    = 0x8
++)
++
++func Mmap(fd int, offset int64, length int, prot int, flags int) (data []byte, err error) {
++	return syscall.Mmap(fd, offset, length, prot, flags)
++}
++
++func Munmap(b []byte) (err error) {
++	return syscall.Munmap(b)
++}
++
++// sysSetMemoryProtection is SYS_SET_MEMORY_PROTECTION from
++// src/syscall/zsysnum_haiku_amd64.go — Haiku's raw kernel syscall for
++// changing an existing mapping's protection (the mprotect(2) equivalent;
++// mprotect itself is not a libroot.so POSIX shim on Haiku, this is the
++// real kernel entry point).
++const sysSetMemoryProtection = 206
++
++func Mprotect(b []byte, prot int) (err error) {
++	var p unsafe.Pointer
++	if len(b) > 0 {
++		p = unsafe.Pointer(&b[0])
++	}
++	_, _, e1 := syscall.Syscall(sysSetMemoryProtection, uintptr(p), uintptr(len(b)), uintptr(prot))
++	if e1 != 0 {
++		err = e1
++	}
++	return
++}
++
++func Getpagesize() int { return 4096 }
++
++// --- socket options ---
++
++const (
++	SOL_SOCKET   = -0x1
++	SO_KEEPALIVE = 0x10
++)
++
++func SetsockoptInt(fd, level, opt int, value int) (err error) {
++	return syscall.SetsockoptInt(fd, level, opt, value)
++}
