@@ -1,0 +1,7 @@
+typeln clear
+typeln curl -s -o /tmp/ls.html http://10.0.2.2:8000/; echo rc=0
+wait 3
+typeln head -c 200 /tmp/ls.html
+typeln curl -s -T /tmp/ls.html http://10.0.2.2:8000/ls.html; echo up-rc=0
+wait 3
+shot net3
