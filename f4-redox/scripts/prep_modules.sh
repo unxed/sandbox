@@ -31,6 +31,13 @@ cp "$W"/xsys-redox/unix/* /tmp/mods/xsys/unix/
 python3 "$W/scripts/gen_zconst.py" "$GOROOT" /tmp/mods/xsys/unix
 go mod edit -replace "golang.org/x/sys=/tmp/mods/xsys"
 
+# x/term: MakeRaw/GetState/IsTerminal/GetSize for redox = the "TCGETS" unix variant
+go mod download golang.org/x/term
+d=$(go list -m -f '{{.Dir}}' golang.org/x/term)
+rm -rf /tmp/mods/xterm; cp -r "$d" /tmp/mods/xterm; chmod -R u+w /tmp/mods/xterm
+python3 "$W/scripts/redox_tags.py" --solaris-anchor /tmp/mods/xterm
+go mod edit -replace "golang.org/x/term=/tmp/mods/xterm"
+
 # f4 itself: same tag rule over the whole tree, plus what the rule cannot express
 python3 "$W/scripts/redox_tags.py" .
 python3 "$W/scripts/fix_stat_ids.py" .

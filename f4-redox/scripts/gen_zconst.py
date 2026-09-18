@@ -6,7 +6,9 @@ usage: gen_zconst.py GOROOT UNIXDIR"""
 import re, sys, os
 goroot, unixdir = sys.argv[1], sys.argv[2]
 src = open(os.path.join(goroot, 'src/syscall/zerrors_redox_amd64.go')).read()
-manual = set(re.findall(r'^\s+([A-Z_][A-Za-z0-9_]*)\s+=', open(os.path.join(unixdir, 'const_redox.go')).read(), re.M))
+manual = set()
+for mf in ('const_redox.go', 'ztermios_redox_amd64.go'):
+    manual |= set(re.findall(r'^\s+([A-Z_][A-Za-z0-9_]*)\s+=', open(os.path.join(unixdir, mf)).read(), re.M))
 names = []
 for m in re.finditer(r'^\s+([A-Z][A-Za-z0-9_]*)\s+=\s', src, re.M):
     n = m.group(1)
