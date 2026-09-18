@@ -167,7 +167,10 @@ jobs:
           export PATH=$GOROOT/bin:$PATH
           rm -rf /tmp/ptyrun && cp -r f4-redox/harness/ptyrun /tmp/ptyrun && cd /tmp/ptyrun
           go mod edit -replace golang.org/x/sys=/tmp/mods/xsys
-          go build -o /tmp/vmout-ptyrun . 
+          go build -o /tmp/vmout-ptyrun .
+          rm -rf /tmp/pollprobe && cp -r $GITHUB_WORKSPACE/f4-redox/harness/pollprobe /tmp/pollprobe && cd /tmp/pollprobe
+          go mod edit -replace golang.org/x/sys=/tmp/mods/xsys
+          go build -o /tmp/vmout-pollprobe .
 
       - name: Assemble the VM payload
         if: steps.f4build.outcome == 'success'
@@ -175,9 +178,10 @@ jobs:
           rm -rf /tmp/vmout && mkdir -p /tmp/vmout
           cp /tmp/f4-redox-amd64 /tmp/vmout/f4
           cp /tmp/vmout-ptyrun /tmp/vmout/ptyrun
+          cp /tmp/vmout-pollprobe /tmp/vmout/pollprobe
           cp redox-go/.github/redox/run_common.sh /tmp/vmout/common.sh
           cp f4-redox/vm/smoke.sh /tmp/vmout/smoke.sh
-          chmod +x /tmp/vmout/f4 /tmp/vmout/ptyrun
+          chmod +x /tmp/vmout/f4 /tmp/vmout/ptyrun /tmp/vmout/pollprobe
           du -sh /tmp/vmout; ls -la /tmp/vmout
 
       - name: Let the runner user open /dev/kvm

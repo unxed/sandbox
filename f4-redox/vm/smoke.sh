@@ -8,6 +8,8 @@ cd /tmp/demo
 run_one "/root/mnt/f4 --version" default 1 90
 run_one "/root/mnt/f4 --help" default 1 90
 run_one "/root/mnt/f4 --list-mounts" default 1 120
+# poll(2) on what f4's input reader watches
+run_one "/root/mnt/ptyrun -tag pp -cols 80 -rows 24 -script wait:6000,snap:pp -- /root/mnt/pollprobe" default 1 60
 # the whole TUI in a pty (client + session daemon, fresh state)
 run_one "/root/mnt/ptyrun -tag tui -cols 100 -rows 30 -script wait:8000,snap:t8,key:\e[B,wait:1500,snap:down,ctx:f4,wait:6000,snap:t16 -- /root/mnt/f4 --tty --attached --debug" default 1 150
 echo "=== sessions"; ls -la /tmp/f4-sessions-0 2>&1 | head
