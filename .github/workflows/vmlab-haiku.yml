@@ -1,0 +1,77 @@
+name: vmlab-haiku
+
+# Boot a Haiku nightly in QEMU inside Actions (KVM on the runner), hand it the
+# f4-haiku binary over the guest's user-mode NAT (host = 10.0.2.2:8000, see
+# vmlab.py start_http) and drive the guest from a scenario file. This uses
+# vmlab.py "run" mode (batch): no git bus, so it never disturbs an interactive
+# vmlab-session that may be running at the same time.
+#
+# Iterate by editing vmlab/scenarios/haiku-*.txt (push triggers a run of
+# haiku-smoke) or dispatch with another scenario name.
+on:
+  workflow_dispatch:
+    inputs:
+      scenario: {description: 'vmlab/scenarios/<name>.txt', default: 'haiku-smoke'}
+      f4_run:   {description: 'f4-haiku run id to take the binary from (empty = latest successful)', default: ''}
+      accel:    {description: 'kvm or tcg', default: 'kvm'}
+  push:
+    paths:
+      - 'vmlab/scenarios/haiku-*.txt'
+      - 'vmlab/haiku/**'
+      - 'vmlab/guests/haiku.json'
+      - '.github/workflows/vmlab-haiku.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SCEN: ${{ inputs.scenario || 'haiku-smoke' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: KVM and tools
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm || echo "NO /dev/kvm (TCG fallback, slow)"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils tesseract-ocr
+          qemu-system-x86_64 --version | head -1
+
+      - name: Payload (f4-haiku binary + guest-side scripts)
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/vmlab/payload
+          ID="${{ inputs.f4_run }}"
+          [ -n "$ID" ] || ID=$(gh run list --workflow f4-haiku.yml --status success -L 1 --json databaseId -q '.[0].databaseId')
+          echo "f4-haiku run: $ID"
+          gh run download "$ID" -n f4-haiku-amd64 -D /tmp/vmlab/payload
+          chmod +x /tmp/vmlab/payload/f4-haiku-amd64 || true
+          cp vmlab/haiku/* /tmp/vmlab/payload/ 2>/dev/null || true
+          ls -l /tmp/vmlab/payload
+
+      - name: Boot Haiku and run the scenario
+        env:
+          VMLAB_ACCEL: ${{ inputs.accel || 'kvm' }}
+        run: |
+          date -u +%T
+          python3 vmlab/vmlab.py run --guest vmlab/guests/haiku.json --scenario "vmlab/scenarios/${SCEN}.txt"
+          date -u +%T
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlab-haiku-${{ github.run_id }}
+          path: |
+            /tmp/vmlab/shots
+            /tmp/vmlab/upload
+            /tmp/vmlab/qemu.log
+            /tmp/vmlab/serial.log
+          if-no-files-found: ignore
