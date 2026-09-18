@@ -1,0 +1,42 @@
+From 8022058e353debd221057610835ccb9a66296465 Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Fri, 18 Sep 2026 19:55:04 +0000
+Subject: [PATCH] redox-rt/x86_64: don't clobber rcx in
+ __relibc_internal_sigentry
+
+The signal-action index computation used ecx/rcx as scratch (mov ecx, eax;
+and ecx, 63; lea rdx, [rdx + 8*rcx]) before 'push rcx' saved it into the
+signal frame. rcx is not stashed in the TCB like rax/rdx/rdi/rsi/r8/r10/r12,
+so every asynchronously delivered signal replaced the interrupted thread's
+rcx with the 0-based signal number (0x16 for SIGURG) when the frame was
+restored.
+
+Use r10 as scratch instead: it is already saved to the TCB at entry and is
+pushed from there.
+---
+ redox-rt/src/arch/x86_64.rs | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/redox-rt/src/arch/x86_64.rs b/redox-rt/src/arch/x86_64.rs
+index e90ec2077..d3d5ba2b9 100644
+--- a/redox-rt/src/arch/x86_64.rs
++++ b/redox-rt/src/arch/x86_64.rs
+@@ -335,12 +335,14 @@ asmfunction!(__relibc_internal_sigentry: ["
+     // skip the sigaltstack logic.
+     lea rdx, [rip + {pctl} + {pctl_off_actions}]
+ 
+-    mov ecx, eax
+-    and ecx, 63
++    // Use r10 as scratch, not rcx: r10 was saved to the TCB above and is pushed from there below,
++    // whereas rcx is live application state that is pushed as-is further down.
++    mov r10d, eax
++    and r10d, 63
+ 
+     // LEA doesn't support 16x, so just do two x8s.
+-    lea rdx, [rdx + 8 * rcx]
+-    lea rdx, [rdx + 8 * rcx]
++    lea rdx, [rdx + 8 * r10]
++    lea rdx, [rdx + 8 * r10]
+ 
+     bt qword ptr [rdx], {SA_ONSTACK_BIT}
+     jnc 4f
