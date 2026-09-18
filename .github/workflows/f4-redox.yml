@@ -168,6 +168,9 @@ jobs:
           rm -rf /tmp/pollprobe && cp -r $GITHUB_WORKSPACE/f4-redox/harness/pollprobe /tmp/pollprobe && cd /tmp/pollprobe
           go mod edit -replace golang.org/x/sys=/tmp/mods/xsys
           go build -o /tmp/vmout-pollprobe .
+          rm -rf /tmp/sigrepro && cp -r $GITHUB_WORKSPACE/f4-redox/harness/sigrepro /tmp/sigrepro && cd /tmp/sigrepro
+          go mod edit -replace golang.org/x/sys=/tmp/mods/xsys
+          go build -o /tmp/vmout-sigrepro .
 
       - name: Assemble the VM payload
         if: steps.f4build.outcome == 'success'
@@ -176,9 +179,10 @@ jobs:
           cp /tmp/f4-redox-amd64 /tmp/vmout/f4
           cp /tmp/vmout-ptyrun /tmp/vmout/ptyrun
           cp /tmp/vmout-pollprobe /tmp/vmout/pollprobe
+          cp /tmp/vmout-sigrepro /tmp/vmout/sigrepro
           cp redox-go/.github/redox/run_common.sh /tmp/vmout/common.sh
           cp f4-redox/vm/smoke.sh /tmp/vmout/smoke.sh
-          chmod +x /tmp/vmout/f4 /tmp/vmout/ptyrun /tmp/vmout/pollprobe
+          chmod +x /tmp/vmout/f4 /tmp/vmout/ptyrun /tmp/vmout/pollprobe /tmp/vmout/sigrepro
           du -sh /tmp/vmout; ls -la /tmp/vmout
 
       - name: Upload the VM payload
@@ -285,7 +289,7 @@ jobs:
         timeout-minutes: 12
         continue-on-error: true
         run: |
-          chmod +x /tmp/vmout/f4 /tmp/vmout/ptyrun /tmp/vmout/pollprobe
+          chmod +x /tmp/vmout/f4 /tmp/vmout/ptyrun /tmp/vmout/pollprobe /tmp/vmout/sigrepro
           PKGOUT=/tmp/vmout QEMU_ARGS='-smp 4' f4-redox/vm/vm_run.sh smoke.sh /tmp/vm.log /tmp/kpatched/kernel
       - name: Render captured screens
         if: always()

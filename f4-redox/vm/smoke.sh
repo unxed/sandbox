@@ -11,6 +11,9 @@ run_one "/root/mnt/f4 --list-mounts" default 1 120
 # poll(2) on what f4's input reader watches
 run_one "/root/mnt/ptyrun -tag pp -cols 80 -rows 24 -script wait:6000,snap:pp -- /root/mnt/pollprobe" default 1 60
 run_one "/root/mnt/ptyrun -tag in -cols 80 -rows 24 -script wait:1500,key:hello,wait:1500,key:x,wait:5000,snap:in -- /root/mnt/pollprobe input" default 1 60
+# runtime repro candidates (each run watched separately)
+i=1; while [ $i -le 6 ]; do run_one "/root/mnt/sigrepro nospawn" default $i 30; i=$((i+1)); done
+i=1; while [ $i -le 6 ]; do run_one "/root/mnt/sigrepro spawn" default $i 30; i=$((i+1)); done
 # the whole TUI in a pty (client + session daemon, fresh state)
 run_one "/root/mnt/ptyrun -tag tui -cols 100 -rows 30 -script wait:700,sig:USR1,wait:900,sig:USR1,wait:1500,sig:USR1,wait:4000,snap:t8,ctx:f4,key:\e[B,wait:500,key:\e[B,wait:800,snap:down2,key:\e[11~,wait:2500,snap:f1,ctx:f4,key:\e,wait:1000,snap:esc,wait:1000,sig:QUIT,wait:2500,snap:t16 -- /root/mnt/f4 --tty --attached --debug" default 1 150
 echo "=== sessions"; ls -la /tmp/f4-sessions-0 2>&1 | head
