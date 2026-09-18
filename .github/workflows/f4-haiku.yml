@@ -36,6 +36,7 @@ jobs:
       - name: Build korli/go toolchain (host linux/amd64, cross target support for haiku)
         id: toolchain
         run: |
+          set -o pipefail
           cd /tmp/korli-go/src
           GOROOT_BOOTSTRAP="$BOOTSTRAP_GOROOT" ./make.bash 2>&1 | tee /tmp/toolchain-build.log
         continue-on-error: true
@@ -64,6 +65,15 @@ jobs:
           echo "--- built toolchain version ---"
           /tmp/korli-go/bin/go version
 
+      - name: Pin f4 go.mod toolchain floor to the built haiku toolchain (CI checkout only)
+        run: |
+          set -euo pipefail
+          TOOLCHAIN_VER="$(/tmp/korli-go/bin/go env GOVERSION | sed 's/^go//')"
+          echo "was: $(grep -m1 '^go ' /tmp/f4/go.mod)"
+          sed -i "s/^go .*/go ${TOOLCHAIN_VER}/" /tmp/f4/go.mod
+          echo "now: $(grep -m1 '^go ' /tmp/f4/go.mod)"
+          echo "(this only patches the ephemeral CI checkout of f4, never the real repo — it just lets a same-minor-version haiku toolchain satisfy go.mod's toolchain floor)"
+
       - name: Attempt GOOS=haiku GOARCH=amd64 build of f4
         id: f4build
         working-directory: /tmp/f4
@@ -74,6 +84,7 @@ jobs:
           GOTOOLCHAIN: local
           GOFLAGS: -v
         run: |
+          set -o pipefail
           export PATH="/tmp/korli-go/bin:$PATH"
           export GOROOT=/tmp/korli-go
           go version
