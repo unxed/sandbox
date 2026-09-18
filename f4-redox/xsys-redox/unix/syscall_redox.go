@@ -164,8 +164,11 @@ func NsecToTimespec(nsec int64) Timespec {
 
 // ---- direct libc calls ----
 
+// ioctl/fcntl go through the blocking sysvicall6 (entersyscallblock), not the raw
+// variant: on a pty they are requests to the ptyd daemon and can block; a P held by
+// a raw call that blocks stalls stop-the-world (GC) for the whole process.
 func ioctl(fd int, req uint, arg uintptr) error {
-	r, _, e := rawSysvicall6(fn(&libc_ioctl), 3, uintptr(fd), uintptr(req), arg, 0, 0, 0)
+	r, _, e := sysvicall6(fn(&libc_ioctl), 3, uintptr(fd), uintptr(req), arg, 0, 0, 0)
 	return callErr(r, e)
 }
 
@@ -207,7 +210,7 @@ func IoctlSetTermios(fd int, req uint, value *Termios) error {
 }
 
 func FcntlInt(fd uintptr, cmd, arg int) (int, error) {
-	r, _, e := rawSysvicall6(fn(&libc_fcntl), 3, fd, uintptr(cmd), uintptr(arg), 0, 0, 0)
+	r, _, e := sysvicall6(fn(&libc_fcntl), 3, fd, uintptr(cmd), uintptr(arg), 0, 0, 0)
 	if err := callErr(r, e); err != nil {
 		return -1, err
 	}
@@ -215,7 +218,7 @@ func FcntlInt(fd uintptr, cmd, arg int) (int, error) {
 }
 
 func Getpgid(pid int) (int, error) {
-	r, _, e := rawSysvicall6(fn(&libc_getpgid), 1, uintptr(pid), 0, 0, 0, 0, 0)
+	r, _, e := sysvicall6(fn(&libc_getpgid), 1, uintptr(pid), 0, 0, 0, 0, 0)
 	if err := callErr(r, e); err != nil {
 		return -1, err
 	}
