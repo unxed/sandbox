@@ -65,6 +65,17 @@ jobs:
           python3 vmlab/vmlab.py run --guest vmlab/guests/haiku.json --scenario "vmlab/scenarios/${SCEN}.txt"
           date -u +%T
 
+      - name: Render ptyrun snapshots from the guest log to text/PNG
+        if: always()
+        continue-on-error: true
+        run: |
+          f=/tmp/vmlab/upload/smoke.log
+          [ -f "$f" ] || { echo "no $f (guest did not upload it)"; exit 0; }
+          pip install --quiet pyte pillow
+          python3 f4-redox/scripts/render_screens.py "$f" /tmp/vmlab/screens 100 30 | tee /tmp/vmlab/screens.log
+          echo '--- guest log (without snapshots) ---'
+          grep -v '^[A-Za-z0-9+/=]\{60,\}$' "$f" | head -150
+
       - name: Upload
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,6 +84,8 @@ jobs:
           path: |
             /tmp/vmlab/shots
             /tmp/vmlab/upload
+            /tmp/vmlab/screens
+            /tmp/vmlab/screens.log
             /tmp/vmlab/qemu.log
             /tmp/vmlab/serial.log
           if-no-files-found: ignore

@@ -1,0 +1,47 @@
+diff --git a/term_unix.go b/term_unix.go
+index 1ad0ddf..5b904a7 100644
+--- a/term_unix.go
++++ b/term_unix.go
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style
+ // license that can be found in the LICENSE file.
+ 
+-//go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris || zos
++//go:build aix || darwin || dragonfly || freebsd || haiku || linux || netbsd || openbsd || solaris || zos
+ 
+ package term
+ 
+diff --git a/term_unix_haiku.go b/term_unix_haiku.go
+new file mode 100644
+index 0000000..e74b461
+--- /dev/null
++++ b/term_unix_haiku.go
+@@ -0,0 +1,15 @@
++// Copyright 2013 The Go Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style
++// license that can be found in the LICENSE file.
++
++//go:build haiku
++
++package term
++
++import "golang.org/x/sys/unix"
++
++// Haiku has no TCGETS/TCSETS: libroot's tcgetattr/tcsetattr are
++// ioctl(TCGETA)/ioctl(TCSETA*) on a struct termios (headers/posix/termios.h,
++// TCGETA = 0x8000). Both constants come from github.com/korli/sys_haiku.
++const ioctlReadTermios = unix.TCGETA
++const ioctlWriteTermios = unix.TCSETA
+diff --git a/term_unsupported.go b/term_unsupported.go
+index 3c409e5..e6eae2f 100644
+--- a/term_unsupported.go
++++ b/term_unsupported.go
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style
+ // license that can be found in the LICENSE file.
+ 
+-//go:build !aix && !darwin && !dragonfly && !freebsd && !linux && !netbsd && !openbsd && !zos && !windows && !solaris && !plan9
++//go:build !aix && !darwin && !dragonfly && !freebsd && !haiku && !linux && !netbsd && !openbsd && !zos && !windows && !solaris && !plan9
+ 
+ package term
+ 

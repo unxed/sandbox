@@ -78,7 +78,7 @@ def do(a):
     STATE.write_text(json.dumps(st))
     t0 = time.time()
     while True:  # results of an older session may still be on the branch: wait for our own session
-        cur = api("GET", "contents/SESSION?ref=vmlab-out", raw=True, ok404=True)
+        cur = api("GET", "contents/SESSION?ref=%s-out" % BUS, raw=True, ok404=True)
         if cur is not None and cur.decode().strip() == str(st["run"]):
             break
         if time.time() - t0 > a.timeout:

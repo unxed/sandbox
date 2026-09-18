@@ -1,0 +1,26 @@
+# Haiku live image -> desktop -> Terminal -> guest agent running (for interactive sessions
+# and as the base of automated tests). Coordinates are for 1280x800 (recorded in a session).
+# Note: the Haiku Terminal uses the US-International keymap, so avoid typing dead keys
+# (apostrophe, double quote, tilde, caret, backtick) in typeln lines.
+wait 10
+shot 01-welcome
+click 903 582
+wait 15
+shot 02-desktop
+click 1213 14
+wait 2
+move 1041 226
+wait 1.5
+shot 03-menu-applications
+move 900 300
+move 881 707
+wait 0.5
+click 881 707
+wait 4
+shot 04-terminal
+click 330 300
+typeln curl -s -o /tmp/agent.sh http://10.0.2.2:8000/haiku-agent.sh
+wait 3
+typeln sh /tmp/agent.sh &
+wait 2
+shot 05-agent-running

@@ -161,6 +161,18 @@ jobs:
           cd /tmp/tar-haiku
           git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/tar-haiku.patch"
 
+      - name: Clone golang.org/x/term and give it Haiku's termios ioctls
+        run: |
+          set -euo pipefail
+          TERM_VER="$(grep -oP 'golang.org/x/term v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins x/term at: $TERM_VER"
+          git clone --branch "v${TERM_VER}" --depth 1 https://github.com/golang/term.git /tmp/xterm-haiku
+          cd /tmp/xterm-haiku
+          # x/term has no Haiku support, so term.MakeRaw fails there and vtinput
+          # never leaves canonical mode (found in a real Haiku VM: Enter arrives
+          # as LF, input is line-buffered). Same fix as korli/term_haiku.
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/xterm-haiku.patch"
+
       - name: Point f4's build at all patched local checkouts
         working-directory: /tmp/f4
         run: |
@@ -174,7 +186,8 @@ jobs:
             -replace github.com/pkg/sftp=/tmp/sftp-haiku \
             -replace github.com/tetratelabs/wazero=/tmp/wazero-haiku \
             -replace github.com/unxed/archives=/tmp/archives-haiku \
-            -replace github.com/unxed/tar=/tmp/tar-haiku
+            -replace github.com/unxed/tar=/tmp/tar-haiku \
+            -replace golang.org/x/term=/tmp/xterm-haiku
           grep replace go.mod
           # golang.org/x/sys -> github.com/korli/sys_haiku, the Haiku port of
           # x/sys used by HaikuPorts (see e.g. www-apps/hugo recipe, which
