@@ -25,6 +25,8 @@ EOS
 for cfg in DEFAULT=1; do
   iter=1; while [ $iter -le 6 ]; do run_one "sh /tmp/tui.sh $cfg $iter" default 1 40; iter=$((iter+1)); done
 done
+# a wider scenario: viewer, editor, copy/mkdir/quit dialogs
+run_one "/root/mnt/ptyrun -tag scn -cols 100 -rows 30 -script wait:6000,snap:s01-start,key:\e[B\e[B\e[B,wait:800,snap:s02-cursor,key:\e[13~,wait:2500,snap:s03-viewer,key:\e,wait:1200,key:\e[14~,wait:3000,snap:s04-editor,key:hello from f4 on redox,wait:1000,snap:s05-typed,key:\e,wait:1500,snap:s06-editor-esc,key:\e,wait:1200,key:\e[15~,wait:2000,snap:s07-copy,key:\e,wait:1000,key:\e[18~,wait:2000,snap:s08-mkdir,key:\e,wait:800,key:\e[21~,wait:2000,snap:s09-quit -- /root/mnt/f4 --tty --attached" default 1 150
 # one run with everything for the artifacts: debug log, SIGQUIT dump
 run_one "/root/mnt/ptyrun -tag full -cols 100 -rows 30 -script wait:6000,snap:t6,key:\e[B,wait:500,snap:down,key:\e[11~,wait:2500,snap:f1,key:\e,wait:800,snap:esc,key:\e[20~,wait:2500,snap:menu,sig:QUIT,wait:2500 -- /root/mnt/f4 --tty --attached --debug" default 1 150
 echo "=== f4 files"; find /tmp/cfg -type f 2>/dev/null | head -20
