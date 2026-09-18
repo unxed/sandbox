@@ -167,6 +167,15 @@ jobs:
           git checkout "$ARCHIVES_REF"
           git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/archives-haiku.patch"
 
+      - name: Clone unxed/tar and split its Haiku symlink chtimes path
+        run: |
+          set -euo pipefail
+          TAR_VER="$(grep -oP 'github.com/unxed/tar v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins tar at: $TAR_VER"
+          git clone --branch "v${TAR_VER}" --depth 1 https://github.com/unxed/tar.git /tmp/tar-haiku
+          cd /tmp/tar-haiku
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/tar-haiku.patch"
+
       - name: Point f4's build at all patched local checkouts
         working-directory: /tmp/f4
         run: |
@@ -179,7 +188,8 @@ jobs:
             -replace github.com/spf13/afero=/tmp/afero-haiku \
             -replace github.com/pkg/sftp=/tmp/sftp-haiku \
             -replace github.com/tetratelabs/wazero=/tmp/wazero-haiku \
-            -replace github.com/unxed/archives=/tmp/archives-haiku
+            -replace github.com/unxed/archives=/tmp/archives-haiku \
+            -replace github.com/unxed/tar=/tmp/tar-haiku
           grep replace go.mod
 
       - name: Attempt GOOS=haiku GOARCH=amd64 build of f4

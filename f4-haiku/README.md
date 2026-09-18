@@ -123,14 +123,25 @@
 
 6. **Дошли до кода самого f4** (`patches/f4-haiku.patch`, применяется к
    эфемерному CI-чекауту f4, реальный репозиторий не трогается):
-   `vfs/os_vfs_posix_atim.go` (`fillPlatformTimes`) и
-   `vfs/rename_noreplace_unix.go` (`renameNoReplace`) — те же
-   allow-листы по OS, что уже видели у vtui/sftp. Haiku добавлен в оба:
-   поля `Atim`/`Ctim` у `Stat_t` в korli/go называются так же, как у
+   `vfs/os_vfs_posix_atim.go` (`fillPlatformTimes`),
+   `vfs/rename_noreplace_unix.go` (`renameNoReplace`) и
+   `plugins/cloudfox/store_lock_unix.go` (`tryAdvisoryFileLock`, через
+   `unix.Flock`) — те же allow-листы по OS, что уже видели у
+   vtui/sftp. Haiku добавлен во все три: поля `Atim`/`Ctim` у `Stat_t`
+   в korli/go называются так же, как у
    linux/openbsd/dragonfly/solaris/illumos (проверено по
-   `ztypes_haiku_amd64.go`), и атомарного no-clobber rename у Haiku,
-   как и у этой группы, тоже нет — используется тот же портативный
-   fallback (`renameNoReplacePortable`, без build tag, доступен везде).
+   `ztypes_haiku_amd64.go`), атомарного no-clobber rename у Haiku, как
+   и у этой группы, тоже нет (тот же портативный
+   `renameNoReplacePortable`, без build tag), а `flock(2)` — снова
+   настоящий номер сисколла Haiku (`SYS_FLOCK=113`), добавлен в шим
+   x/sys тем же способом, что `Poll`/`Mprotect`.
+   Отдельно `patches/tar-haiku.patch` — у `unxed/tar` та же ошибка, что
+   была у `zip` (`lchtimes` через `unix.Lutimes`/`NsecToTimeval`), тем
+   же способом: вынесена в `sys_chtimes_unix.go`/`sys_chtimes_haiku.go`
+   по build tag. Здесь `lchtimes` не различает симлинк/файл по сигнатуре
+   (нет параметра `mode`), поэтому haiku-версия просто зовёт
+   `os.Chtimes` — тот же нюанс "следует за симлинком", что уже отмечен
+   у `zip`.
 
 7. **Добавлены `unix.Access`/`unix.Errno`/`unix.Flock_t`/`unix.FcntlFlock`
    и коды ошибок** в тот же шим x/sys (нужны `ncruces/go-sqlite3/vfs`
@@ -145,8 +156,8 @@
 
 ## Статус
 
-Ждём лог прогона со всеми восемью патчами (vtui, x/sys, zip, afero,
-sftp, wazero, archives, f4) поверх тулчейна `unxed/go`. Дальше — по тому же
+Ждём лог прогона со всеми девятью патчами (vtui, x/sys, zip, afero,
+sftp, wazero, archives, f4, tar) поверх тулчейна `unxed/go`. Дальше — по тому же
 принципу: реальная
 ошибка компиляции → патч (в `patches/`, не напрямую в чужие
 репозитории) → коммит → новый прогон. Ожидаем следующий блокер в

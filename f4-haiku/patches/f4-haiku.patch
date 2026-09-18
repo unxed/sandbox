@@ -1,3 +1,13 @@
+diff --git a/plugins/cloudfox/store_lock_unix.go b/plugins/cloudfox/store_lock_unix.go
+index a17e2d1..c28427a 100644
+--- a/plugins/cloudfox/store_lock_unix.go
++++ b/plugins/cloudfox/store_lock_unix.go
+@@ -1,4 +1,4 @@
+-//go:build aix || darwin || dragonfly || freebsd || illumos || linux || netbsd || openbsd || solaris
++//go:build aix || darwin || dragonfly || freebsd || illumos || linux || netbsd || openbsd || solaris || haiku
+ 
+ package cloudfox
+ 
 diff --git a/vfs/os_vfs_posix_atim.go b/vfs/os_vfs_posix_atim.go
 index fe3b889..71078bf 100644
 --- a/vfs/os_vfs_posix_atim.go

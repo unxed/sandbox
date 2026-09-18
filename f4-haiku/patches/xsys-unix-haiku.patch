@@ -1,9 +1,9 @@
 diff --git a/unix/haiku_amd64.go b/unix/haiku_amd64.go
 new file mode 100644
-index 0000000..a1ea205
+index 0000000..1763ecc
 --- /dev/null
 +++ b/unix/haiku_amd64.go
-@@ -0,0 +1,245 @@
+@@ -0,0 +1,266 @@
 +// Minimal Haiku (haiku/amd64) support for golang.org/x/sys/unix.
 +//
 +// Upstream x/sys/unix has no Haiku port — Haiku isn't an upstream Go GOOS
@@ -237,6 +237,27 @@ index 0000000..a1ea205
 +
 +func FcntlFlock(fd uintptr, cmd int, lk *Flock_t) error {
 +	return syscall.FcntlFlock(fd, cmd, lk)
++}
++
++// flock(2) — like Poll/Mprotect above, SYS_FLOCK is a real Haiku kernel
++// syscall number (src/syscall/zsysnum_haiku_amd64.go in korli/go), not a
++// dynamic libroot.so call, so this needs no stdlib delegation.
++
++const (
++	LOCK_SH = 0x1
++	LOCK_EX = 0x2
++	LOCK_NB = 0x4
++	LOCK_UN = 0x8
++)
++
++const sysFlock = 113
++
++func Flock(fd int, how int) (err error) {
++	_, _, e1 := syscall.Syscall(sysFlock, uintptr(fd), uintptr(how), 0)
++	if e1 != 0 {
++		err = e1
++	}
++	return
 +}
 +
 +// --- socket options ---

@@ -1,0 +1,90 @@
+diff --git a/sys_chtimes_haiku.go b/sys_chtimes_haiku.go
+new file mode 100644
+index 0000000..df18624
+--- /dev/null
++++ b/sys_chtimes_haiku.go
+@@ -0,0 +1,20 @@
++//go:build haiku
++// +build haiku
++
++package tar
++
++import (
++	"os"
++	"time"
++)
++
++// unix.Lutimes/NsecToTimeval/Timeval aren't available on Haiku (see
++// this project's f4-haiku sandbox patches — golang.org/x/sys/unix has no
++// Haiku port at all). os.Chtimes follows the symlink rather than setting
++// its own timestamp, same caveat as unxed/zip's lchtimes on Haiku.
++func lchtimes(name string, atime, mtime time.Time) error {
++	if err := os.Chtimes(name, atime, mtime); err != nil {
++		return &os.PathError{Op: "lchtimes", Path: name, Err: err}
++	}
++	return nil
++}
+diff --git a/sys_chtimes_unix.go b/sys_chtimes_unix.go
+new file mode 100644
+index 0000000..5b5fad1
+--- /dev/null
++++ b/sys_chtimes_unix.go
+@@ -0,0 +1,22 @@
++//go:build !windows && !haiku
++// +build !windows,!haiku
++
++package tar
++
++import (
++	"os"
++	"time"
++
++	"golang.org/x/sys/unix"
++)
++
++func lchtimes(name string, atime, mtime time.Time) error {
++	at := unix.NsecToTimeval(atime.UnixNano())
++	mt := unix.NsecToTimeval(mtime.UnixNano())
++	tv := [2]unix.Timeval{at, mt}
++	err := unix.Lutimes(name, tv[:])
++	if err != nil {
++		return &os.PathError{Op: "lchtimes", Path: name, Err: err}
++	}
++	return nil
++}
+diff --git a/sys_unix.go b/sys_unix.go
+index 1f07aa4..4db729b 100644
+--- a/sys_unix.go
++++ b/sys_unix.go
+@@ -9,9 +9,6 @@ import (
+ 	"strconv"
+ 	"sync"
+ 	"syscall"
+-	"time"
+-
+-	"golang.org/x/sys/unix"
+ )
+ 
+ type hardlinkKey struct {
+@@ -57,16 +54,11 @@ func getAlternativeDataStreams(path string) ([]string, error) {
+ 	return nil, nil
+ }
+ 
+-func lchtimes(name string, atime, mtime time.Time) error {
+-	at := unix.NsecToTimeval(atime.UnixNano())
+-	mt := unix.NsecToTimeval(mtime.UnixNano())
+-	tv := [2]unix.Timeval{at, mt}
+-	err := unix.Lutimes(name, tv[:])
+-	if err != nil {
+-		return &os.PathError{Op: "lchtimes", Path: name, Err: err}
+-	}
+-	return nil
+-}
++// lchtimes lives in sys_chtimes_unix.go / sys_chtimes_haiku.go: it's the
++// one function here that needs unix.Lutimes/NsecToTimeval/Timeval, which
++// golang.org/x/sys/unix doesn't provide for GOOS=haiku (no upstream Haiku
++// port at all — see this project's f4-haiku sandbox patches).
++
+ func resolveIds(hdr *Header, numericOwner bool) (int, int) {
+ 	uid, gid := hdr.Uid, hdr.Gid
+ 	if !numericOwner {
