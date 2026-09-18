@@ -131,7 +131,7 @@ jobs:
           export PATH="/tmp/korli-go/bin:$PATH"
           export GOROOT=/tmp/korli-go
           go version
-          go build -o /tmp/f4-haiku-amd64 ./... 2>&1 | tee /tmp/f4-build.log
+          go build -o /tmp/f4-haiku-amd64 ./cmd/f4 2>&1 | tee /tmp/f4-build.log
         continue-on-error: true
 
       - name: Upload f4 build log
