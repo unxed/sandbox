@@ -93,22 +93,35 @@ func main() {
 		os.Exit(2)
 	}
 
-	mfd, err := unix.Open("/scheme/pty/ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		fmt.Println("PTYRUN open ptmx:", err)
-		os.Exit(1)
+	var mfd, sfd int
+	var slaveName string
+	openManual := func() error {
+		var err error
+		mfd, err = unix.Open("/scheme/pty/ptmx", unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return fmt.Errorf("open ptmx: %w", err)
+		}
+		n, err := unix.IoctlGetInt(mfd, unix.TIOCGPTN)
+		if err != nil {
+			return fmt.Errorf("TIOCGPTN: %w", err)
+		}
+		_ = unix.IoctlSetInt(mfd, unix.TIOCSPTLCK, 0)
+		slaveName = fmt.Sprintf("/scheme/pty/%d", n)
+		sfd, err = unix.Open(slaveName, unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return fmt.Errorf("open slave %s: %w", slaveName, err)
+		}
+		return nil
 	}
-	n, err := unix.IoctlGetInt(mfd, unix.TIOCGPTN)
-	if err != nil {
-		fmt.Println("PTYRUN TIOCGPTN:", err)
-		os.Exit(1)
-	}
-	_ = unix.IoctlSetInt(mfd, unix.TIOCSPTLCK, 0)
-	slaveName := fmt.Sprintf("/scheme/pty/%d", n)
-	sfd, err := unix.Open(slaveName, unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
-	if err != nil {
-		fmt.Println("PTYRUN open slave", slaveName, ":", err)
-		os.Exit(1)
+	if err := openManual(); err != nil {
+		fmt.Println("PTYRUN manual pty allocation failed:", err, "- trying libc openpty")
+		var err2 error
+		mfd, sfd, err2 = unix.Openpty()
+		if err2 != nil {
+			fmt.Println("PTYRUN openpty failed:", err2)
+			os.Exit(1)
+		}
+		slaveName = "openpty"
 	}
 	ws := unix.Winsize{Row: uint16(*rows), Col: uint16(*cols)}
 	if err := unix.IoctlSetWinsize(mfd, unix.TIOCSWINSZ, &ws); err != nil {

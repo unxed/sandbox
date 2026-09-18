@@ -55,6 +55,7 @@ func rawSysvicall6(fn, nargs, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, e
 //go:cgo_import_dynamic libc_setsockopt setsockopt "libc.so.6"
 //go:cgo_import_dynamic libc_flock flock "libc.so.6"
 //go:cgo_import_dynamic libc_mkfifo mkfifo "libc.so.6"
+//go:cgo_import_dynamic libc_openpty openpty "libc.so.6"
 
 //go:linkname libc_ioctl libc_ioctl
 //go:linkname libc_fcntl libc_fcntl
@@ -68,6 +69,7 @@ func rawSysvicall6(fn, nargs, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, e
 //go:linkname libc_setsockopt libc_setsockopt
 //go:linkname libc_flock libc_flock
 //go:linkname libc_mkfifo libc_mkfifo
+//go:linkname libc_openpty libc_openpty
 
 var (
 	libc_ioctl,
@@ -81,7 +83,8 @@ var (
 	libc_utimensat,
 	libc_setsockopt,
 	libc_flock,
-	libc_mkfifo libcFunc
+	libc_mkfifo,
+	libc_openpty libcFunc
 )
 
 func fn(f *libcFunc) uintptr { return uintptr(unsafe.Pointer(f)) }
@@ -91,6 +94,18 @@ func errnoErr(e Errno) error {
 		return nil
 	}
 	return e
+}
+
+// callErr: libc int-returning calls fail with -1; errno alone is not a reliable
+// signal (the runtime clears it before the call and reads it after).
+func callErr(r uintptr, e Errno) error {
+	if int32(r) == -1 {
+		if e == 0 {
+			e = syscall.EIO
+		}
+		return e
+	}
+	return nil
 }
 
 func BytePtrFromString(s string) (*byte, error) { return syscall.BytePtrFromString(s) }
@@ -150,8 +165,8 @@ func NsecToTimespec(nsec int64) Timespec {
 // ---- direct libc calls ----
 
 func ioctl(fd int, req uint, arg uintptr) error {
-	_, _, e := rawSysvicall6(fn(&libc_ioctl), 3, uintptr(fd), uintptr(req), arg, 0, 0, 0)
-	return errnoErr(e)
+	r, _, e := rawSysvicall6(fn(&libc_ioctl), 3, uintptr(fd), uintptr(req), arg, 0, 0, 0)
+	return callErr(r, e)
 }
 
 func IoctlGetInt(fd int, req uint) (int, error) {
@@ -193,18 +208,18 @@ func IoctlSetTermios(fd int, req uint, value *Termios) error {
 
 func FcntlInt(fd uintptr, cmd, arg int) (int, error) {
 	r, _, e := rawSysvicall6(fn(&libc_fcntl), 3, fd, uintptr(cmd), uintptr(arg), 0, 0, 0)
-	if e != 0 {
-		return -1, errnoErr(e)
+	if err := callErr(r, e); err != nil {
+		return -1, err
 	}
-	return int(r), nil
+	return int(int32(r)), nil
 }
 
 func Getpgid(pid int) (int, error) {
 	r, _, e := rawSysvicall6(fn(&libc_getpgid), 1, uintptr(pid), 0, 0, 0, 0, 0)
-	if e != 0 {
-		return -1, errnoErr(e)
+	if err := callErr(r, e); err != nil {
+		return -1, err
 	}
-	return int(r), nil
+	return int(int32(r)), nil
 }
 
 func Poll(fds []PollFd, timeout int) (int, error) {
@@ -213,23 +228,26 @@ func Poll(fds []PollFd, timeout int) (int, error) {
 		p = unsafe.Pointer(&fds[0])
 	}
 	r, _, e := sysvicall6(fn(&libc_poll), 3, uintptr(p), uintptr(len(fds)), uintptr(timeout), 0, 0, 0)
-	if e != 0 {
-		return -1, errnoErr(e)
+	if err := callErr(r, e); err != nil {
+		return -1, err
 	}
-	return int(r), nil
+	return int(int32(r)), nil
 }
 
 func MmapPtr(fd int, offset int64, addr unsafe.Pointer, length uintptr, prot int, flags int) (unsafe.Pointer, error) {
 	r, _, e := sysvicall6(fn(&libc_mmap), 6, uintptr(addr), length, uintptr(prot), uintptr(flags), uintptr(fd), uintptr(offset))
-	if e != 0 {
-		return nil, errnoErr(e)
+	if r == ^uintptr(0) {
+		if e == 0 {
+			e = syscall.EIO
+		}
+		return nil, e
 	}
 	return unsafe.Pointer(r), nil
 }
 
 func MunmapPtr(addr unsafe.Pointer, length uintptr) error {
-	_, _, e := sysvicall6(fn(&libc_munmap), 2, uintptr(addr), length, 0, 0, 0, 0)
-	return errnoErr(e)
+	r, _, e := sysvicall6(fn(&libc_munmap), 2, uintptr(addr), length, 0, 0, 0, 0)
+	return callErr(r, e)
 }
 
 func Mprotect(b []byte, prot int) error {
@@ -237,8 +255,8 @@ func Mprotect(b []byte, prot int) error {
 	if len(b) > 0 {
 		p = unsafe.Pointer(&b[0])
 	}
-	_, _, e := sysvicall6(fn(&libc_mprotect), 3, uintptr(p), uintptr(len(b)), uintptr(prot), 0, 0, 0)
-	return errnoErr(e)
+	r, _, e := sysvicall6(fn(&libc_mprotect), 3, uintptr(p), uintptr(len(b)), uintptr(prot), 0, 0, 0)
+	return callErr(r, e)
 }
 
 func Fchmodat(dirfd int, path string, mode uint32, flags int) error {
@@ -246,8 +264,8 @@ func Fchmodat(dirfd int, path string, mode uint32, flags int) error {
 	if err != nil {
 		return err
 	}
-	_, _, e := sysvicall6(fn(&libc_fchmodat), 4, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(mode), uintptr(flags), 0, 0)
-	return errnoErr(e)
+	r, _, e := sysvicall6(fn(&libc_fchmodat), 4, uintptr(dirfd), uintptr(unsafe.Pointer(p)), uintptr(mode), uintptr(flags), 0, 0)
+	return callErr(r, e)
 }
 
 func Lutimes(path string, tv []Timeval) error {
@@ -263,19 +281,19 @@ func Lutimes(path string, tv []Timeval) error {
 		return err
 	}
 	fdcwd := AT_FDCWD
-	_, _, e := sysvicall6(fn(&libc_utimensat), 4, uintptr(fdcwd), uintptr(unsafe.Pointer(p)), uintptr(unsafe.Pointer(&ts[0])), uintptr(AT_SYMLINK_NOFOLLOW), 0, 0)
-	return errnoErr(e)
+	r, _, e := sysvicall6(fn(&libc_utimensat), 4, uintptr(fdcwd), uintptr(unsafe.Pointer(p)), uintptr(unsafe.Pointer(&ts[0])), uintptr(AT_SYMLINK_NOFOLLOW), 0, 0)
+	return callErr(r, e)
 }
 
 func SetsockoptInt(fd, level, opt int, value int) error {
 	v := int32(value)
-	_, _, e := sysvicall6(fn(&libc_setsockopt), 5, uintptr(fd), uintptr(level), uintptr(opt), uintptr(unsafe.Pointer(&v)), 4, 0)
-	return errnoErr(e)
+	r, _, e := sysvicall6(fn(&libc_setsockopt), 5, uintptr(fd), uintptr(level), uintptr(opt), uintptr(unsafe.Pointer(&v)), 4, 0)
+	return callErr(r, e)
 }
 
 func Flock(fd int, how int) error {
-	_, _, e := sysvicall6(fn(&libc_flock), 2, uintptr(fd), uintptr(how), 0, 0, 0, 0)
-	return errnoErr(e)
+	r, _, e := sysvicall6(fn(&libc_flock), 2, uintptr(fd), uintptr(how), 0, 0, 0, 0)
+	return callErr(r, e)
 }
 
 func Mkfifo(path string, mode uint32) error {
@@ -283,6 +301,17 @@ func Mkfifo(path string, mode uint32) error {
 	if err != nil {
 		return err
 	}
-	_, _, e := sysvicall6(fn(&libc_mkfifo), 2, uintptr(unsafe.Pointer(p)), uintptr(mode), 0, 0, 0, 0)
-	return errnoErr(e)
+	r, _, e := sysvicall6(fn(&libc_mkfifo), 2, uintptr(unsafe.Pointer(p)), uintptr(mode), 0, 0, 0, 0)
+	return callErr(r, e)
+}
+
+// Openpty is libc's openpty(3) with no name/termios/winsize: it returns the master
+// and slave descriptors of a new pseudo-terminal (neither is close-on-exec).
+func Openpty() (master, slave int, err error) {
+	var m, sl int32
+	r, _, e := sysvicall6(fn(&libc_openpty), 5, uintptr(unsafe.Pointer(&m)), uintptr(unsafe.Pointer(&sl)), 0, 0, 0, 0)
+	if err := callErr(r, e); err != nil {
+		return -1, -1, err
+	}
+	return int(m), int(sl), nil
 }
