@@ -1,0 +1,135 @@
+name: f4-redox
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'f4-redox/**'
+      - '.github/workflows/f4-redox.yml'
+
+permissions:
+  contents: read
+
+env:
+  # Redox Go toolchain: unxed/go branch golang-1.26-redox, pinned on purpose
+  # (bump deliberately; another worker keeps pushing to that branch).
+  GO_REDOX_SHA: 4866bdfa171c6f54eace1dbbdaddb3977c05fc81
+  # f4 is pinned too, so the patches in f4-redox/patches stay applicable.
+  F4_SHA: 376b6611317c2032b3957ad74db2689108ef0220
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore cached Redox Go toolchain
+        id: gocache
+        uses: actions/cache@v4
+        with:
+          path: redox-go
+          key: redox-go-${{ env.GO_REDOX_SHA }}
+
+      - name: Fetch unxed/go (pinned)
+        if: steps.gocache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: unxed/go
+          ref: ${{ env.GO_REDOX_SHA }}
+          path: redox-go
+
+      - uses: actions/setup-go@v5
+        if: steps.gocache.outputs.cache-hit != 'true'
+        with:
+          go-version: '1.24'
+          cache: false
+
+      - name: Build the Redox-capable Go toolchain (host linux/amd64)
+        if: steps.gocache.outputs.cache-hit != 'true'
+        timeout-minutes: 8
+        working-directory: redox-go/src
+        run: |
+          export GOROOT_BOOTSTRAP=$(dirname $(dirname $(which go)))
+          ./make.bash
+
+      - name: Clone f4 (pinned)
+        run: |
+          git clone https://github.com/unxed/f4.git /tmp/f4
+          git -C /tmp/f4 checkout -q "$F4_SHA"
+          git -C /tmp/f4 log -1 --oneline
+
+      - name: Apply f4 patches
+        working-directory: /tmp/f4
+        run: |
+          shopt -s nullglob
+          for p in "$GITHUB_WORKSPACE"/f4-redox/patches/f4/*.patch; do
+            echo "== $p"; git apply --verbose "$p"
+          done
+
+      - name: Recon - packages that do not load for redox, x/sys/unix symbols needed
+        timeout-minutes: 8
+        continue-on-error: true
+        working-directory: /tmp/f4
+        env:
+          GOOS: redox
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=mod
+        run: |
+          export GOROOT=$GITHUB_WORKSPACE/redox-go
+          export PATH=$GOROOT/bin:$PATH
+          go version
+          go list -e -deps -json ./cmd/f4 > /tmp/deps.json 2> /tmp/deps.err || true
+          tail -5 /tmp/deps.err || true
+          mkdir -p /tmp/recon
+          python3 "$GITHUB_WORKSPACE/f4-redox/scripts/recon.py" /tmp/deps.json /tmp/recon
+          echo '--- packages with load errors ---'; cat /tmp/recon/pkg-errors.txt | head -80
+          echo '--- x/sys/unix symbols ---'; wc -l /tmp/recon/unix-symbols.txt
+
+      - name: Try GOOS=redox GOARCH=amd64 build of f4 (all errors, -gcflags=-e)
+        id: f4build
+        timeout-minutes: 8
+        continue-on-error: true
+        working-directory: /tmp/f4
+        env:
+          GOOS: redox
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=mod
+        run: |
+          set -o pipefail
+          export GOROOT=$GITHUB_WORKSPACE/redox-go
+          export PATH=$GOROOT/bin:$PATH
+          go build -gcflags=-e -o /tmp/f4-redox-amd64 ./cmd/f4 2>&1 | tee /tmp/f4-build.log
+
+      - name: Upload logs and recon output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4-redox-build
+          path: |
+            /tmp/f4-build.log
+            /tmp/recon
+            /tmp/deps.err
+          if-no-files-found: ignore
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## f4 redox build"
+            echo
+            echo "f4 build: ${{ steps.f4build.outcome }}"
+            echo
+            echo '### recon'
+            echo '```'
+            head -60 /tmp/recon/pkg-errors.txt 2>/dev/null || echo "(no recon output)"
+            echo '```'
+            echo '### build log (first 120 lines)'
+            echo '```'
+            head -120 /tmp/f4-build.log 2>/dev/null || echo "(no build log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
