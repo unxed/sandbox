@@ -1,0 +1,64 @@
+name: vmlab-session
+
+# Interactive QEMU guest inside Actions: see vmlab/ctl.py. Commands arrive via
+# branch vmlab-cmd, screenshots/logs go to branch vmlab-out. Runs on dispatch
+# only; pushes to vmlab-* branches by GITHUB_TOKEN do not trigger workflows.
+on:
+  workflow_dispatch:
+    inputs:
+      guest:    {description: 'vmlab/guests/<name>.json', default: 'haiku'}
+      minutes:  {description: 'max session length',       default: '30'}
+      scenario: {description: 'vmlab/scenarios/<name>.txt replayed before hand-over (optional)', default: ''}
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: KVM + tools
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm || echo "NO /dev/kvm (TCG fallback, will be slow)"
+          nproc; free -m | head -2
+          if ! command -v qemu-system-x86_64 >/dev/null || ! command -v tesseract >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils tesseract-ocr
+          fi
+          qemu-system-x86_64 --version | head -1
+
+      - name: Payload = latest successful f4-haiku binary
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/vmlab/payload
+          ID=$(gh run list --workflow f4-haiku.yml --status success -L 1 --json databaseId -q '.[0].databaseId')
+          echo "f4-haiku run: $ID"
+          gh run download "$ID" -n f4-haiku-amd64 -D /tmp/vmlab/payload
+          chmod +x /tmp/vmlab/payload/f4-haiku-amd64 || true
+          ls -l /tmp/vmlab/payload
+
+      - name: Session
+        run: |
+          SCEN=""
+          [ -n "${{ inputs.scenario }}" ] && SCEN="--scenario vmlab/scenarios/${{ inputs.scenario }}.txt"
+          python3 vmlab/vmlab.py session --guest vmlab/guests/${{ inputs.guest }}.json \
+            --minutes ${{ inputs.minutes }} $SCEN
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlab-logs
+          path: |
+            /tmp/vmlab/qemu.log
+            /tmp/vmlab/serial.log
+          if-no-files-found: ignore

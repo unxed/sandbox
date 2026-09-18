@@ -1,0 +1,9 @@
+{
+  "name": "haiku",
+  "image_url": "https://haiku-nightly.cdn.haiku-os.org/x86_64/haiku-master-hrev60122-x86_64-anyboot.zip",
+  "image_kind": "zip",
+  "image_glob": "*.iso",
+  "ram": 2048,
+  "smp": 2,
+  "nic": "e1000"
+}
