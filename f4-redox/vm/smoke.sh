@@ -14,12 +14,20 @@ run_one "/root/mnt/ptyrun -tag in -cols 80 -rows 24 -script wait:1500,key:hello,
 # runtime repro candidates (each run watched separately)
 i=1; while [ $i -le 6 ]; do run_one "/root/mnt/sigrepro nospawn" default $i 30; i=$((i+1)); done
 i=1; while [ $i -le 6 ]; do run_one "/root/mnt/sigrepro spawn" default $i 30; i=$((i+1)); done
-# the whole TUI in a pty (client + session daemon, fresh state)
-run_one "/root/mnt/ptyrun -tag tui -cols 100 -rows 30 -script wait:700,sig:USR1,wait:900,sig:USR1,wait:1500,sig:USR1,wait:4000,snap:t8,ctx:f4,key:\e[B,wait:500,key:\e[B,wait:800,snap:down2,key:\e[11~,wait:2500,snap:f1,ctx:f4,key:\e,wait:1000,snap:esc,wait:1000,sig:QUIT,wait:2500,snap:t16 -- /root/mnt/f4 --tty --attached --debug" default 1 150
-echo "=== sessions"; ls -la /tmp/f4-sessions-0 2>&1 | head
-echo "=== f4 files"; find /tmp/cfg /tmp/f4-sessions-0 -type f 2>/dev/null | head -20
-for f in $(find /tmp/cfg -type f -name 'debug*.log' 2>/dev/null | head -3); do echo "--- $f (tail)"; tail -80 $f; done
-for f in $(find /tmp/cfg/f4/crashes -type f 2>/dev/null | head -6); do echo "--- $f (size $(wc -c < $f))"; done
-for f in $(ls /tmp/cfg/f4/crashes/stderr_* 2>/dev/null | head -2); do echo "=== SIGQUIT dump in $f"; echo "size: $(wc -c < $f)"; head -400 $f; done
-f=$(ls -t /tmp/cfg/f4/crashes/* 2>/dev/null | head -1); [ -n "$f" ] && { echo "--- newest crash file $f"; head -150 $f; }
+# the whole TUI in a pty, several times per configuration; a run "works" when F1 produces output
+cat > /tmp/tui.sh <<'EOS'
+cfg=$1; n=$2; shift 2
+tag=$cfg-$n
+export $cfg
+rm -rf /tmp/cfg/f4
+/root/mnt/ptyrun -tag $tag -cols 100 -rows 30 -script wait:6000,snap:t6,key:\e[B,wait:500,snap:down,key:\e[11~,wait:2500,snap:f1,key:\e,wait:800,snap:esc -- /root/mnt/f4 --tty --attached
+EOS
+for cfg in DEFAULT=1 GOMAXPROCS=1 GOMAXPROCS=2; do
+  n=1; while [ $n -le 3 ]; do run_one "sh /tmp/tui.sh $cfg $n" default 1 90; n=$((n+1)); done
+done
+# one run with everything for the artifacts: debug log, SIGQUIT dump
+run_one "/root/mnt/ptyrun -tag full -cols 100 -rows 30 -script wait:6000,snap:t6,key:\e[B,wait:500,snap:down,key:\e[11~,wait:2500,snap:f1,key:\e,wait:800,snap:esc,key:\e[20~,wait:2500,snap:menu,sig:QUIT,wait:2500 -- /root/mnt/f4 --tty --attached --debug" default 1 150
+echo "=== f4 files"; find /tmp/cfg -type f 2>/dev/null | head -20
+for f in $(ls /tmp/cfg/f4/crashes/stderr_* 2>/dev/null | head -1); do echo "=== SIGQUIT dump in $f"; echo "size: $(wc -c < $f)"; head -120 $f; done
+echo "--- debug.log (tail)"; tail -40 /tmp/cfg/f4/logs/debug.log
 echo "=== LADDER DONE"
