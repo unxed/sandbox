@@ -1,0 +1,5 @@
+click 330 400
+typeln clear
+typeln cd /tmp/t; ./f4 --debug
+wait 8
+shot f4-debug
