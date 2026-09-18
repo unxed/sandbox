@@ -404,7 +404,7 @@ class Bus:
             log("push failed:", r.stderr.strip()[:300])
 
     def pending(self):
-        r = self.g("fetch", "-q", "--depth", "1", "origin", "vmlab-cmd:refs/remotes/origin/vmlab-cmd", check=False)
+        r = self.g("fetch", "-q", "--depth", "1", "origin", "+vmlab-cmd:refs/remotes/origin/vmlab-cmd", check=False)
         if r.returncode:
             return []
         ls = self.g("ls-tree", "-r", "--name-only", "refs/remotes/origin/vmlab-cmd",
