@@ -53,6 +53,19 @@ jobs:
           export GOROOT_BOOTSTRAP=$(dirname $(dirname $(which go)))
           ./make.bash
 
+      - name: Restore Go module cache
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: gomod-f4-${{ env.F4_SHA }}
+
+      - name: Restore Go build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: gobuild-f4redox-${{ env.GO_REDOX_SHA }}-${{ github.run_id }}
+          restore-keys: gobuild-f4redox-${{ env.GO_REDOX_SHA }}-
+
       - name: Clone f4 (pinned)
         run: |
           git clone https://github.com/unxed/f4.git /tmp/f4
@@ -66,6 +79,21 @@ jobs:
           for p in "$GITHUB_WORKSPACE"/f4-redox/patches/f4/*.patch; do
             echo "== $p"; git apply --verbose "$p"
           done
+
+      - name: Prepare modules (tag rule, x/sys/unix shim, replace directives)
+        timeout-minutes: 8
+        working-directory: /tmp/f4
+        env:
+          GOOS: redox
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=mod
+        run: |
+          set -o pipefail
+          export GOROOT=$GITHUB_WORKSPACE/redox-go
+          export PATH=$GOROOT/bin:$PATH
+          "$GITHUB_WORKSPACE/f4-redox/scripts/prep_modules.sh" 2>&1 | tee /tmp/prep.log
 
       - name: Recon - packages that do not load for redox, x/sys/unix symbols needed
         timeout-minutes: 8
@@ -112,6 +140,7 @@ jobs:
           name: f4-redox-build
           path: |
             /tmp/f4-build.log
+            /tmp/prep.log
             /tmp/recon
             /tmp/deps.err
           if-no-files-found: ignore
