@@ -1,0 +1,6 @@
+click 120 775
+wait 4
+shot term-open
+typeln cd /tmp/demo 2>/dev/null; /tmp/f4n --tty --attached
+wait 12
+shot f4-start
