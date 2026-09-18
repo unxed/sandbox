@@ -31,15 +31,17 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils tesseract-ocr zstd ovmf
           qemu-system-x86_64 --version | head -1
 
-      - name: Scenario (screenshot every 15 s)
+      - name: Scenario (Enter at the bootloader menu, then a screenshot every 5 s)
         run: |
-          N=$([ "${{ matrix.accel }}" = kvm ] && echo 8 || echo 30)
-          : > /tmp/scenario.txt
-          for i in $(seq 1 $N); do
-            printf 'wait 15\nshot t%03d\n' $((i*15)) >> /tmp/scenario.txt
-          done
-          echo 'stable 10 60' >> /tmp/scenario.txt
-          echo 'shot final' >> /tmp/scenario.txt
+          N=$([ "${{ matrix.accel }}" = kvm ] && echo 24 || echo 90)
+          {
+            echo 'wait 8'
+            echo 'shot bootloader'
+            echo 'key ret'
+            for i in $(seq 1 $N); do printf 'wait 5\nshot s%03d\n' $((i*5)); done
+            echo 'stable 10 60'
+            echo 'shot final'
+          } > /tmp/scenario.txt
 
       - name: Boot and capture
         env:
