@@ -233,6 +233,9 @@ func main() {
 			}
 		case "snap":
 			snap(*tag, arg)
+		case "sig":
+			sig := map[string]syscall.Signal{"USR1": syscall.SIGUSR1, "USR2": syscall.SIGUSR2, "QUIT": syscall.SIGQUIT, "INT": syscall.SIGINT, "TERM": syscall.SIGTERM}[arg]
+			fmt.Println("PTYRUN signal", arg, "->", syscall.Kill(cmd.Process.Pid, sig))
 		case "ctx":
 			if data, err := os.ReadFile("/scheme/sys/context"); err == nil {
 				for i, l := range strings.Split(string(data), "\n") {
