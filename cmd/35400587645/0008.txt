@@ -1,0 +1,7 @@
+click 330 400
+typeln clear; cd /tmp/t
+typeln ./f4
+wait 8
+shot f4-1
+wait 6
+shot f4-2
