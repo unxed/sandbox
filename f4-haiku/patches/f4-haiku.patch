@@ -168,7 +168,7 @@ index 0000000..e66be42
 +
 +	err := p.Cmd.Start()
 +	if err == nil {
-+		p.shellPgrp, _ = syscall.Getpgid(p.Cmd.Process.Pid)
++		p.shellPgrp, _ = unix.Getpgid(p.Cmd.Process.Pid)
 +	}
 +	return err
 +}

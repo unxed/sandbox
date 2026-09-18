@@ -22,22 +22,19 @@ jobs:
       - name: Record bootstrap GOROOT
         run: echo "BOOTSTRAP_GOROOT=$(go env GOROOT)" >> "$GITHUB_ENV"
 
-      - name: Clone unxed/go (our fork of korli/go, caught up to go1.26.6)
+      - name: Clone korli/go (Haiku port, branch golang-1.26-haiku)
         run: |
-          git clone --branch golang-1.26-haiku --depth 60 https://github.com/unxed/go.git /tmp/korli-go
+          git clone --branch golang-1.26-haiku --depth 60 https://github.com/korli/go.git /tmp/korli-go
           cd /tmp/korli-go
           echo "--- HEAD ---"
           git log -5 --oneline
           echo "--- VERSION ---"
           cat VERSION 2>/dev/null || echo "(no VERSION file)"
-          # This is our own fork (github.com/unxed/go, branch
-          # golang-1.26-haiku), not korli/go directly: korli's branch was
-          # stuck on upstream go1.26.2 while f4's go.mod (and its own
-          # github.com/unxed/* deps) require go >= 1.26.6. We merged the
-          # go1.26.6 tag from golang/go's release-branch.go1.26 into our
-          # fork (clean merge, no conflicts with the Haiku commits) and
-          # sent that catch-up upstream as a PR to korli/go. Once merged
-          # there we can switch this back to korli/go directly.
+          # korli/go caught up with upstream (go1.26.8 at the time of
+          # writing, >= the go1.26.6 floor in f4's go.mod), so the
+          # temporary unxed/go fork is no longer needed. Its only extra
+          # commits (syscall.FcntlInt / syscall.Getpgid) existed for our
+          # x/sys shim, which is replaced by korli/sys_haiku below.
 
       - name: Build korli/go toolchain (host linux/amd64, cross target support for haiku)
         id: toolchain
@@ -109,18 +106,6 @@ jobs:
           echo "--- patched files ---"
           git diff --stat
 
-      - name: Clone golang.org/x/sys and add a minimal haiku unix shim
-        run: |
-          set -euo pipefail
-          XSYS_VER="$(grep -oP 'golang.org/x/sys v\K\S+' /tmp/f4/go.mod)"
-          echo "f4 pins x/sys at: $XSYS_VER"
-          git clone --branch "v${XSYS_VER#v}" --depth 1 https://github.com/golang/sys.git /tmp/xsys-haiku
-          cd /tmp/xsys-haiku
-          # x/sys/unix has no Haiku port at all (see patch header for the
-          # full rationale + provenance of every value). Adds one new file,
-          # unix/haiku_amd64.go, touches nothing existing.
-          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/xsys-unix-haiku.patch"
-
       - name: Clone unxed/zip and patch its symlink chmod/chtimes path for haiku
         run: |
           set -euo pipefail
@@ -183,7 +168,7 @@ jobs:
           export PATH="/tmp/korli-go/bin:$PATH"
           go mod edit \
             -replace github.com/unxed/vtui=/tmp/vtui-haiku \
-            -replace golang.org/x/sys=/tmp/xsys-haiku \
+            -replace golang.org/x/sys=github.com/korli/sys_haiku@819bfec32e8f \
             -replace github.com/unxed/zip=/tmp/zip-haiku \
             -replace github.com/spf13/afero=/tmp/afero-haiku \
             -replace github.com/pkg/sftp=/tmp/sftp-haiku \
@@ -191,6 +176,10 @@ jobs:
             -replace github.com/unxed/archives=/tmp/archives-haiku \
             -replace github.com/unxed/tar=/tmp/tar-haiku
           grep replace go.mod
+          # golang.org/x/sys -> github.com/korli/sys_haiku, the Haiku port of
+          # x/sys used by HaikuPorts (see e.g. www-apps/hugo recipe, which
+          # tracks branch master-haiku; we pin the current commit of that
+          # branch so CI runs are reproducible).
 
       - name: Attempt GOOS=haiku GOARCH=amd64 build of f4
         id: f4build
@@ -201,6 +190,8 @@ jobs:
           CGO_ENABLED: '0'
           GOTOOLCHAIN: local
           GOFLAGS: -v -mod=mod
+          # fetch korli/* modules straight from GitHub, no proxy/sumdb
+          GOPRIVATE: github.com/korli/*
         run: |
           set -o pipefail
           export PATH="/tmp/korli-go/bin:$PATH"

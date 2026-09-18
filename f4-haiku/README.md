@@ -9,6 +9,35 @@ Haiku-исполняемый файл (`interpreter /system/runtime_loader`, н�
 реальной Haiku, ни под эмулятором. Это следующий шаг, и именно под него
 написан раздел «Тестирование под QEMU» ниже.
 
+## Обновление: переход на korli/go и korli/sys_haiku
+
+В [korli/go#2](https://github.com/korli/go/pull/2) korli ответил: вместо
+собственного шима для `golang.org/x/sys` надо использовать
+[`github.com/korli/sys_haiku`](https://github.com/korli/sys_haiku) (ветка
+`master-haiku`; так же сделано в рецепте HaikuPorts
+`www-apps/hugo/hugo-*.recipe`: `go mod edit -replace
+golang.org/x/sys=github.com/korli/sys_haiku@master-haiku`), а ветку
+`golang-1.26-haiku` он сам догнал до апстрима (на момент записи —
+`go1.26.8`, что выше требуемого f4 `go 1.26.6`). Поэтому PR #2 потерял смысл.
+Что изменено в пайплайне:
+
+- Тулчейн теперь клонируется прямо из `korli/go`, форк `unxed/go` больше не
+  используется. Его единственные собственные коммиты (`syscall.FcntlInt`,
+  `syscall.Getpgid`) нужны были только нашему шиму x/sys.
+- Шим `xsys-unix-haiku.patch` удалён. Вместо него
+  `go mod edit -replace golang.org/x/sys=github.com/korli/sys_haiku@<commit>`
+  (закреплён коммит из `master-haiku`, а не сама ветка, чтобы прогоны CI
+  были воспроизводимы; `GOPRIVATE=github.com/korli/*`, чтобы модули
+  подтягивались напрямую с GitHub, минуя proxy/sumdb).
+- `f4-haiku.patch`: в `pty_haiku.go` вызов `syscall.Getpgid` заменён на
+  `unix.Getpgid` (в `korli/go` он не экспортируется, а в `sys_haiku` есть).
+- Пункты про шим ниже («Карта репозитория», блокеры №2 и №4, пункты 2, 3, 5
+  чек-листа) описывают прошлое состояние; `Mmap`/`Munmap`/`Mprotect`/`Poll`/
+  `Flock`/`FcntlInt` теперь настоящие реализации из `sys_haiku` (через
+  libroot), а не заглушки.
+- Статус: правки ещё **не подтверждены прогоном CI** — результат первого
+  запуска после перехода дописывается ниже.
+
 Этот файл — единственная точка входа: по нему можно продолжить работу (в
 том числе в свежем диалоге/окружении) без переизучения истории чата.
 
