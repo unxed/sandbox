@@ -11,7 +11,7 @@ vmlab-history.txt, so a good interactive run can be turned into a scenario.
 
 State (session run id, command counter) lives in ./.vmlab-session.
 """
-import argparse, base64, json, os, pathlib, sys, time, urllib.error, urllib.request
+import argparse, base64, json, os, pathlib, shutil, sys, time, urllib.error, urllib.request
 
 REPO = os.environ.get("VMLAB_REPO", "unxed/sandbox")
 TOK = os.environ["GH_TOKEN"]
@@ -39,6 +39,7 @@ def load():
 
 
 def start(a):
+    shutil.rmtree(OUT, ignore_errors=True)  # results of earlier sessions
     sha = api("GET", "git/ref/heads/main")["object"]["sha"]
     if api("GET", "git/ref/heads/vmlab-cmd", ok404=True) is None:
         api("POST", "git/refs", {"ref": "refs/heads/vmlab-cmd", "sha": sha})
@@ -71,6 +72,13 @@ def do(a):
          "content": base64.b64encode(("\n".join(lines) + "\n").encode()).decode()})
     STATE.write_text(json.dumps(st))
     t0 = time.time()
+    while True:  # results of an older session may still be on the branch: wait for our own session
+        cur = api("GET", "contents/SESSION?ref=vmlab-out", raw=True, ok404=True)
+        if cur is not None and cur.decode().strip() == str(st["run"]):
+            break
+        if time.time() - t0 > a.timeout:
+            raise SystemExit("session %s never published (job not started or failed?)" % st["run"])
+        time.sleep(2)
     while True:
         s = api("GET", "contents/out/%04d/status?ref=vmlab-out" % n, raw=True, ok404=True)
         if s is not None:
