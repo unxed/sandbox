@@ -8,14 +8,16 @@ W="$GITHUB_WORKSPACE/f4-redox"
 mkdir -p /tmp/mods
 
 # modules that only need the "redox joins illumos/solaris" tag rule
-TAGGED="github.com/unxed/vtui github.com/unxed/vtinput github.com/unxed/zip github.com/unxed/tar github.com/tetratelabs/wazero github.com/ncruces/go-sqlite3 github.com/pkg/sftp"
-for m in $TAGGED; do
+# name[:anchor] - anchor "sol" also lets solaris (without illumos) lines pull redox in
+TAGGED="github.com/unxed/vtui github.com/unxed/vtinput github.com/unxed/zip github.com/unxed/tar github.com/tetratelabs/wazero github.com/ncruces/go-sqlite3 github.com/pkg/sftp:sol"
+for spec in $TAGGED; do
+  m=${spec%%:*}; anchor=""; [ "$spec" != "$m" ] && anchor="--solaris-anchor"
   go mod download "$m"
   d=$(go list -m -f '{{.Dir}}' "$m")
   n=$(echo "$m" | tr / _)
   rm -rf "/tmp/mods/$n"; cp -r "$d" "/tmp/mods/$n"; chmod -R u+w "/tmp/mods/$n"
   echo "== tags: $m"
-  python3 "$W/scripts/redox_tags.py" --solaris-anchor "/tmp/mods/$n"
+  python3 "$W/scripts/redox_tags.py" $anchor "/tmp/mods/$n"
   python3 "$W/scripts/fix_stat_ids.py" "/tmp/mods/$n"
   go mod edit -replace "$m=/tmp/mods/$n"
 done
