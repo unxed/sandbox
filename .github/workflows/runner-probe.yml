@@ -1,0 +1,20 @@
+name: runner-probe
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - '.github/workflows/runner-probe.yml'
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          echo "nproc=$(nproc)"; free -g | head -2; df -h / /mnt 2>/dev/null | head -4
+          ls -l /dev/kvm || echo "NO /dev/kvm"
+          grep -E -c 'vmx|svm' /proc/cpuinfo || true
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm || echo "still NO /dev/kvm"
+          (sudo apt-get install -y -qq qemu-system-x86 >/dev/null 2>&1 && qemu-system-x86_64 -accel help) || true
+          which qemu-system-x86_64 tesseract xdotool || true
