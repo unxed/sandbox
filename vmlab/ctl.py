@@ -77,7 +77,14 @@ def do(a):
     d = OUT / ("%04d" % n)
     d.mkdir(parents=True, exist_ok=True)
     for f in api("GET", "contents/out/%04d?ref=vmlab-out" % n):
-        (d / f["name"]).write_bytes(api("GET", f["path"] + "?ref=vmlab-out", raw=True))
+        for attempt in range(8):  # Contents API is eventually consistent: a fresh file can 404 briefly
+            data = api("GET", f["path"] + "?ref=vmlab-out", raw=True, ok404=True)
+            if data is not None:
+                break
+            time.sleep(1.5)
+        else:
+            raise SystemExit("cannot fetch " + f["path"])
+        (d / f["name"]).write_bytes(data)
     print((d / "log.txt").read_text(), end="")
     print("status:", s.decode().strip(), "| %.1fs round-trip" % (time.time() - t0))
     for p in sorted(d.glob("*.png")):
