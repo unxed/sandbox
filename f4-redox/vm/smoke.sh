@@ -11,7 +11,7 @@ run_one "/root/mnt/f4 --list-mounts" default 1 120
 # poll(2) on what f4's input reader watches
 run_one "/root/mnt/ptyrun -tag pp -cols 80 -rows 24 -script wait:6000,snap:pp -- /root/mnt/pollprobe" default 1 60
 # the whole TUI in a pty (client + session daemon, fresh state)
-run_one "/root/mnt/ptyrun -tag tui -cols 100 -rows 30 -script wait:700,sig:USR1,wait:900,sig:USR1,wait:1500,sig:USR1,wait:4000,snap:t8,key:\e[B,wait:1500,snap:down,wait:4000,snap:t16 -- /root/mnt/f4 --tty --attached --debug" default 1 150
+run_one "/root/mnt/ptyrun -tag tui -cols 100 -rows 30 -script wait:700,sig:USR1,wait:900,sig:USR1,wait:1500,sig:USR1,wait:4000,snap:t8,key:\e[B,wait:500,key:\e[B,wait:800,snap:down2,key:\e[11~,wait:2500,snap:f1,key:\e,wait:1000,snap:esc,wait:2000,snap:t16 -- /root/mnt/f4 --tty --attached --debug" default 1 150
 echo "=== sessions"; ls -la /tmp/f4-sessions-0 2>&1 | head
 echo "=== f4 files"; find /tmp/cfg /tmp/f4-sessions-0 -type f 2>/dev/null | head -20
 for f in $(find /tmp/cfg -type f -name 'debug*.log' 2>/dev/null | head -3); do echo "--- $f (tail)"; tail -80 $f; done

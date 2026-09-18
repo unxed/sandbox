@@ -42,6 +42,28 @@ func main() {
 	if err == nil {
 		fmt.Printf("POLLPROBE termios: %+v\n", *t)
 	}
+	// directory listing the way f4's OSVFS.ReadDir does it
+	ents, err := os.ReadDir("/tmp/demo")
+	fmt.Printf("DIRPROBE os.ReadDir(/tmp/demo): %d entries err=%v\n", len(ents), err)
+	for _, e := range ents {
+		info, ierr := e.Info()
+		var sz int64
+		if info != nil {
+			sz = info.Size()
+		}
+		fmt.Printf("DIRPROBE   %-12s isDir=%v type=%v info.err=%v size=%d\n", e.Name(), e.IsDir(), e.Type(), ierr, sz)
+	}
+	done := make(chan struct{})
+	go func() {
+		e2, err := os.ReadDir("/tmp/demo")
+		fmt.Printf("DIRPROBE (in goroutine) %d entries err=%v\n", len(e2), err)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		fmt.Println("DIRPROBE goroutine ReadDir TIMEOUT")
+	}
 	fmt.Println("POLLPROBE DONE")
 	os.Exit(0)
 }
