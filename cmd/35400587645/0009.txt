@@ -1,0 +1,12 @@
+key down
+wait 1
+shot nav-down
+key tab
+wait 1
+shot nav-tab
+typeln echo hello from the pty
+wait 3
+shot cmd-echo
+key ctrl-o
+wait 2
+shot ctrl-o
