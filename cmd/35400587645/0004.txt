@@ -1,0 +1,6 @@
+move 900 300
+move 881 707
+wait 0.5
+click 881 707
+wait 4
+shot terminal
