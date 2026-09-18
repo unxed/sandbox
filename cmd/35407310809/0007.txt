@@ -1,0 +1,6 @@
+click 1008 51
+wait 4
+shot newtab
+typeln cd /tmp/demo; /tmp/f4n --tty --attached
+wait 20
+shot f4-tab
