@@ -30,14 +30,28 @@ func main() {
 			nt.Cc[unix.VTIME] = 0
 			fmt.Println("INPUTPROBE TCSETS raw:", unix.IoctlSetTermios(0, unix.TCSETS, &nt))
 		}
-		for i := 0; i < 4; i++ {
-			try("stdin waiting for input", 0, 1500)
+		// (a) a blocking read in a goroutine, (b) poll in parallel
+		got := make(chan string, 4)
+		go func() {
 			buf := make([]byte, 64)
-			fds := []unix.PollFd{{Fd: 0, Events: unix.POLLIN}}
-			if n, _ := unix.Poll(fds, 0); n > 0 {
+			for i := 0; i < 3; i++ {
 				k, err := syscall.Read(0, buf)
-				fmt.Printf("INPUTPROBE read %d bytes %q err=%v\n", k, buf[:max(k, 0)], err)
+				got <- fmt.Sprintf("read %d bytes %q err=%v", k, buf[:max(k, 0)], err)
 			}
+		}()
+		for i := 0; i < 3; i++ {
+			try("stdin poll while a read waits", 0, 1500)
+			select {
+			case m := <-got:
+				fmt.Println("INPUTPROBE (blocking read) ", m)
+			default:
+			}
+		}
+		select {
+		case m := <-got:
+			fmt.Println("INPUTPROBE (blocking read, late) ", m)
+		case <-time.After(1 * time.Second):
+			fmt.Println("INPUTPROBE blocking read still waiting")
 		}
 		fmt.Println("INPUTPROBE DONE")
 		os.Exit(0)
