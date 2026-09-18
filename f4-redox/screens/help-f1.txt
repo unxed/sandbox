@@ -1,0 +1,30 @@
+ 1P demo ─ demo │+
+┌─ /tmp/demo ────────────────────────────────────┐┌─ /tmp/demo ────────────────────────────────────┐
+│Name ↑     ╔═════════════════════════════  Help: Panels  ══════════════════════[↕][×]═╗           │
+│..         ║ f4 Help Index (Version: 376b661-dirty [2026-09-18 20:33])                ║           │
+│docs       ║ f4 is an experimental Far Manager / far2l clone in Go.                   ║           │
+│subdir     ║                                                                          ║           │
+│readme.txt ║ Viewer / Editor keys                                                     ║           │
+│           ║ Panel navigation                                                         ║           │
+│           ║ MediaInfo plugin                                                         ║           │
+│           ║ Console modes (Ctrl+O)                                                   ║           │
+│           ║ Environment Manager plugin                                               ║           │
+│           ║ View README.md                                                           ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+│           ║                                                                          ║           │
+└ ▸ Up ─────╚══════════════════════════════ Search: type ══════════════════════════════╝───────────┘
+root@redox:/tmp/demo$
+1Help   2Menu   3View   4Edit   5Copy   6RenMov 7MkDir  8Delete 9ConfMe 10Quit  11Plugi 12Screen
