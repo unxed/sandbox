@@ -1,0 +1,5 @@
+key f10
+wait 2
+key ret
+wait 1
+shot after-f10
