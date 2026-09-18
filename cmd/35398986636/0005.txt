@@ -1,0 +1,5 @@
+click 120 775
+stable 3 30
+typeln uname -a; echo hello-from-guest; ls /
+wait 2
+shot term
