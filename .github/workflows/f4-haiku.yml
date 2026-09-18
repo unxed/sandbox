@@ -85,6 +85,38 @@ jobs:
           echo "--- built toolchain version ---"
           /tmp/korli-go/bin/go version
 
+      - name: Clone unxed/vtui at f4's pinned version and patch it for haiku
+        run: |
+          set -euo pipefail
+          VTUI_VER="$(grep -oP 'github.com/unxed/vtui \K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins vtui at: $VTUI_VER"
+          git clone --branch "$VTUI_VER" --depth 1 https://github.com/unxed/vtui.git /tmp/vtui-haiku
+          cd /tmp/vtui-haiku
+          # vtui's gogpu_*/gui_font*/x11_* files gate the GPU (goffi/FFI),
+          # font-inventory and X11 backends per-OS. Haiku wasn't in any of
+          # those lists, so it fell into the "GPU backend enabled" default
+          # on the gogpu_* files (pulling in goffi's internal/fakecgo,
+          # which has no Haiku threading support — a much bigger port than
+          # this pass is scoped for) while also missing the font/X11
+          # allow-lists entirely (no fallback there -> undefined symbols).
+          # This patch places haiku exactly where illumos/solaris already
+          # sit in every one of these lists: no GPU/gogpu backend (falls
+          # back to the stub, same as those), but full X11 + font-inventory
+          # support (all pure-Go, no native deps, same as those). See
+          # f4-haiku/patches/vtui-haiku.patch in the sandbox repo for the
+          # full rationale.
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/vtui-haiku.patch"
+          echo "--- patched files ---"
+          git diff --stat
+
+      - name: Point f4's build at the patched local vtui checkout
+        working-directory: /tmp/f4
+        run: |
+          set -euo pipefail
+          export PATH="/tmp/korli-go/bin:$PATH"
+          go mod edit -replace github.com/unxed/vtui=/tmp/vtui-haiku
+          grep replace go.mod
+
       - name: Attempt GOOS=haiku GOARCH=amd64 build of f4
         id: f4build
         working-directory: /tmp/f4
@@ -93,7 +125,7 @@ jobs:
           GOARCH: amd64
           CGO_ENABLED: '0'
           GOTOOLCHAIN: local
-          GOFLAGS: -v
+          GOFLAGS: -v -mod=mod
         run: |
           set -o pipefail
           export PATH="/tmp/korli-go/bin:$PATH"

@@ -1,0 +1,270 @@
+diff --git a/gogpu_customchar_test.go b/gogpu_customchar_test.go
+index f5dbe4a..0e8e269 100644
+--- a/gogpu_customchar_test.go
++++ b/gogpu_customchar_test.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_dnd.go b/gogpu_dnd.go
+index f8c979a..2e0efc9 100644
+--- a/gogpu_dnd.go
++++ b/gogpu_dnd.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_dnd_test.go b/gogpu_dnd_test.go
+index ac46f06..c850573 100644
+--- a/gogpu_dnd_test.go
++++ b/gogpu_dnd_test.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_ffi.go b/gogpu_ffi.go
+index 29e6f05..c8c9faa 100644
+--- a/gogpu_ffi.go
++++ b/gogpu_ffi.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_ffi_stub.go b/gogpu_ffi_stub.go
+index 9f23c9e..f289270 100644
+--- a/gogpu_ffi_stub.go
++++ b/gogpu_ffi_stub.go
+@@ -1,4 +1,4 @@
+-//go:build freebsd || dragonfly || openbsd || netbsd || illumos || solaris || plan9 || android || !(amd64 || arm64)
++//go:build freebsd || dragonfly || openbsd || netbsd || illumos || solaris || haiku || plan9 || android || !(amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_glyphgen_test.go b/gogpu_glyphgen_test.go
+index 67e16a0..4811c2f 100644
+--- a/gogpu_glyphgen_test.go
++++ b/gogpu_glyphgen_test.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_host.go b/gogpu_host.go
+index 9072bf6..7bd0134 100644
+--- a/gogpu_host.go
++++ b/gogpu_host.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_host_test.go b/gogpu_host_test.go
+index 17295f1..575e500 100644
+--- a/gogpu_host_test.go
++++ b/gogpu_host_test.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_keys_test.go b/gogpu_keys_test.go
+index 0972d23..c7e69a9 100644
+--- a/gogpu_keys_test.go
++++ b/gogpu_keys_test.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_profile.go b/gogpu_profile.go
+index a933874..30f609d 100644
+--- a/gogpu_profile.go
++++ b/gogpu_profile.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_renderer.go b/gogpu_renderer.go
+index 04f18ab..bb2b25f 100644
+--- a/gogpu_renderer.go
++++ b/gogpu_renderer.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_renderer_test.go b/gogpu_renderer_test.go
+index 003856e..9f9b13a 100644
+--- a/gogpu_renderer_test.go
++++ b/gogpu_renderer_test.go
+@@ -1,4 +1,4 @@
+-//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !plan9 && !android && (amd64 || arm64)
++//go:build !freebsd && !dragonfly && !openbsd && !netbsd && !illumos && !solaris && !haiku && !plan9 && !android && (amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gogpu_stub.go b/gogpu_stub.go
+index a05747d..b3a77e3 100644
+--- a/gogpu_stub.go
++++ b/gogpu_stub.go
+@@ -1,4 +1,4 @@
+-//go:build freebsd || dragonfly || openbsd || netbsd || illumos || solaris || plan9 || android || !(amd64 || arm64)
++//go:build freebsd || dragonfly || openbsd || netbsd || illumos || solaris || haiku || plan9 || android || !(amd64 || arm64)
+ 
+ package vtui
+ 
+diff --git a/gui_boxdraw.go b/gui_boxdraw.go
+index 8e1c9d4..47d0211 100644
+--- a/gui_boxdraw.go
++++ b/gui_boxdraw.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos
++//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos || haiku
+ 
+ package vtui
+ 
+diff --git a/gui_boxdraw_test.go b/gui_boxdraw_test.go
+index c4c05a8..7b4aafd 100644
+--- a/gui_boxdraw_test.go
++++ b/gui_boxdraw_test.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos
++//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos || haiku
+ 
+ package vtui
+ 
+diff --git a/gui_font.go b/gui_font.go
+index 98bba4d..bb94a8a 100644
+--- a/gui_font.go
++++ b/gui_font.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos
++//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos || haiku
+ 
+ package vtui
+ 
+diff --git a/gui_font_inventory.go b/gui_font_inventory.go
+index 00bd3c6..6984a5a 100644
+--- a/gui_font_inventory.go
++++ b/gui_font_inventory.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos
++//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos || haiku
+ 
+ package vtui
+ 
+diff --git a/gui_font_inventory_other.go b/gui_font_inventory_other.go
+index 608afb3..24f21f9 100644
+--- a/gui_font_inventory_other.go
++++ b/gui_font_inventory_other.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || solaris || illumos
++//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || solaris || illumos || haiku
+ 
+ package vtui
+ 
+diff --git a/gui_font_scripts.go b/gui_font_scripts.go
+index d70f2b4..f6f0095 100644
+--- a/gui_font_scripts.go
++++ b/gui_font_scripts.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos
++//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos || haiku
+ 
+ package vtui
+ 
+diff --git a/x11_host.go b/x11_host.go
+index d0ba815..0638e88 100644
+--- a/x11_host.go
++++ b/x11_host.go
+@@ -1,4 +1,4 @@
+-//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris) && !android
++//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris || haiku) && !android
+ 
+ package vtui
+ 
+diff --git a/x11_host_test.go b/x11_host_test.go
+index 724980b..bf1812d 100644
+--- a/x11_host_test.go
++++ b/x11_host_test.go
+@@ -1,4 +1,4 @@
+-//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris) && !android
++//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris || haiku) && !android
+ 
+ package vtui
+ 
+diff --git a/x11_maximize_test.go b/x11_maximize_test.go
+index dfb13df..bfcc3eb 100644
+--- a/x11_maximize_test.go
++++ b/x11_maximize_test.go
+@@ -1,4 +1,4 @@
+-//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris) && !android
++//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris || haiku) && !android
+ 
+ package vtui
+ 
+diff --git a/x11_render_common.go b/x11_render_common.go
+index 26f01e3..f703563 100644
+--- a/x11_render_common.go
++++ b/x11_render_common.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos
++//go:build linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || solaris || illumos || haiku
+ 
+ package vtui
+ 
+diff --git a/x11_renderer.go b/x11_renderer.go
+index f250472..43be387 100644
+--- a/x11_renderer.go
++++ b/x11_renderer.go
+@@ -1,4 +1,4 @@
+-//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris) && !android
++//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris || haiku) && !android
+ 
+ package vtui
+ 
+diff --git a/x11_shm_fallback.go b/x11_shm_fallback.go
+index dda04bf..ff54e82 100644
+--- a/x11_shm_fallback.go
++++ b/x11_shm_fallback.go
+@@ -1,4 +1,4 @@
+-//go:build freebsd || openbsd || netbsd || dragonfly || darwin || windows || illumos || solaris
++//go:build freebsd || openbsd || netbsd || dragonfly || darwin || windows || illumos || solaris || haiku
+ 
+ package vtui
+ 
+diff --git a/x11_xdnd.go b/x11_xdnd.go
+index 29f306a..0208859 100644
+--- a/x11_xdnd.go
++++ b/x11_xdnd.go
+@@ -1,4 +1,4 @@
+-//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris) && !android
++//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris || haiku) && !android
+ 
+ package vtui
+ 
+diff --git a/x11_xdnd_test.go b/x11_xdnd_test.go
+index 9860658..470f245 100644
+--- a/x11_xdnd_test.go
++++ b/x11_xdnd_test.go
+@@ -1,4 +1,4 @@
+-//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris) && !android
++//go:build (linux || openbsd || netbsd || dragonfly || darwin || freebsd || windows || illumos || solaris || haiku) && !android
+ 
+ package vtui
+ 
