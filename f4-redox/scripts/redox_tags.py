@@ -4,14 +4,30 @@
 port used by hand): positive `... illumos ...` gets `|| redox` right after it,
 negative `!illumos` gets `&& !redox` right after it; files that already mention
 redox are left alone. Prints the changed files.
-usage: redox_tags.py DIR [DIR...]"""
+usage: redox_tags.py [--solaris-anchor] DIR [DIR...]
+--solaris-anchor: lines without illumos but with solaris use solaris as the anchor
+(third-party modules only; in f4 itself such lists are handled by hand)."""
 import os, re, sys
+
+SOLARIS_ANCHOR = False
+if len(sys.argv) > 1 and sys.argv[1] == '--solaris-anchor':
+    SOLARIS_ANCHOR = True
+    del sys.argv[1]
 
 pos = re.compile(r'(?<![!\w])illumos(?!\w)')
 neg = re.compile(r'!illumos(?!\w)')
 
+pos_sol = re.compile(r'(?<![!\w])solaris(?!\w)')
+neg_sol = re.compile(r'!solaris(?!\w)')
+
 def fix(line):
     if 'redox' in line:
+        return line
+    if 'illumos' not in line and SOLARIS_ANCHOR:
+        if neg_sol.search(line):
+            return neg_sol.sub(lambda m: m.group(0) + ' && !redox', line, count=1)
+        if pos_sol.search(line):
+            return pos_sol.sub(lambda m: m.group(0) + ' || redox', line, count=1)
         return line
     # negative form first (so the positive regex does not see "!illumos")
     if neg.search(line):
