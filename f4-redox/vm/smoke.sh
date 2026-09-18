@@ -23,7 +23,7 @@ rm -rf /tmp/cfg/f4
 /root/mnt/ptyrun -tag $tag -cols 100 -rows 30 -script wait:6000,snap:t6,key:\e[B,wait:500,snap:down,key:\e[11~,wait:2500,snap:f1,key:\e,wait:800,snap:esc -- /root/mnt/f4 --tty --attached
 EOS
 for cfg in DEFAULT=1 GOMAXPROCS=1 GOMAXPROCS=2; do
-  n=1; while [ $n -le 3 ]; do run_one "sh /tmp/tui.sh $cfg $n" default 1 90; n=$((n+1)); done
+  iter=1; while [ $iter -le 4 ]; do run_one "sh /tmp/tui.sh $cfg $iter" default 1 40; iter=$((iter+1)); done
 done
 # one run with everything for the artifacts: debug log, SIGQUIT dump
 run_one "/root/mnt/ptyrun -tag full -cols 100 -rows 30 -script wait:6000,snap:t6,key:\e[B,wait:500,snap:down,key:\e[11~,wait:2500,snap:f1,key:\e,wait:800,snap:esc,key:\e[20~,wait:2500,snap:menu,sig:QUIT,wait:2500 -- /root/mnt/f4 --tty --attached --debug" default 1 150
