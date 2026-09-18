@@ -18,6 +18,30 @@ func try(name string, fd int, timeoutMs int) {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "input" {
+		// switch the terminal to raw mode like f4 does, then wait for typed bytes
+		t, err := unix.IoctlGetTermios(0, unix.TCGETS)
+		fmt.Println("INPUTPROBE TCGETS:", err)
+		if err == nil {
+			nt := *t
+			nt.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+			nt.Iflag &^= unix.IGNBRK | unix.BRKINT | unix.PARMRK | unix.ISTRIP | unix.INLCR | unix.IGNCR | unix.ICRNL | unix.IXON
+			nt.Cc[unix.VMIN] = 1
+			nt.Cc[unix.VTIME] = 0
+			fmt.Println("INPUTPROBE TCSETS raw:", unix.IoctlSetTermios(0, unix.TCSETS, &nt))
+		}
+		for i := 0; i < 4; i++ {
+			try("stdin waiting for input", 0, 1500)
+			buf := make([]byte, 64)
+			fds := []unix.PollFd{{Fd: 0, Events: unix.POLLIN}}
+			if n, _ := unix.Poll(fds, 0); n > 0 {
+				k, err := syscall.Read(0, buf)
+				fmt.Printf("INPUTPROBE read %d bytes %q err=%v\n", k, buf[:max(k, 0)], err)
+			}
+		}
+		fmt.Println("INPUTPROBE DONE")
+		os.Exit(0)
+	}
 	try("stdin (tty slave)", 0, 300)
 	var p [2]int
 	if err := syscall.Pipe(p[:]); err != nil {
