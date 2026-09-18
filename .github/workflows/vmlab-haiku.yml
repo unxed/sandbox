@@ -53,6 +53,7 @@ jobs:
           echo "f4-haiku run: $ID"
           gh run download "$ID" -n f4-haiku-amd64 -D /tmp/vmlab/payload
           chmod +x /tmp/vmlab/payload/f4-haiku-amd64 || true
+          gh run download "$ID" -n f4-haiku-tools -D /tmp/vmlab/payload || echo "(no f4-haiku-tools in run $ID)"
           cp vmlab/haiku/* /tmp/vmlab/payload/ 2>/dev/null || true
           ls -l /tmp/vmlab/payload
 

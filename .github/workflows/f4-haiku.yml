@@ -200,6 +200,32 @@ jobs:
           go build -o /tmp/f4-haiku-amd64 ./cmd/f4 2>&1 | tee /tmp/f4-build.log
         continue-on-error: true
 
+      - name: Build vmlab guest tools (ptyrun) with the same toolchain
+        id: ptyrunbuild
+        if: steps.f4build.outcome == 'success'
+        continue-on-error: true
+        working-directory: vmlab/haiku/ptyrun
+        env:
+          GOOS: haiku
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=mod
+          GOPRIVATE: github.com/korli/*
+        run: |
+          set -euo pipefail
+          export PATH="/tmp/korli-go/bin:$PATH" GOROOT=/tmp/korli-go
+          go mod edit -replace golang.org/x/sys=github.com/korli/sys_haiku@819bfec32e8f
+          go build -o /tmp/ptyrun-haiku .
+
+      - name: Upload guest tools
+        if: steps.ptyrunbuild.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4-haiku-tools
+          path: /tmp/ptyrun-haiku
+          if-no-files-found: ignore
+
       - name: Upload f4 build log
         if: always()
         uses: actions/upload-artifact@v4

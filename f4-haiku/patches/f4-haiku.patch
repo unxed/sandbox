@@ -20,10 +20,10 @@ index c89893e..9ef9316 100644
  
 diff --git a/internal/terminal/pty_haiku.go b/internal/terminal/pty_haiku.go
 new file mode 100644
-index 0000000..e66be42
+index 0000000..3c24bd4
 --- /dev/null
 +++ b/internal/terminal/pty_haiku.go
-@@ -0,0 +1,190 @@
+@@ -0,0 +1,203 @@
 +//go:build haiku
 +
 +package terminal
@@ -35,7 +35,6 @@ index 0000000..e66be42
 +	"path/filepath"
 +	"sync"
 +	"syscall"
-+	"unsafe"
 +
 +	"github.com/unxed/vtui"
 +	"golang.org/x/sys/unix"
@@ -93,18 +92,23 @@ index 0000000..e66be42
 +
 +	master := os.NewFile(uintptr(masterFd), "/dev/ptmx")
 +
-+	if _, _, e1 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(masterFd), bIoctlGrantTTY, 0); e1 != 0 {
++	// ioctl goes through libroot's ioctl() (korli/sys_haiku wraps it), not a
++	// raw SYS_IOCTL: Haiku's ioctl takes a fourth argument, the buffer
++	// length, that a 3-argument raw syscall would leave undefined.
++	if err := unix.IoctlSetInt(masterFd, bIoctlGrantTTY, 0); err != nil {
 +		master.Close()
-+		return nil, e1
++		return nil, fmt.Errorf("B_IOCTL_GRANT_TTY: %w", err)
 +	}
 +
-+	var index int32
-+	if _, _, e1 := syscall.Syscall(syscall.SYS_IOCTL, uintptr(masterFd), bIoctlGetTTYIndex, uintptr(unsafe.Pointer(&index))); e1 != 0 {
++	// The driver stores an int32; the destination here is a zeroed int, so on
++	// little-endian amd64 the value lands in its low half.
++	index, err := unix.IoctlGetInt(masterFd, bIoctlGetTTYIndex)
++	if err != nil {
 +		master.Close()
-+		return nil, e1
++		return nil, fmt.Errorf("B_IOCTL_GET_TTY_INDEX: %w", err)
 +	}
 +
-+	slaveName := ptyIndexToSlaveName(index)
++	slaveName := ptyIndexToSlaveName(int32(index))
 +	slaveFd, err := unix.Open(slaveName, unix.O_RDWR|unix.O_NOCTTY|unix.O_CLOEXEC, 0)
 +	if err != nil {
 +		master.Close()
@@ -177,12 +181,21 @@ index 0000000..e66be42
 +	if p.Master == nil {
 +		return false
 +	}
-+	var pgrp int32
-+	_, _, err := syscall.Syscall(syscall.SYS_IOCTL, p.Master.Fd(), unix.TIOCGPGRP, uintptr(unsafe.Pointer(&pgrp)))
-+	if err != 0 {
-+		return false
++	pgrp, ok := 0, false
++	// Control rather than Fd: Fd would put the master back in blocking mode.
++	p.controlMaster(func(fd int) {
++		v, err := unix.IoctlGetInt(fd, unix.TIOCGPGRP)
++		pgrp, ok = v, err == nil
++	})
++	return ok && pgrp != p.shellPgrp
++}
++
++func (p *PTY) controlMaster(f func(fd int)) {
++	rc, err := p.Master.SyscallConn()
++	if err != nil {
++		return
 +	}
-+	return int(pgrp) != p.shellPgrp
++	_ = rc.Control(func(fd uintptr) { f(int(fd)) })
 +}
 +
 +func (p *PTY) SetSize(cols, rows int) {
@@ -192,15 +205,15 @@ index 0000000..e66be42
 +// SetSizePixels also reports the size of the window in pixels, which is how
 +// a program in the terminal learns the shape of a character cell.
 +func (p *PTY) SetSizePixels(cols, rows, xpixel, ypixel int) {
-+	size := struct {
-+		Row, Col, Xpixel, Ypixel uint16
-+	}{
++	size := &unix.Winsize{
 +		Row:    uint16(rows),
 +		Col:    uint16(cols),
 +		Xpixel: ptyPixels(xpixel),
 +		Ypixel: ptyPixels(ypixel),
 +	}
-+	_, _, _ = syscall.Syscall(syscall.SYS_IOCTL, p.Master.Fd(), unix.TIOCSWINSZ, uintptr(unsafe.Pointer(&size)))
++	p.controlMaster(func(fd int) {
++		_ = unix.IoctlSetWinsize(fd, unix.TIOCSWINSZ, size)
++	})
 +}
 +
 +func GetSystemShell() string {
@@ -225,7 +238,7 @@ index a17e2d1..c28427a 100644
  package cloudfox
  
 diff --git a/vfs/os_vfs_posix_atim.go b/vfs/os_vfs_posix_atim.go
-index fe3b889..71078bf 100644
+index 294a033..644ad35 100644
 --- a/vfs/os_vfs_posix_atim.go
 +++ b/vfs/os_vfs_posix_atim.go
 @@ -1,4 +1,4 @@

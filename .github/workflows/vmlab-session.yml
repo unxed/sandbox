@@ -10,6 +10,7 @@ on:
       minutes:  {description: 'max session length',       default: '30'}
       scenario: {description: 'vmlab/scenarios/<name>.txt replayed before hand-over (optional)', default: ''}
       loadvm:   {description: 'restore this VM snapshot from the newest snapshot cache of the guest (optional)', default: ''}
+      bus:      {description: 'command-bus branch prefix (<bus>-cmd / <bus>-out); use a distinct one per guest to run sessions side by side', default: 'vmlab'}
 
 permissions:
   contents: write
@@ -22,6 +23,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
+      VMLAB_BUS: ${{ inputs.bus || 'vmlab' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,12 +47,14 @@ jobs:
           echo "f4-haiku run: $ID"
           gh run download "$ID" -n f4-haiku-amd64 -D /tmp/vmlab/payload
           chmod +x /tmp/vmlab/payload/f4-haiku-amd64 || true
+          gh run download "$ID" -n f4-haiku-tools -D /tmp/vmlab/payload || echo "(no f4-haiku-tools in run $ID)"
+          chmod +x /tmp/vmlab/payload/ptyrun-haiku 2>/dev/null || true
           ls -l /tmp/vmlab/payload
 
       - name: Payload = guest agent
         run: |
           mkdir -p /tmp/vmlab/payload
-          cp vmlab/guests/*.ion /tmp/vmlab/payload/ 2>/dev/null || true
+          cp vmlab/guests/*.ion vmlab/guests/*.sh /tmp/vmlab/payload/ 2>/dev/null || true
 
       - name: Restore snapshot cache
         if: inputs.loadvm != ''

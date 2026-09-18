@@ -15,6 +15,11 @@ import argparse, base64, json, os, pathlib, shutil, sys, time, urllib.error, url
 
 REPO = os.environ.get("VMLAB_REPO", "unxed/sandbox")
 TOK = os.environ["GH_TOKEN"]
+# Own command bus (branches <BUS>-cmd / <BUS>-out) so that sessions of different guests do not
+# clobber each other; must match the "bus" input of the running session. Default = original branches.
+BUS = os.environ.get("VMLAB_BUS", "vmlab")
+# File extension of guest-agent jobs: ion (redox), sh (haiku, ...)
+AGENT_EXT = os.environ.get("VMLAB_AGENT_EXT", "ion")
 STATE = pathlib.Path(".vmlab-session")
 OUT = pathlib.Path(os.environ.get("VMLAB_LOCAL_OUT", "vmlab-out"))
 
@@ -41,12 +46,12 @@ def load():
 def start(a):
     shutil.rmtree(OUT, ignore_errors=True)  # results of earlier sessions
     sha = api("GET", "git/ref/heads/main")["object"]["sha"]
-    if api("GET", "git/ref/heads/vmlab-cmd", ok404=True) is None:
-        api("POST", "git/refs", {"ref": "refs/heads/vmlab-cmd", "sha": sha})
+    if api("GET", "git/ref/heads/%s-cmd" % BUS, ok404=True) is None:
+        api("POST", "git/refs", {"ref": "refs/heads/%s-cmd" % BUS, "sha": sha})
     t0 = time.time()
     api("POST", "actions/workflows/vmlab-session.yml/dispatches",
         {"ref": "main", "inputs": {"guest": a.guest, "minutes": str(a.minutes), "scenario": a.scenario or "",
-                    "loadvm": a.loadvm or ""}})
+                    "loadvm": a.loadvm or "", "bus": BUS}})
     print("dispatched, waiting for run id ...")
     while True:
         time.sleep(3)
@@ -68,7 +73,7 @@ def do(a):
         h.write("\n".join(l if not l.startswith("payload ") else "# " + " ".join(l.split()[:2]) + " <data>"
                           for l in lines) + "\n")
     api("PUT", "contents/cmd/%d/%04d.txt" % (st["run"], n),
-        {"message": "cmd %d" % n, "branch": "vmlab-cmd",
+        {"message": "cmd %d" % n, "branch": "%s-cmd" % BUS,
          "content": base64.b64encode(("\n".join(lines) + "\n").encode()).decode()})
     STATE.write_text(json.dumps(st))
     t0 = time.time()
@@ -80,7 +85,7 @@ def do(a):
             raise SystemExit("session %s never published (job not started or failed?)" % st["run"])
         time.sleep(2)
     while True:
-        s = api("GET", "contents/out/%04d/status?ref=vmlab-out" % n, raw=True, ok404=True)
+        s = api("GET", "contents/out/%04d/status?ref=%s-out" % (n, BUS), raw=True, ok404=True)
         if s is not None:
             break
         if time.time() - t0 > a.timeout:
@@ -88,7 +93,7 @@ def do(a):
         time.sleep(1.5)
     d = OUT / ("%04d" % n)
     d.mkdir(parents=True, exist_ok=True)
-    for f in api("GET", "contents/out/%04d?ref=vmlab-out" % n):
+    for f in api("GET", "contents/out/%04d?ref=%s-out" % (n, BUS)):
         # fetch by blob sha: the sha comes from the listing, and blobs are immediately consistent
         # (a by-path GET of a fresh file can 404 for tens of seconds)
         (d / f["name"]).write_bytes(api("GET", "git/blobs/" + f["sha"], raw=True))
@@ -106,9 +111,9 @@ def put(a):
 
 
 def sh(a):
-    """Run a command in the guest through the agent (vmlab/guests/redox-agent.ion): no typing, text output."""
+    """Run a command in the guest through the agent (vmlab/guests/*-agent.*; VMLAB_AGENT_EXT selects ion/sh): no typing, text output."""
     body = "# %d\n%s\n" % (time.time() * 1000, " ".join(a.command))
-    a.steps = ["payload job.ion " + base64.b64encode(body.encode()).decode(), "waitupload job.out %d" % a.guest_timeout]
+    a.steps = ["payload job.%s " % AGENT_EXT + base64.b64encode(body.encode()).decode(), "waitupload job.out %d" % a.guest_timeout]
     a.timeout = a.guest_timeout + 60
     do(a)
     d = OUT / ("%04d" % load()["n"])

@@ -38,6 +38,10 @@ import urllib.request
 import zipfile
 
 WORK = pathlib.Path(os.environ.get("VMLAB_WORK", "/tmp/vmlab"))
+# Names of the two git branches used as the command bus in session mode:
+# <BUS>-cmd / <BUS>-out. Sessions of different guests can run at the same time
+# when each uses its own bus (VMLAB_BUS, default "vmlab" = the original branches).
+BUS = os.environ.get("VMLAB_BUS", "vmlab")
 
 
 def log(*a):
@@ -322,7 +326,7 @@ class Lab:
         p.parent.mkdir(parents=True, exist_ok=True)
         data = base64.b64decode(b64)
         p.write_bytes(data)
-        if name == "job.ion":  # a new job: forget the previous job's output
+        if name.startswith("job.") and name != "job.out":  # a new job: forget the previous job's output
             (WORK / "upload" / "job.out").unlink(missing_ok=True)
         return "%s %d bytes" % (name, len(data))
 
@@ -402,8 +406,8 @@ def start_http(payload_dir, upload_dir, port=8000):
 
 # ---------------------------------------------------------------- git bus (session mode)
 class Bus:
-    """Commands come from branch vmlab-cmd (cmd/<run>/<n>.txt, written by ctl.py);
-    results go to branch vmlab-out (out/<n>/...). Single writer per branch."""
+    """Commands come from branch <BUS>-cmd (cmd/<run>/<n>.txt, written by ctl.py);
+    results go to branch <BUS>-out (out/<n>/...). Single writer per branch."""
 
     def __init__(self, run_id):
         self.run, self.dir = run_id, WORK / "bus"
@@ -424,21 +428,21 @@ class Bus:
     def publish(self, msg, force=False):
         self.g("add", "-A")
         self.g("commit", "-q", "--allow-empty", "-m", msg)
-        r = self.g("push", "-q", *(["-f"] if force else []), "origin", "out:vmlab-out", check=False)
+        r = self.g("push", "-q", *(["-f"] if force else []), "origin", "out:%s-out" % BUS, check=False)
         if r.returncode:
             log("push failed:", r.stderr.strip()[:300])
 
     def pending(self):
-        r = self.g("fetch", "-q", "--depth", "1", "origin", "+vmlab-cmd:refs/remotes/origin/vmlab-cmd", check=False)
+        r = self.g("fetch", "-q", "--depth", "1", "origin", "+%s-cmd:refs/remotes/origin/%s-cmd" % (BUS, BUS), check=False)
         if r.returncode:
             return []
-        ls = self.g("ls-tree", "-r", "--name-only", "refs/remotes/origin/vmlab-cmd",
+        ls = self.g("ls-tree", "-r", "--name-only", "refs/remotes/origin/%s-cmd" % BUS,
                     "cmd/%s/" % self.run, check=False).stdout.split()
         ids = sorted(int(pathlib.PurePosixPath(p).stem) for p in ls if pathlib.PurePosixPath(p).stem.isdigit())
         return [i for i in ids if i not in self.done]
 
     def read(self, i):
-        return self.g("show", "refs/remotes/origin/vmlab-cmd:cmd/%s/%04d.txt" % (self.run, i)).stdout
+        return self.g("show", "refs/remotes/origin/%s-cmd:cmd/%s/%04d.txt" % (BUS, self.run, i)).stdout
 
 
 class Tee:
