@@ -1,0 +1,6 @@
+click 330 400
+typeln clear; cat /tmp/s-start.bin
+wait 2
+shot rp1
+typeln
+typeln
