@@ -1,0 +1,9 @@
+typeln clear; cd /tmp/t; COLORTERM=truecolor ./f4
+wait 8
+shot tc-1
+key f7
+wait 2
+shot tc-dlg
+typeln newdir2
+wait 3
+shot tc-done
