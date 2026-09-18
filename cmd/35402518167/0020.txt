@@ -1,0 +1,4 @@
+click 330 400
+typeln clear; curl -s -o /tmp/sgr.sh http://10.0.2.2:8000/sgrtest.sh; sh /tmp/sgr.sh
+wait 3
+shot sgr
