@@ -1,0 +1,3 @@
+move 1041 226
+wait 1.5
+shot apps
