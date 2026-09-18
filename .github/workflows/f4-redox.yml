@@ -24,6 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prefetch the redoxer image in the background
+        run: nohup docker pull redoxos/redoxer > /tmp/docker-pull.log 2>&1 &
+
       - name: Restore cached Redox Go toolchain
         id: gocache
         uses: actions/cache@v4
@@ -131,7 +134,84 @@ jobs:
           set -o pipefail
           export GOROOT=$GITHUB_WORKSPACE/redox-go
           export PATH=$GOROOT/bin:$PATH
-          go build -gcflags=-e -o /tmp/f4-redox-amd64 ./cmd/f4 2>&1 | tee /tmp/f4-build.log
+          go build -gcflags=-e -ldflags='-s -w' -o /tmp/f4-redox-amd64 ./cmd/f4 2>&1 | tee /tmp/f4-build.log
+
+      - name: Inspect the f4 binary
+        if: steps.f4build.outcome == 'success'
+        run: |
+          ls -la /tmp/f4-redox-amd64
+          file /tmp/f4-redox-amd64 || true
+          readelf -l /tmp/f4-redox-amd64 | grep -i -A1 interp || true
+          readelf -d /tmp/f4-redox-amd64 | grep -i needed || true
+
+      - name: Build the pty harness (ptyrun) for redox
+        if: steps.f4build.outcome == 'success'
+        timeout-minutes: 4
+        env:
+          GOOS: redox
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=mod
+        run: |
+          export GOROOT=$GITHUB_WORKSPACE/redox-go
+          export PATH=$GOROOT/bin:$PATH
+          rm -rf /tmp/ptyrun && cp -r f4-redox/harness/ptyrun /tmp/ptyrun && cd /tmp/ptyrun
+          go mod edit -replace golang.org/x/sys=/tmp/mods/xsys
+          go build -o /tmp/vmout-ptyrun . 
+
+      - name: Assemble the VM payload
+        if: steps.f4build.outcome == 'success'
+        run: |
+          rm -rf /tmp/vmout && mkdir -p /tmp/vmout
+          cp /tmp/f4-redox-amd64 /tmp/vmout/f4
+          cp /tmp/vmout-ptyrun /tmp/vmout/ptyrun
+          cp redox-go/.github/redox/run_common.sh /tmp/vmout/common.sh
+          cp f4-redox/vm/smoke.sh /tmp/vmout/smoke.sh
+          chmod +x /tmp/vmout/f4 /tmp/vmout/ptyrun
+          du -sh /tmp/vmout; ls -la /tmp/vmout
+
+      - name: Let the runner user open /dev/kvm
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -la /dev/kvm || echo "no /dev/kvm"
+
+      - name: Run f4 in the Redox VM (redoxer/QEMU)
+        id: vmrun
+        if: steps.f4build.outcome == 'success'
+        timeout-minutes: 12
+        continue-on-error: true
+        run: |
+          PKGOUT=/tmp/vmout QEMU_ARGS='-smp 4' f4-redox/vm/vm_run.sh smoke.sh /tmp/vm.log
+
+      - name: Render captured screens
+        if: always()
+        continue-on-error: true
+        run: |
+          pip install -q pyte pillow
+          mkdir -p /tmp/screens
+          python3 f4-redox/scripts/render_screens.py /tmp/vm.log /tmp/screens 100 30 | tee /tmp/screens.log
+
+      - name: Upload VM log and screens
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4-redox-vm
+          path: |
+            /tmp/vm.log
+            /tmp/screens
+            /tmp/screens.log
+          if-no-files-found: ignore
+
+      - name: Upload f4 binary
+        if: steps.f4build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: f4-redox-amd64
+          path: /tmp/f4-redox-amd64
+          compression-level: 9
 
       - name: Upload logs and recon output
         if: always()
@@ -156,6 +236,14 @@ jobs:
             echo '### recon'
             echo '```'
             head -60 /tmp/recon/pkg-errors.txt 2>/dev/null || echo "(no recon output)"
+            echo '```'
+            echo '### VM run (tail)'
+            echo '```'
+            tail -60 /tmp/vm.log 2>/dev/null | cut -c1-200 || echo "(no VM log)"
+            echo '```'
+            echo '### screens'
+            echo '```'
+            head -80 /tmp/screens.log 2>/dev/null || echo "(no screens)"
             echo '```'
             echo '### build log (first 120 lines)'
             echo '```'
