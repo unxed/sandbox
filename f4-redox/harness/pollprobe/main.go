@@ -18,6 +18,27 @@ func try(name string, fd int, timeoutMs int) {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "edge" {
+		t, _ := unix.IoctlGetTermios(0, unix.TCGETS)
+		if t != nil {
+			nt := *t
+			nt.Lflag &^= unix.ECHO | unix.ECHONL | unix.ICANON | unix.ISIG | unix.IEXTEN
+			nt.Cc[unix.VMIN] = 1
+			nt.Cc[unix.VTIME] = 0
+			unix.IoctlSetTermios(0, unix.TCSETS, &nt)
+		}
+		buf := make([]byte, 64)
+		try("A: poll BEFORE key arrives (key at ~1.0s)", 0, 2500)
+		k, err := syscall.Read(0, buf)
+		fmt.Printf("EDGEPROBE A read %d %q err=%v\n", k, buf[:max(k, 0)], err)
+		time.Sleep(3500 * time.Millisecond) // key B arrives meanwhile
+		try("B: poll with data ALREADY pending", 0, 1500)
+		try("B2: poll again", 0, 500)
+		k, err = syscall.Read(0, buf)
+		fmt.Printf("EDGEPROBE B read %d %q err=%v\n", k, buf[:max(k, 0)], err)
+		fmt.Println("EDGEPROBE DONE")
+		os.Exit(0)
+	}
 	if len(os.Args) > 1 && os.Args[1] == "input" {
 		// switch the terminal to raw mode like f4 does, then wait for typed bytes
 		t, err := unix.IoctlGetTermios(0, unix.TCGETS)
