@@ -35,5 +35,15 @@ go mod edit -replace "golang.org/x/sys=/tmp/mods/xsys"
 python3 "$W/scripts/redox_tags.py" .
 python3 "$W/scripts/fix_stat_ids.py" .
 sed -i 's#^//go:build linux || darwin || freebsd#//go:build linux || redox || darwin || freebsd#' internal/terminal/pty_logical_lines_unix.go
+# TTY mode: run in one process (like FreeBSD) instead of client + session daemon that
+# hands its terminal fds over an AF_UNIX datagram socket (SCM_RIGHTS + TIOCSCTTY: not usable on Redox)
+python3 - <<'PYEOF'
+p = 'internal/terminal/session_unix.go'
+s = open(p).read()
+old = 'if runtime.GOOS == "freebsd" {\n\t\trunAttachedSession()'
+assert old in s, 'ManageSessions freebsd branch not found'
+s = s.replace(old, 'if runtime.GOOS == "freebsd" || runtime.GOOS == "redox" {\n\t\trunAttachedSession()', 1)
+open(p, 'w').write(s)
+PYEOF
 cp -r "$W"/overlay/f4/. .
 git status --short | head -40
