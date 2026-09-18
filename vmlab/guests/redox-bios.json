@@ -14,5 +14,5 @@
     "-device",
     "usb-tablet,bus=xhci.0"
   ],
-  "cpu": "Nehalem"
+  "cpu": "Haswell-noTSX"
 }
