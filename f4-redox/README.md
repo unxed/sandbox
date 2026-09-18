@@ -11,6 +11,15 @@
 |---|---|---|
 | ![panels](screens/panels.png) | ![help](screens/help-f1.png) | ![menu](screens/menu-f9.png) |
 
+### f4 в настоящем терминале Orbital (COSMIC) на Redox
+
+Интерактивная VM из `vmlab/` (KVM, рабочий стол Orbital), f4 запущен во вкладке терминала,
+клавиши/клики записаны сценарием [`vmlab/scenarios/f4-redox-orbital.txt`](../vmlab/scenarios/f4-redox-orbital.txt).
+
+| старт | Help (F1) | меню (F9) |
+|---|---|---|
+| ![start](screens/orbital-start.png) | ![help](screens/orbital-help-f1.png) | ![menu](screens/orbital-menu-f9.png) |
+
 ## Как это устроено
 
 1. **Тулчейн.** `unxed/go`, ветка `golang-1.26-redox` (порт Go на Redox поверх relibc,
