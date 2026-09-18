@@ -154,12 +154,50 @@
    Go-рантайму не были нужны), а захардкожено как POSIX-стандартные
    значения — эти биты одинаковы буквально везде.
 
+8. **Дошли до `internal/terminal`** — как и предполагалось с самого
+   начала, ни один `pty_*.go` не подключался под haiku. По пути
+   всплыли `unix.Rlimit`/`Getrlimit`/`RLIMIT_NOFILE` (в
+   `pty_diag_unix.go`) и `unix.FcntlInt`/`F_SETFD`/`F_GETFL`/`F_SETFL`/
+   `FD_CLOEXEC` (в `session_unix.go`, для close-on-exec и снятия
+   `O_NONBLOCK` с унаследованных дескрипторов).
+   - `Rlimit`/`Getrlimit`/`RLIMIT_NOFILE` — тонкие обёртки над уже
+     существующими `syscall.*` (реальный динамический вызов, как и
+     `Access`/`FcntlFlock`).
+   - `FcntlInt` **не был доступен уже сгенерированным иначе** — в
+     korli/go есть только приватная (нижний регистр) функция `fcntl`,
+     а обёртки над ней для целого `int`-аргумента (в отличие от
+     `FcntlFlock` для `*Flock_t`) просто не было. Раз это наш
+     собственный форк (`unxed/go`), добавили туда экспортированную
+     `FcntlInt` прямо в `src/syscall/syscall_haiku.go` (тривиальная
+     обёртка над уже правильной приватной `fcntl`, тот же коммит можно
+     будет предложить апстриму отдельным PR). Шим x/sys делегирует в
+     неё; `SetNonblock` — просто `F_GETFL`+`F_SETFL` через ту же
+     `FcntlInt`.
+   - `Open`/`Close` — настоящие сисколы Haiku (`SYS_OPEN=107`,
+     `SYS_CLOSE=151`), как `Poll`/`Mprotect`/`Flock`.
+   - `TIOCGWINSZ`/`TIOCSWINSZ`/`TIOCGPGRP`/`TIOCSPGRP`/`TIOCSCTTY` —
+     реальные значения из `headers/posix/termios.h` в исходниках самой
+     Haiku (github.com/haiku/haiku), не догадка.
+   - **`internal/terminal/pty_haiku.go`** (новый файл, добавлен в
+     `patches/f4-haiku.patch`) реализует `NewPTY()`/`GetSystemShell()`
+     по образцу `pty_linux.go`, но выделение PTY взято **дословно из
+     реального исходника Haiku**
+     `src/system/libroot/posix/stdlib/pty.cpp` (не придумано): открыть
+     `/dev/ptmx`, `ioctl(fd, B_IOCTL_GRANT_TTY)`,
+     `ioctl(fd, B_IOCTL_GET_TTY_INDEX, &index)`, слейв —
+     `/dev/tt/<буква><hex-цифра>` (буква с `'p'+index/16`, цифра —
+     `index%16`); `unlockpt` на Haiku — no-op, отдельного шага нет.
+     Численные значения обоих кастомных ioctl'ов (`B_IOCTL_GET_TTY_INDEX`,
+     `B_IOCTL_GRANT_TTY`) высчитаны из `headers/private/drivers/tty.h`
+     (`TCGETA+32`, `TCGETA+33`) — тоже из реальных заголовков Haiku, а
+     не подобраны.
+
 ## Статус
 
 Ждём лог прогона со всеми девятью патчами (vtui, x/sys, zip, afero,
-sftp, wazero, archives, f4, tar) поверх тулчейна `unxed/go`. Дальше — по тому же
-принципу: реальная
-ошибка компиляции → патч (в `patches/`, не напрямую в чужие
-репозитории) → коммит → новый прогон. Ожидаем следующий блокер в
-собственном коде f4 (`internal/terminal/pty_*.go` — ни один файл там
-пока не подключается под `GOOS=haiku`, `NewPTY` будет undefined).
+sftp, wazero, archives, f4 — включая новый `pty_haiku.go`, tar) поверх
+тулчейна `unxed/go` (плюс новый коммит с `FcntlInt` в самом форке).
+Дальше — по тому же принципу: реальная ошибка компиляции → патч (в
+`patches/`, не напрямую в чужие репозитории; для самого форка компилятора
+— коммит в `unxed/go`, т.к. это уже наш репозиторий) → коммит → новый
+прогон.

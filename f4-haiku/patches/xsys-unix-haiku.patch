@@ -1,9 +1,9 @@
 diff --git a/unix/haiku_amd64.go b/unix/haiku_amd64.go
 new file mode 100644
-index 0000000..1763ecc
+index 0000000..be4391d
 --- /dev/null
 +++ b/unix/haiku_amd64.go
-@@ -0,0 +1,266 @@
+@@ -0,0 +1,361 @@
 +// Minimal Haiku (haiku/amd64) support for golang.org/x/sys/unix.
 +//
 +// Upstream x/sys/unix has no Haiku port — Haiku isn't an upstream Go GOOS
@@ -259,6 +259,101 @@ index 0000000..1763ecc
 +	}
 +	return
 +}
++
++// --- open/close, fcntl flags, rlimit, tty ioctls ---
++//
++// Needed by github.com/unxed/f4/internal/terminal's session handling and
++// its (also new, see f4-haiku.patch) pty_haiku.go PTY backend.
++
++// open(2)/close(2) are real Haiku kernel syscalls (SYS_OPEN=107,
++// SYS_CLOSE=151 in korli/go's src/syscall/zsysnum_haiku_amd64.go), same
++// family as Poll/Mprotect/Flock above.
++const (
++	sysOpen  = 107
++	sysClose = 151
++)
++
++const (
++	O_RDWR    = 0x2
++	O_NOCTTY  = 0x1000
++	O_CLOEXEC = 0x40
++	O_NONBLOCK = 0x80
++)
++
++func Open(path string, mode int, perm uint32) (fd int, err error) {
++	p, err := syscall.BytePtrFromString(path)
++	if err != nil {
++		return -1, err
++	}
++	r0, _, e1 := syscall.Syscall(sysOpen, uintptr(unsafe.Pointer(p)), uintptr(mode), uintptr(perm))
++	fd = int(r0)
++	if e1 != 0 {
++		err = e1
++	}
++	return
++}
++
++func Close(fd int) (err error) {
++	_, _, e1 := syscall.Syscall(sysClose, uintptr(fd), 0, 0)
++	if e1 != 0 {
++		err = e1
++	}
++	return
++}
++
++// FcntlInt/F_SETFD/F_GETFL/F_SETFL/FD_CLOEXEC delegate to
++// github.com/unxed/go's syscall.FcntlInt (see that fork's
++// src/syscall/syscall_haiku.go — added specifically to back this file: a
++// thin exported wrapper around the already-correct unexported fcntl(),
++// which goes through the dynamic libroot.so call, same as FcntlFlock).
++const (
++	F_SETFD   = 0x4
++	F_GETFL   = 0x8
++	F_SETFL   = 0x10
++	FD_CLOEXEC = 0x1
++)
++
++func FcntlInt(fd uintptr, cmd int, arg int) (int, error) {
++	return syscall.FcntlInt(fd, cmd, arg)
++}
++
++func SetNonblock(fd int, nonblocking bool) (err error) {
++	flags, err := FcntlInt(uintptr(fd), F_GETFL, 0)
++	if err != nil {
++		return err
++	}
++	if nonblocking {
++		flags |= O_NONBLOCK
++	} else {
++		flags &^= O_NONBLOCK
++	}
++	_, err = FcntlInt(uintptr(fd), F_SETFL, flags)
++	return err
++}
++
++// Rlimit/Getrlimit/RLIMIT_NOFILE delegate to the stdlib syscall package,
++// which already has all three (a real dynamic libroot.so call, per
++// korli/go's src/syscall/zsyscall_haiku_amd64.go).
++type Rlimit = syscall.Rlimit
++
++const RLIMIT_NOFILE = syscall.RLIMIT_NOFILE
++
++func Getrlimit(which int, lim *Rlimit) (err error) {
++	return syscall.Getrlimit(which, lim)
++}
++
++// TTY ioctl numbers, copied from Haiku's own
++// headers/posix/termios.h (all offsets from TCGETA=0x8000, verified
++// against github.com/haiku/haiku source, not guessed): TIOCGWINSZ
++// (TCGETA+12), TIOCSWINSZ (+13), TIOCGPGRP (+15), TIOCSPGRP (+16),
++// TIOCSCTTY (+17).
++const (
++	TIOCGWINSZ = 0x800c
++	TIOCSWINSZ = 0x800d
++	TIOCGPGRP  = 0x800f
++	TIOCSPGRP  = 0x8010
++	TIOCSCTTY  = 0x8011
++)
 +
 +// --- socket options ---
 +
