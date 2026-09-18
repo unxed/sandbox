@@ -1,3 +1,23 @@
+diff --git a/internal/gui/icon_unix.go b/internal/gui/icon_unix.go
+index c13095b..be8d22c 100644
+--- a/internal/gui/icon_unix.go
++++ b/internal/gui/icon_unix.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || freebsd || illumos || solaris
++//go:build linux || openbsd || netbsd || dragonfly || freebsd || illumos || solaris || haiku
+ 
+ package gui
+ 
+diff --git a/internal/gui/run_unix.go b/internal/gui/run_unix.go
+index c89893e..9ef9316 100644
+--- a/internal/gui/run_unix.go
++++ b/internal/gui/run_unix.go
+@@ -1,4 +1,4 @@
+-//go:build linux || darwin || openbsd || netbsd || dragonfly || freebsd || illumos || solaris
++//go:build linux || darwin || openbsd || netbsd || dragonfly || freebsd || illumos || solaris || haiku
+ 
+ package gui
+ 
 diff --git a/internal/terminal/pty_haiku.go b/internal/terminal/pty_haiku.go
 new file mode 100644
 index 0000000..e66be42
