@@ -1,0 +1,20 @@
+diff --git a/vfs/os_vfs_posix_atim.go b/vfs/os_vfs_posix_atim.go
+index fe3b889..71078bf 100644
+--- a/vfs/os_vfs_posix_atim.go
++++ b/vfs/os_vfs_posix_atim.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || dragonfly || solaris || illumos
++//go:build linux || openbsd || dragonfly || solaris || illumos || haiku
+ 
+ package vfs
+ 
+diff --git a/vfs/rename_noreplace_unix.go b/vfs/rename_noreplace_unix.go
+index 06d04c1..cd11715 100644
+--- a/vfs/rename_noreplace_unix.go
++++ b/vfs/rename_noreplace_unix.go
+@@ -1,4 +1,4 @@
+-//go:build aix || dragonfly || freebsd || netbsd || openbsd || solaris || illumos
++//go:build aix || dragonfly || freebsd || netbsd || openbsd || solaris || illumos || haiku
+ 
+ package vfs
+ 

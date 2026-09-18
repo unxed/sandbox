@@ -121,10 +121,32 @@
    явное приведение `uint64(stat.Ino)`, безопасно для всех остальных ОС
    (там это no-op reinterpret того же размера).
 
+6. **Дошли до кода самого f4** (`patches/f4-haiku.patch`, применяется к
+   эфемерному CI-чекауту f4, реальный репозиторий не трогается):
+   `vfs/os_vfs_posix_atim.go` (`fillPlatformTimes`) и
+   `vfs/rename_noreplace_unix.go` (`renameNoReplace`) — те же
+   allow-листы по OS, что уже видели у vtui/sftp. Haiku добавлен в оба:
+   поля `Atim`/`Ctim` у `Stat_t` в korli/go называются так же, как у
+   linux/openbsd/dragonfly/solaris/illumos (проверено по
+   `ztypes_haiku_amd64.go`), и атомарного no-clobber rename у Haiku,
+   как и у этой группы, тоже нет — используется тот же портативный
+   fallback (`renameNoReplacePortable`, без build tag, доступен везде).
+
+7. **Добавлены `unix.Access`/`unix.Errno`/`unix.Flock_t`/`unix.FcntlFlock`
+   и коды ошибок** в тот же шим x/sys (нужны `ncruces/go-sqlite3/vfs`
+   для advisory file locking) — все делегируют в уже существующие
+   `syscall.Access`/`syscall.FcntlFlock`/`syscall.Flock_t` (продвинутый
+   `fcntl` locking для Haiku в форке уже есть, реальный динамический вызов
+   через `libroot.so`, тот же механизм, что у `mmap`/`setsockopt`).
+   `R_OK`/`W_OK`/`X_OK`/`F_OK` — единственное в этом шиме, что не взято
+   из сгенерированного `zerrors_haiku_amd64.go` (там их просто нет, они
+   Go-рантайму не были нужны), а захардкожено как POSIX-стандартные
+   значения — эти биты одинаковы буквально везде.
+
 ## Статус
 
-Ждём лог прогона со всеми семью патчами (vtui, x/sys, zip, afero, sftp,
-wazero, archives) поверх тулчейна `unxed/go`. Дальше — по тому же
+Ждём лог прогона со всеми восемью патчами (vtui, x/sys, zip, afero,
+sftp, wazero, archives, f4) поверх тулчейна `unxed/go`. Дальше — по тому же
 принципу: реальная
 ошибка компиляции → патч (в `patches/`, не напрямую в чужие
 репозитории) → коммит → новый прогон. Ожидаем следующий блокер в

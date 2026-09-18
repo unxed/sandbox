@@ -64,6 +64,20 @@ jobs:
       - name: Clone f4
         run: git clone --depth 1 https://github.com/unxed/f4.git /tmp/f4
 
+      - name: Patch f4's own vfs package for haiku (local CI checkout only)
+        working-directory: /tmp/f4
+        run: |
+          set -euo pipefail
+          # os_vfs_posix_atim.go / rename_noreplace_unix.go gate a couple
+          # of vfs helpers by an explicit OS allow-list; haiku wasn't in
+          # either. Haiku's Stat_t uses the same Atim/Ctim field names as
+          # linux/openbsd/dragonfly/solaris/illumos (verified against
+          # github.com/korli/go's generated ztypes_haiku_amd64.go), and
+          # like those it has no atomic no-clobber rename, so it joins
+          # both lists unchanged otherwise. This patches only this
+          # ephemeral CI checkout of f4, never the real repo.
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/f4-haiku.patch"
+
       - name: Show f4 go directive vs toolchain version
         run: |
           echo "--- f4 go.mod go directive ---"

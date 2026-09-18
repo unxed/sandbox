@@ -1,9 +1,9 @@
 diff --git a/unix/haiku_amd64.go b/unix/haiku_amd64.go
 new file mode 100644
-index 0000000..a120587
+index 0000000..a1ea205
 --- /dev/null
 +++ b/unix/haiku_amd64.go
-@@ -0,0 +1,177 @@
+@@ -0,0 +1,245 @@
 +// Minimal Haiku (haiku/amd64) support for golang.org/x/sys/unix.
 +//
 +// Upstream x/sys/unix has no Haiku port — Haiku isn't an upstream Go GOOS
@@ -28,7 +28,12 @@ index 0000000..a120587
 +//   src/syscall/zerrors_haiku_amd64.go in korli/go (real, generated from
 +//   Haiku's own headers), not guessed.
 +// - Getpagesize is hardcoded to 4096: Haiku's page size on x86_64.
-+// - Dup2 delegates to the stdlib syscall package, which already has it.
++// - Dup2/Access/FcntlFlock (and Flock_t/Errno) delegate to the stdlib
++//   syscall package, which already has all of them (fcntl(2) advisory
++//   locking is a real dynamic libroot.so call there, same family as
++//   mmap/setsockopt). R_OK/W_OK/X_OK aren't generated in korli/go (never
++//   needed by the Go runtime itself) but are POSIX-fixed values, not
++//   Haiku-specific ABI, so they're hardcoded rather than guessed at.
 +//
 +// Not verified against real Haiku hardware — the SYS_SET_MEMORY_PROTECTION
 +// argument order (address, size, protection) is inferred by analogy with
@@ -169,6 +174,69 @@ index 0000000..a120587
 +
 +func Dup2(oldfd, newfd int) (err error) {
 +	return syscall.Dup2(oldfd, newfd)
++}
++
++// --- errno, access(2), fcntl(2) advisory locking ---
++
++// Errno is a type ALIAS (not a new type) to syscall.Errno: every function
++// in this file that returns an error returns the stdlib syscall package's
++// own Errno underneath (via direct delegation or syscall.Syscall), so
++// callers doing `err.(unix.Errno)` type assertions need this to be the
++// same underlying type, not a distinct one.
++type Errno = syscall.Errno
++
++const (
++	EACCES     = syscall.EACCES
++	EAGAIN     = syscall.EAGAIN
++	EBUSY      = syscall.EBUSY
++	EDEADLK    = syscall.EDEADLK
++	EIO        = syscall.EIO
++	ENOLCK     = syscall.ENOLCK
++	ENOSPC     = syscall.ENOSPC
++	ENXIO      = syscall.ENXIO
++	EPERM      = syscall.EPERM
++	ERANGE     = syscall.ERANGE
++	ETIMEDOUT  = syscall.ETIMEDOUT
++	EWOULDBLOCK = syscall.EWOULDBLOCK
++)
++
++// O_NOFOLLOW's value is copied from src/syscall/zerrors_haiku_amd64.go in
++// korli/go (real, generated from Haiku's own headers), not guessed.
++const O_NOFOLLOW = 0x80000
++
++// R_OK/W_OK/X_OK aren't generated anywhere in korli/go's stdlib syscall
++// package (the Go runtime/stdlib itself never calls access(2), so korli
++// never needed them) — these are the POSIX-mandated access(2) mode bits,
++// which every real Unix access(2) implementation uses verbatim; unlike
++// the errno/ioctl numbers elsewhere in this file, there's no plausible
++// way for Haiku to differ here.
++const (
++	F_OK = 0x0
++	X_OK = 0x1
++	W_OK = 0x2
++	R_OK = 0x4
++)
++
++func Access(path string, mode uint32) (err error) {
++	return syscall.Access(path, mode)
++}
++
++// Flock_t and FcntlFlock delegate to the stdlib syscall package, which
++// already implements fcntl(2) advisory locking for Haiku (F_GETLK/F_SETLK
++// go through a real dynamic libroot.so call, same family as
++// mmap/setsockopt above).
++type Flock_t = syscall.Flock_t
++
++const (
++	F_GETLK = syscall.F_GETLK
++	F_SETLK = syscall.F_SETLK
++	F_RDLCK = syscall.F_RDLCK
++	F_WRLCK = syscall.F_WRLCK
++	F_UNLCK = syscall.F_UNLCK
++)
++
++func FcntlFlock(fd uintptr, cmd int, lk *Flock_t) error {
++	return syscall.FcntlFlock(fd, cmd, lk)
 +}
 +
 +// --- socket options ---
