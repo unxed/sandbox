@@ -1,0 +1,19 @@
+click 330 400
+typeln clear; cd /tmp/t; ./f4 --attached
+wait 8
+key f7
+wait 2
+shot a256-dlg
+typeln newdirA
+wait 3
+shot a256-done
+key f10
+wait 2
+typeln clear; COLORTERM=truecolor ./f4 --attached
+wait 8
+key f7
+wait 2
+shot atc-dlg
+typeln newdirB
+wait 3
+shot atc-done
