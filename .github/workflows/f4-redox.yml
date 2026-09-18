@@ -13,7 +13,7 @@ permissions:
 env:
   # Redox Go toolchain: unxed/go branch golang-1.26-redox, pinned on purpose
   # (bump deliberately; another worker keeps pushing to that branch).
-  GO_REDOX_SHA: 4866bdfa171c6f54eace1dbbdaddb3977c05fc81
+  GO_REDOX_SHA: 674e4bc3cc67dbdbabf316f76339eec2ae8a2dce
   # f4 is pinned too, so the patches in f4-redox/patches stay applicable.
   F4_SHA: 376b6611317c2032b3957ad74db2689108ef0220
 
@@ -32,7 +32,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: redox-go
-          key: redox-go-${{ env.GO_REDOX_SHA }}
+          key: redox-go-${{ env.GO_REDOX_SHA }}-${{ hashFiles('f4-redox/patches/go/*.patch') }}
 
       - name: Fetch unxed/go (pinned)
         if: steps.gocache.outputs.cache-hit != 'true'
@@ -41,6 +41,15 @@ jobs:
           repository: unxed/go
           ref: ${{ env.GO_REDOX_SHA }}
           path: redox-go
+
+      - name: Apply Go toolchain patches (until they land in unxed/go)
+        if: steps.gocache.outputs.cache-hit != 'true'
+        working-directory: redox-go
+        run: |
+          shopt -s nullglob
+          for p in "$GITHUB_WORKSPACE"/f4-redox/patches/go/*.patch; do
+            echo "== $p"; git apply --verbose "$p"
+          done
 
       - uses: actions/setup-go@v5
         if: steps.gocache.outputs.cache-hit != 'true'
