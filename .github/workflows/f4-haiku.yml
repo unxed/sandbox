@@ -173,6 +173,18 @@ jobs:
           # as LF, input is line-buffered). Same fix as korli/term_haiku.
           git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/xterm-haiku.patch"
 
+      - name: Clone unxed/vtinput and read Haiku Terminal's SS3 arrows as plain arrows
+        run: |
+          set -euo pipefail
+          VTINPUT_VER="$(grep -oP 'github.com/unxed/vtinput v\K\S+' /tmp/f4/go.mod)"
+          echo "f4 pins vtinput at: $VTINPUT_VER"
+          git clone --branch "v${VTINPUT_VER}" --depth 1 https://github.com/unxed/vtinput.git /tmp/vtinput-haiku
+          cd /tmp/vtinput-haiku
+          # Haiku's Terminal sends plain arrows as ESC O A..D; vtinput reads a bare
+          # SS3 arrow as PuTTY's Ctrl+arrow, so cursor movement did nothing (found in
+          # a Haiku VM). Haiku-only (build tag), other platforms are unchanged.
+          git apply --verbose "$GITHUB_WORKSPACE/f4-haiku/patches/vtinput-haiku.patch"
+
       - name: Point f4's build at all patched local checkouts
         working-directory: /tmp/f4
         run: |
@@ -187,7 +199,8 @@ jobs:
             -replace github.com/tetratelabs/wazero=/tmp/wazero-haiku \
             -replace github.com/unxed/archives=/tmp/archives-haiku \
             -replace github.com/unxed/tar=/tmp/tar-haiku \
-            -replace golang.org/x/term=/tmp/xterm-haiku
+            -replace golang.org/x/term=/tmp/xterm-haiku \
+            -replace github.com/unxed/vtinput=/tmp/vtinput-haiku
           grep replace go.mod
           # golang.org/x/sys -> github.com/korli/sys_haiku, the Haiku port of
           # x/sys used by HaikuPorts (see e.g. www-apps/hugo recipe, which

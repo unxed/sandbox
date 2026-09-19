@@ -1,0 +1,59 @@
+diff --git a/parser.go b/parser.go
+index 1e274a8..5a76d9c 100644
+--- a/parser.go
++++ b/parser.go
+@@ -453,22 +453,22 @@ func ParseLegacySS3(data []byte) (*InputEvent, int, error) {
+ 		event.VirtualKeyCode = VK_END
+ 	case 'A':
+ 		event.VirtualKeyCode = VK_UP
+-		if mod == 1 {
++		if mod == 1 && bareSS3ArrowsAreCtrl {
+ 			event.ControlKeyState |= LeftCtrlPressed
+ 		}
+ 	case 'B':
+ 		event.VirtualKeyCode = VK_DOWN
+-		if mod == 1 {
++		if mod == 1 && bareSS3ArrowsAreCtrl {
+ 			event.ControlKeyState |= LeftCtrlPressed
+ 		}
+ 	case 'C':
+ 		event.VirtualKeyCode = VK_RIGHT
+-		if mod == 1 {
++		if mod == 1 && bareSS3ArrowsAreCtrl {
+ 			event.ControlKeyState |= LeftCtrlPressed
+ 		}
+ 	case 'D':
+ 		event.VirtualKeyCode = VK_LEFT
+-		if mod == 1 {
++		if mod == 1 && bareSS3ArrowsAreCtrl {
+ 			event.ControlKeyState |= LeftCtrlPressed
+ 		}
+ 	default:
+diff --git a/ss3_arrows.go b/ss3_arrows.go
+new file mode 100644
+index 0000000..d4257bf
+--- /dev/null
++++ b/ss3_arrows.go
+@@ -0,0 +1,6 @@
++package vtinput
++
++// bareSS3ArrowsAreCtrl says how a bare ESC O A..D (no modifier digit) is read.
++// PuTTY sends Ctrl+arrow that way, so by default it is Ctrl+arrow; see
++// ss3_arrows_haiku.go for a terminal where it is the plain arrow.
++var bareSS3ArrowsAreCtrl = true
+diff --git a/ss3_arrows_haiku.go b/ss3_arrows_haiku.go
+new file mode 100644
+index 0000000..25fcfd2
+--- /dev/null
++++ b/ss3_arrows_haiku.go
+@@ -0,0 +1,10 @@
++//go:build haiku
++
++package vtinput
++
++// Haiku's Terminal sends the plain arrow keys as SS3: ESC O A/B/C/D (Home is
++// ESC O H, End ESC O F); Shift and Ctrl add a modifier digit, ESC O 2 A and
++// ESC O 5 A (UP_ARROW_KEY_CODE, SHIFT_UP_ARROW_KEY_CODE, CTRL_UP_ARROW_KEY_CODE
++// in src/apps/terminal/VTkeymap.h in haiku/haiku). A bare ESC O A..D is
++// therefore the plain arrow there, not PuTTY's Ctrl+arrow.
++func init() { bareSS3ArrowsAreCtrl = false }
