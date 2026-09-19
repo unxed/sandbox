@@ -3,7 +3,7 @@
 # regress.out ("RESULT PASS"/"RESULT FAIL"). Coordinates are for 1280x800 (see haiku-desktop.txt).
 # US-International keymap in the guest: no apostrophes/double quotes/tildes/carets in typeln lines.
 # the boot time varies between runners: wait for the Welcome dialog and for the Deskbar by OCR
-waittext Try\s+Haiku 180
+waittext Thank\s+you\s+for 180
 click 903 582
 waittext Tracker 120
 wait 3

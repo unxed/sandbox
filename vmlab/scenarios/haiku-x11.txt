@@ -2,7 +2,7 @@
 # guest sees the host as 10.0.2.2, so DISPLAY=10.0.2.2:1). xshot captures that display, the guest uploads
 # x11.log. Same bootstrap as haiku-regress.txt.
 # the boot time varies between runners: wait for the Welcome dialog and for the Deskbar by OCR
-waittext Try\s+Haiku 180
+waittext Thank\s+you\s+for 180
 click 903 582
 waittext Tracker 120
 wait 3
