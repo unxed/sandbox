@@ -1,0 +1,19 @@
+xclick 200 150
+wait 2
+xkey F1
+wait 4
+xshot x11-help-f1
+xkey Escape
+wait 2
+xkey Down Down Down
+wait 2
+xshot x11-cursor-down
+xkey F9
+wait 3
+xshot x11-menu-f9
+xkey Escape
+wait 1
+xclick 60 100 double
+wait 4
+xshot x11-dblclick-dir
+xkey ctrl+c
