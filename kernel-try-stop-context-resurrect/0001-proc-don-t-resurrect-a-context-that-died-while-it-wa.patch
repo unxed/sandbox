@@ -1,0 +1,55 @@
+From a748c536e1b0a614cbc0837a1e0e5e5beeda3b81 Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 10:11:23 +0000
+Subject: [PATCH] proc: don't resurrect a context that died while it was being
+ stopped
+
+try_stop_context (used to read and write a context's registers and environment) stops
+another context by replacing its status with a HardBlocked{NotYetStarted} marker, waits
+until it is no longer running, runs the callback and then writes the previously saved
+status back, unconditionally.
+
+If the context was running when it was stopped, it can still be on its way out: a
+thread that takes an exception runs exit_this_context, which sets its status to Dead,
+switches away and is never supposed to run again. The unconditional restore then
+overwrites Dead with the saved status (Runnable), wakes the context, and the scheduler
+resumes it inside exit_this_context, after its final context::switch(), where
+`unreachable!()` panics the kernel ("entered unreachable code", syscall/process.rs). The
+same overwrite throws away a ForceKill (Runnable + being_sigkilled) that arrived while
+the context was stopped.
+
+Restore the saved status only if the status is still the marker; otherwise leave what
+the context, or a ForceKill, set in the meantime.
+---
+ src/scheme/proc.rs | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/src/scheme/proc.rs b/src/scheme/proc.rs
+index d82c573..b9006de 100644
+--- a/src/scheme/proc.rs
++++ b/src/scheme/proc.rs
+@@ -93,7 +93,20 @@ fn try_stop_context<T>(
+     let (context, l4_token) = guard.token_split();
+     let ret = callback(context, l4_token);
+ 
+-    context.status = prev_status;
++    // Restore the status the context had before it was stopped, but only if it is still the
++    // marker we put there. The context may have been running when we stopped it and finished
++    // its way out before it noticed: exit_this_context replaces the marker with Dead, ForceKill
++    // with Runnable. Writing the saved status over those brings a dead context back to life
++    // (it is then scheduled again, resumes inside exit_this_context and hits unreachable!(), or
++    // is never seen dead by procmgr) or throws a ForceKill away.
++    if matches!(
++        context.status,
++        context::Status::HardBlocked {
++            reason: HardBlockedReason::NotYetStarted
++        }
++    ) {
++        context.status = prev_status;
++    }
+ 
+     let cpu_id = context.cpu_id;
+ 
+-- 
+2.43.0
+
