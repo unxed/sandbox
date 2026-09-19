@@ -63,6 +63,17 @@ jobs:
           cp vmlab/haiku/* /tmp/vmlab/payload/ 2>/dev/null || true
           ls -l /tmp/vmlab/payload
 
+      - name: X server for the guest (Xvfb on TCP :6001) and a screenshot loop
+        run: |
+          sudo apt-get install -y -qq --no-install-recommends xvfb imagemagick x11-apps
+          mkdir -p /tmp/vmlab/x11shots
+          # -ac: no access control; -listen tcp: the guest reaches it as 10.0.2.2:1 (display :1 = port 6001)
+          Xvfb :1 -screen 0 1280x800x24 -ac -listen tcp >/tmp/vmlab/xvfb.log 2>&1 &
+          sleep 2
+          DISPLAY=:1 xsetroot -solid '#204060' || true
+          ( n=0; while sleep 3; do n=$((n+1)); DISPLAY=:1 import -window root "/tmp/vmlab/x11shots/$(printf %04d $n).png" 2>/dev/null || true; done ) &
+          ss -ltn | grep -E ':600[01]' || true
+
       - name: Boot Haiku and run the scenario
         env:
           VMLAB_ACCEL: ${{ inputs.accel || 'kvm' }}
@@ -100,6 +111,8 @@ jobs:
             /tmp/vmlab/upload
             /tmp/vmlab/screens
             /tmp/vmlab/screens.log
+            /tmp/vmlab/x11shots
+            /tmp/vmlab/xvfb.log
             /tmp/vmlab/qemu.log
             /tmp/vmlab/serial.log
           if-no-files-found: ignore

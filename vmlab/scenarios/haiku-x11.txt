@@ -1,0 +1,32 @@
+# f4 --gui=x11 on Haiku against an X server running on the Actions host (Xvfb, TCP :6001, the guest
+# sees the host as 10.0.2.2). The workflow captures the Xvfb root window every few seconds into
+# x11shots/, the guest uploads x11.log. Same bootstrap as haiku-regress.txt.
+wait 10
+click 903 582
+wait 15
+click 1213 14
+wait 2
+move 1041 226
+wait 1.5
+move 900 300
+move 881 707
+wait 0.5
+click 881 707
+wait 4
+shot 01-terminal
+click 330 300
+typeln curl -s -o /tmp/agent.sh http://10.0.2.2:8000/haiku-agent.sh
+wait 3
+typeln sh /tmp/agent.sh &
+wait 2
+typeln mkdir -p /boot/home/t/sub && cd /boot/home/t && echo line one > a.txt
+wait 2
+typeln curl -sf -o /boot/home/f4 http://10.0.2.2:8000/f4-haiku-amd64 && chmod +x /boot/home/f4 && clear
+wait 8
+typeln DISPLAY=10.0.2.2:1 /boot/home/f4 --gui=x11 --attached /boot/home/t > /tmp/x11.log 2>&1 &
+wait 20
+shot 02-after-start
+typeln sleep 5; curl -s -T /tmp/x11.log http://10.0.2.2:8000/upload/x11.log
+waitupload x11.log 60
+wait 20
+shot 03-later
