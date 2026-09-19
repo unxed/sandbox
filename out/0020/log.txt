@@ -1,0 +1,5 @@
+07:14:52 ok   key f10  [0.2s]
+07:14:53 ok   wait 1  [1.0s]
+07:14:53 ok   key enter  [0.2s]
+07:14:54 ok   wait 1  [1.0s]
+07:14:54 ok   shot q -> q.png (1280x800)  [0.0s]
