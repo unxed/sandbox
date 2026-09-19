@@ -1,0 +1,6 @@
+typeln clear
+typeln curl -s -m 5 -o /dev/null -w '[6001: %{errormsg} conn=%{time_connect}]' http://10.0.2.2:6001/ &> /tmp/a.txt; tail -c 200 /tmp/a.txt
+wait 6
+typeln curl -s -m 5 -o /dev/null -w '[6002: %{errormsg} conn=%{time_connect}]' http://10.0.2.2:6002/ &> /tmp/b.txt; tail -c 200 /tmp/b.txt
+wait 6
+shot xtcp2
