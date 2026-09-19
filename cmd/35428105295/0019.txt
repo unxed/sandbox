@@ -1,0 +1,12 @@
+key enter
+wait 2
+click 350 201
+wait 1
+shot click1
+click 100 168
+click 100 168
+wait 2
+shot dbl
+drag 632 505 900 700
+wait 3
+shot resize
