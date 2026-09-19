@@ -1,0 +1,22 @@
+00:12:19 ok   wait 25  [25.0s]
+00:12:19 ok   xsh ss -tan | grep 6001 -> rc=0
+LISTEN     0      4096               0.0.0.0:6001                  0.0.0.0:*           
+TIME-WAIT  0      0                127.0.0.1:40094               127.0.0.1:6001        
+ESTAB      0      0                127.0.0.1:40100               127.0.0.1:6001        
+ESTAB      0      0                127.0.0.1:40112               127.0.0.1:6001        
+ESTAB      0      0                127.0.0.1:6001                127.0.0.1:40100       
+ESTAB      0      0                127.0.0.1:6001                127.0.0.1:40112       
+LISTEN     0      4096                  [::]:6001                     [::]:*           
+  [0.0s]
+00:12:19 ok   xsh xwininfo -root -tree | head -20 -> rc=0
+
+xwininfo: Window id: 0x21f (the root window) (has no name)
+
+  Root window id: 0x21f (the root window) (has no name)
+  Parent window id: 0x0 (none)
+     2 children:
+     0x600001 (has no name): ()  1x1+0+0  +0+0
+     0x400001 "f4 376b661-dirty amd64 - Panels: /home/user": ()  700x390+0+0  +0+0
+
+  [0.0s]
+00:12:19 ok   xshot x11-f4 -> x11-f4.png  [0.1s]
