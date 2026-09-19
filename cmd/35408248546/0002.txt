@@ -1,0 +1,5 @@
+key ctrl-c
+wait 1
+typeln curl -s -m 5 -o /dev/null http://10.0.2.2:6001/
+wait 6
+xsh ss -tan | grep 6001 | head -5; echo ---; tail -3 /tmp/vmlab/xvfb.log
