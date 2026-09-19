@@ -1,0 +1,30 @@
+ 1P demo ─ demo │ 2V readme.txt │+                                                             [2/2]
+ readme.txt                                                                 UTF-8 │ Text │ 100%
+hello redox                                                                                        ▲
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ▓
+                                                                                                   ░
+                                                                                                   ░
+                                                                                                   ░
+                                                                                                   ░
+                                                                                                   ░
+                                                                                                   ░
+                                                                                                   ░
+                                                                                                   ░
+                                                                                                   ▼
+1Help   2Wrap   3Exit   4Hex    5       6Edit   7Find   8ANSI   9       10Exit  11      12
