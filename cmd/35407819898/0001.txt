@@ -1,0 +1,7 @@
+xrun xclock -geometry 300x300+50+50
+xrun xeyes -geometry 300x200+400+50
+wait 1
+xshot x1
+xclick 450 150
+xkey ctrl+c
+xshot x2
