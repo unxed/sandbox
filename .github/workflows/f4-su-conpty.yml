@@ -1,0 +1,59 @@
+name: f4-su-conpty
+
+# Probe for unxed/f4#207 and #1197: `su diskpart` + `exit` inside f4-gui's
+# embedded terminal (ConPTY) leaves Enter and Backspace dead. Builds nothing
+# locally: runs f4's own ConPTY panel on a Windows runner with the real su.exe.
+
+on:
+  push:
+    branches: [ "su-conpty-probe", "su-conpty-*" ]
+    paths: [ "f4-su-conpty/**", ".github/workflows/f4-su-conpty.yml" ]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: unxed/f4
+          ref: main
+          path: f4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: false
+      - name: Get Seamless Sudo 1.1.1
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/yegor-mialyk/tools/releases/download/v1.1.1/Sudo-1.1.1-x64.zip -OutFile sudo.zip
+          Expand-Archive sudo.zip -DestinationPath sudo
+          Get-ChildItem sudo -Recurse | Select-Object FullName, Length
+      - name: Add the probe to a throwaway f4 checkout
+        shell: bash
+        run: |
+          cp f4-su-conpty/su_probe_windows_test.go f4/internal/app/
+          python f4-su-conpty/modeprobe.py f4
+      - name: Run the probe
+        shell: pwsh
+        working-directory: f4
+        env:
+          CGO_ENABLED: '0'
+          SU_EXE: ${{ github.workspace }}\sudo\su.exe
+        run: |
+          go test ./internal/app -run TestSuConPTYProbe -v -count=1 -timeout 15m *>&1 | Tee-Object -FilePath ../probe.log
+          exit 0
+      - name: Summary
+        if: always()
+        shell: bash
+        run: |
+          grep -E "RESULT|STATE|MODEPROBE|=== " probe.log | tee summary.txt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-log
+          path: |
+            probe.log
+            summary.txt
