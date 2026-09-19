@@ -1,0 +1,3 @@
+typeln clear; /boot/home/f4 --gui=x11; echo GUIRC=$?
+wait 5
+shot gui
