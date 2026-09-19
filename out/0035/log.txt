@@ -1,0 +1,6 @@
+07:21:18 ok   click 838 512  [0.4s]
+07:21:20 ok   wait 2  [2.0s]
+07:21:20 ok   click 300 300  [0.4s]
+07:21:22 ok   typeln clear; /boot/home/f4 --gui=x11; echo GUIRC=$?  [1.4s]
+07:21:28 ok   wait 6  [6.0s]
+07:21:28 ok   shot gui2 -> gui2.png (1280x800)  [0.0s]
