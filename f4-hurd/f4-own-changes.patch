@@ -1,0 +1,180 @@
+diff --git a/internal/dialog/about_os_other.go b/internal/dialog/about_os_other.go
+index c882675c..2abe87a8 100644
+--- a/internal/dialog/about_os_other.go
++++ b/internal/dialog/about_os_other.go
+@@ -1,4 +1,4 @@
+-//go:build !windows && !(aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris)
++//go:build !windows && !(aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || (solaris || hurd))
+ 
+ package dialog
+ 
+diff --git a/internal/dialog/about_os_unix.go b/internal/dialog/about_os_unix.go
+index d7281f1b..8bf6c77b 100644
+--- a/internal/dialog/about_os_unix.go
++++ b/internal/dialog/about_os_unix.go
+@@ -1,4 +1,4 @@
+-//go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || solaris
++//go:build aix || darwin || dragonfly || freebsd || linux || netbsd || openbsd || (solaris || hurd)
+ 
+ package dialog
+ 
+diff --git a/internal/editor/colorer_cpu_amd64.go b/internal/editor/colorer_cpu_amd64.go
+index 45ff2d3a..0c88db15 100644
+--- a/internal/editor/colorer_cpu_amd64.go
++++ b/internal/editor/colorer_cpu_amd64.go
+@@ -1,4 +1,4 @@
+-//go:build amd64 && !android && !ios && (linux || darwin || freebsd || netbsd || windows || dragonfly || solaris || illumos)
++//go:build amd64 && !android && !ios && (linux || darwin || freebsd || netbsd || windows || dragonfly || (solaris || hurd) || illumos)
+ 
+ package editor
+ 
+diff --git a/internal/editor/colorer_cpu_amd64_test.go b/internal/editor/colorer_cpu_amd64_test.go
+index f8715499..7c4b4da0 100644
+--- a/internal/editor/colorer_cpu_amd64_test.go
++++ b/internal/editor/colorer_cpu_amd64_test.go
+@@ -1,4 +1,4 @@
+-//go:build amd64 && !android && !ios && (linux || darwin || freebsd || netbsd || windows || dragonfly || solaris || illumos)
++//go:build amd64 && !android && !ios && (linux || darwin || freebsd || netbsd || windows || dragonfly || (solaris || hurd) || illumos)
+ 
+ package editor
+ 
+diff --git a/internal/editor/colorer_cpu_other.go b/internal/editor/colorer_cpu_other.go
+index 67517ce7..a9349f0b 100644
+--- a/internal/editor/colorer_cpu_other.go
++++ b/internal/editor/colorer_cpu_other.go
+@@ -1,4 +1,4 @@
+-//go:build !amd64 || android || ios || !(linux || darwin || freebsd || netbsd || windows || dragonfly || solaris || illumos)
++//go:build !amd64 || android || ios || !(linux || darwin || freebsd || netbsd || windows || dragonfly || (solaris || hurd) || illumos)
+ 
+ package editor
+ 
+diff --git a/internal/fileops/archive_index.go b/internal/fileops/archive_index.go
+index 3a177a2b..c03ab015 100644
+--- a/internal/fileops/archive_index.go
++++ b/internal/fileops/archive_index.go
+@@ -1,4 +1,4 @@
+-//go:build !dragonfly && !netbsd && !solaris && !illumos
++//go:build !dragonfly && !netbsd && (!solaris && !hurd) && !illumos
+ 
+ package fileops
+ 
+diff --git a/internal/fileops/archive_index_fallback.go b/internal/fileops/archive_index_fallback.go
+index c1279e9a..b6b10dad 100644
+--- a/internal/fileops/archive_index_fallback.go
++++ b/internal/fileops/archive_index_fallback.go
+@@ -1,4 +1,4 @@
+-//go:build dragonfly || netbsd || solaris || illumos
++//go:build dragonfly || netbsd || (solaris || hurd) || illumos
+ 
+ package fileops
+ 
+diff --git a/internal/gui/icon_unix.go b/internal/gui/icon_unix.go
+index c13095b2..6e7f8126 100644
+--- a/internal/gui/icon_unix.go
++++ b/internal/gui/icon_unix.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || netbsd || dragonfly || freebsd || illumos || solaris
++//go:build linux || openbsd || netbsd || dragonfly || freebsd || illumos || (solaris || hurd)
+ 
+ package gui
+ 
+diff --git a/internal/gui/run_unix.go b/internal/gui/run_unix.go
+index c89893e3..20939d13 100644
+--- a/internal/gui/run_unix.go
++++ b/internal/gui/run_unix.go
+@@ -1,4 +1,4 @@
+-//go:build linux || darwin || openbsd || netbsd || dragonfly || freebsd || illumos || solaris
++//go:build linux || darwin || openbsd || netbsd || dragonfly || freebsd || illumos || (solaris || hurd)
+ 
+ package gui
+ 
+diff --git a/internal/gui/run_unix_test.go b/internal/gui/run_unix_test.go
+index c6806569..2cd627ac 100644
+--- a/internal/gui/run_unix_test.go
++++ b/internal/gui/run_unix_test.go
+@@ -1,4 +1,4 @@
+-//go:build linux || darwin || openbsd || netbsd || dragonfly || freebsd || illumos || solaris
++//go:build linux || darwin || openbsd || netbsd || dragonfly || freebsd || illumos || (solaris || hurd)
+ 
+ package gui
+ 
+diff --git a/internal/terminal/pty_logical_lines_solaris.go b/internal/terminal/pty_logical_lines_solaris.go
+index 873c8717..188c1553 100644
+--- a/internal/terminal/pty_logical_lines_solaris.go
++++ b/internal/terminal/pty_logical_lines_solaris.go
+@@ -1,4 +1,4 @@
+-//go:build solaris || illumos
++//go:build (solaris || hurd) || illumos
+ 
+ package terminal
+ 
+diff --git a/internal/terminal/pty_solaris.go b/internal/terminal/pty_solaris.go
+index fc158760..d237a5d0 100644
+--- a/internal/terminal/pty_solaris.go
++++ b/internal/terminal/pty_solaris.go
+@@ -1,4 +1,4 @@
+-//go:build solaris || illumos
++//go:build (solaris || hurd) || illumos
+ 
+ package terminal
+ 
+diff --git a/internal/terminal/solaris_pty_backend_test.go b/internal/terminal/solaris_pty_backend_test.go
+index efb13f98..bf81849d 100644
+--- a/internal/terminal/solaris_pty_backend_test.go
++++ b/internal/terminal/solaris_pty_backend_test.go
+@@ -1,4 +1,4 @@
+-//go:build solaris || illumos
++//go:build (solaris || hurd) || illumos
+ 
+ package terminal
+ 
+diff --git a/plugins/cloudfox/store_lock_unix.go b/plugins/cloudfox/store_lock_unix.go
+index a17e2d13..ea967b39 100644
+--- a/plugins/cloudfox/store_lock_unix.go
++++ b/plugins/cloudfox/store_lock_unix.go
+@@ -1,4 +1,4 @@
+-//go:build aix || darwin || dragonfly || freebsd || illumos || linux || netbsd || openbsd || solaris
++//go:build aix || darwin || dragonfly || freebsd || illumos || linux || netbsd || openbsd || (solaris || hurd)
+ 
+ package cloudfox
+ 
+diff --git a/vfs/os_vfs_posix_atim.go b/vfs/os_vfs_posix_atim.go
+index 294a0335..7fb4594c 100644
+--- a/vfs/os_vfs_posix_atim.go
++++ b/vfs/os_vfs_posix_atim.go
+@@ -1,4 +1,4 @@
+-//go:build linux || openbsd || dragonfly || solaris || illumos
++//go:build linux || openbsd || dragonfly || (solaris || hurd) || illumos
+ 
+ package vfs
+ 
+diff --git a/vfs/rename_noreplace_unix.go b/vfs/rename_noreplace_unix.go
+index 06d04c13..e179ad48 100644
+--- a/vfs/rename_noreplace_unix.go
++++ b/vfs/rename_noreplace_unix.go
+@@ -1,4 +1,4 @@
+-//go:build aix || dragonfly || freebsd || netbsd || openbsd || solaris || illumos
++//go:build aix || dragonfly || freebsd || netbsd || openbsd || (solaris || hurd) || illumos
+ 
+ package vfs
+ 
+diff --git a/vfs/trash_freedesktop.go b/vfs/trash_freedesktop.go
+index 45974bfa..c9aa7bf5 100644
+--- a/vfs/trash_freedesktop.go
++++ b/vfs/trash_freedesktop.go
+@@ -1,4 +1,4 @@
+-//go:build linux || dragonfly || freebsd || netbsd || openbsd || solaris || illumos
++//go:build linux || dragonfly || freebsd || netbsd || openbsd || (solaris || hurd) || illumos
+ 
+ package vfs
+ 
+diff --git a/vfs/trash_freedesktop_test.go b/vfs/trash_freedesktop_test.go
+index b696423e..6bf09f86 100644
+--- a/vfs/trash_freedesktop_test.go
++++ b/vfs/trash_freedesktop_test.go
+@@ -1,4 +1,4 @@
+-//go:build linux || dragonfly || freebsd || netbsd || openbsd || solaris || illumos
++//go:build linux || dragonfly || freebsd || netbsd || openbsd || (solaris || hurd) || illumos
+ 
+ package vfs
+ 

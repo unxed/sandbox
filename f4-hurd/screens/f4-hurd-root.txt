@@ -1,0 +1,26 @@
+# f4 на GNU Hurd (QEMU/KVM, serial console 80x24), последний кадр перед выходом; run-hurd-poc #35409126369
+# Рендер текстового содержимого из сырого потока escape-последовательностей (без цветов).
+ 1| 1P / ─ / │+
+ 2|┌─ / ──────────────────────────────────┐┌─ / ──────────────────────────────────┐
+ 3|│Name ↑            │Name ↑             ││Name ↑            │Name ↑             │
+ 4|│→ bin             │srv                ││→ bin             │srv                │
+ 5|│boot              │tmp                ││boot              │tmp                │
+ 6|│dev               │usr                ││dev               │usr                │
+ 7|│etc               │var                ││etc               │var                │
+ 8|│ftp:              │debug.log          ││ftp:              │debug.log          │
+ 9|│home              │      ╔══════════ Exit ══════════╗     │                   │
+10|│http:             │      ║                          ║     │                   │
+11|│hurd              │      ║ Do you want to leave f4? ║     │                   │
+12|│→ lib             │      ║                          ║     │                   │
+13|│lost+found        │      ║   [ Leave ]  [ Cancel ]  ║     │                   │
+14|│media             │      ║                          ║     │                   │
+15|│mnt               │      ╚══════════════════════════╝     │                   │
+16|│opt               │                   ││opt               │                   │
+17|│proc              │                   ││proc              │                   │
+18|│root              │                   ││root              │                   │
+19|│run               │                   ││run               │                   │
+20|│→ sbin            │                   ││→ sbin            │                   │
+21|│servers           │                   ││servers           │                   │
+22|└ ▸ → usr/bin  64 (1/22) ──────────────┘└ ▸ Folder ─── 64 (1/22) ──────────────┘
+23|root@debian:/$ _far2l0\
+24|1Help 2MenuMkDiew 4Edit 5Copy 6Rena 7Make 8Dele 9Conf 10Qui 11Plu 12Screen

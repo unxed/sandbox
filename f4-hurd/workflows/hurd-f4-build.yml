@@ -1,0 +1,100 @@
+name: hurd-f4-build
+
+# Cross-compile unxed/f4 for GOOS=hurd with the toolchain built from this branch.
+# workflow_dispatch only works for workflows on the default branch (haiku here),
+# so it is triggered by pushing a change to .github/f4-ref (the unxed/f4 ref to build).
+on:
+  push:
+    branches: [golang-1.26-hurd]
+    paths:
+      - '.github/f4-ref'
+      - '.github/workflows/hurd-f4-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Cache toolchain
+        id: tc
+        uses: actions/cache@v4
+        with:
+          path: |
+            bin
+            pkg
+          key: hurd-toolchain-${{ runner.os }}-${{ hashFiles('src/**', 'VERSION') }}
+
+      - name: Build host toolchain
+        if: steps.tc.outputs.cache-hit != 'true'
+        working-directory: src
+        run: |
+          export GOROOT_BOOTSTRAP=$(dirname $(dirname $(which go)))
+          ./make.bash
+
+      - name: Fetch f4
+        run: |
+          git clone --filter=blob:none https://github.com/unxed/f4 /tmp/f4
+          cd /tmp/f4
+          git checkout "$(head -1 "$GITHUB_WORKSPACE/.github/f4-ref" | tr -d '[:space:]')"
+          git log --oneline -1
+
+      - name: Compile f4 for GOOS=hurd
+        run: |
+          export GOROOT=$(pwd)
+          export PATH=$GOROOT/bin:$PATH
+          export GOTOOLCHAIN=local
+          go version
+          mkdir -p /tmp/out
+          cd /tmp/f4
+          # vendor all dependencies, then treat hurd like solaris in their build constraints
+          GOFLAGS=-mod=mod go mod vendor 2> /tmp/out/vendor.err || { cat /tmp/out/vendor.err | tail -20; }
+          python3 "$GOROOT/.github/scripts/hurd_retag.py" vendor . | tee /tmp/out/retag.txt | head -60
+          # files that exist only for hurd (until they are upstreamed to unxed/f4)
+          cp -r "$GOROOT/misc/hurd/f4-overlay/." .
+          # afero: BADFD is EBADFD (linux only) elsewhere; hurd behaves like the BSDs here
+          sed -i 's/aix || darwin || openbsd/aix || darwin || hurd || openbsd/' vendor/github.com/spf13/afero/const_bsds.go
+          sed -i 's/!darwin \&\& !openbsd/!darwin \&\& !hurd \&\& !openbsd/' vendor/github.com/spf13/afero/const_win_unix.go
+          # golang.org/x/sys/unix has no gc/hurd port: replace the package by a hurd shim
+          if [ -d "$GOROOT/misc/hurd/xsys-unix" ]; then
+            rm -f vendor/golang.org/x/sys/unix/*
+            cp "$GOROOT"/misc/hurd/xsys-unix/*.go vendor/golang.org/x/sys/unix/
+            python3 "$GOROOT/.github/scripts/gen_unix_consts.py" "$GOROOT/src/syscall/zerrors_hurd_amd64.go" vendor/golang.org/x/sys/unix vendor/golang.org/x/sys/unix/zconsts_hurd.go
+          fi
+          git diff -- . ':!vendor' > /tmp/out/f4-own-changes.patch || true
+          # which unix.* identifiers do f4 and its dependencies use (x/sys itself excluded)?
+          grep -rhoE '\bunix\.[A-Za-z0-9_]+' --include='*.go' --exclude='*_test.go' . 2>/dev/null \
+            | sort | uniq -c | sort -rn > /tmp/out/unix-used.txt || true
+          wc -l < /tmp/out/unix-used.txt
+          grep -rlE '"golang.org/x/sys/unix"' --include='*.go' --exclude='*_test.go' . | grep -v '^./vendor/golang.org/x/sys/' > /tmp/out/unix-importers.txt || true
+          wc -l < /tmp/out/unix-importers.txt
+          export GOOS=hurd GOARCH=amd64 CGO_ENABLED=0 GOFLAGS=-mod=vendor
+          go build -gcflags=-e ./... > /tmp/out/build-all.log 2>&1 || true
+          echo "packages with errors: $(grep -c '^#' /tmp/out/build-all.log)"
+          head -150 /tmp/out/build-all.log
+          grep -oE 'undefined: unix\.[A-Za-z0-9_]+' /tmp/out/build-all.log | sort | uniq -c | sort -rn > /tmp/out/undefined-unix.txt || true
+          wc -l < /tmp/out/undefined-unix.txt
+          F4_RC=0
+          go build -o /tmp/out/f4.bin ./cmd/f4 > /tmp/out/build-f4.log 2>&1 || F4_RC=$?
+          echo "F4_RC=$F4_RC"
+          head -60 /tmp/out/build-f4.log
+          if [ "$F4_RC" = "0" ]; then
+            go build -ldflags='-s -w' -o /tmp/out/f4-stripped.bin ./cmd/f4
+            gzip -9 -k -f /tmp/out/f4-stripped.bin
+          fi
+          ls -l /tmp/out
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hurd-f4-output
+          path: /tmp/out
+          if-no-files-found: warn
