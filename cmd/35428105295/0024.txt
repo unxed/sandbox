@@ -1,0 +1,3 @@
+typeln rm -f /boot/home/f4 /boot/home/a.txt; df -h /boot /tmp 2>&1; ls -l /boot/home
+wait 3
+shot df
