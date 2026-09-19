@@ -1,0 +1,20 @@
+key f10
+wait 1
+shot quit
+key enter
+wait 1
+typeln cd /boot/home/t && ./f4 /boot/home/t /boot/home/t2
+wait 4
+key down
+key down
+key f3
+wait 2
+shot view
+key pgdn
+wait 1
+shot view2
+key esc
+wait 1
+key end
+key home
+shot nav
