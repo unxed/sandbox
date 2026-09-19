@@ -1,13 +1,76 @@
 # f4 → Haiku OS port (sandbox)
 
-**Статус на 2026-09-18: `github.com/unxed/f4` успешно собирается под
-`GOOS=haiku GOARCH=amd64`.** Полностью в GitHub Actions этого репозитория,
-локально ничего не собиралось и не компилировалось — см. «Правило
-песочницы» ниже. Итоговый бинарник (`f4-haiku-amd64`, ~107 МБ) — настоящий
-Haiku-исполняемый файл (`interpreter /system/runtime_loader`, не спутать со
-случайной линуксовой линковкой), но **ни разу не запускался** — ни на
-реальной Haiku, ни под эмулятором. Это следующий шаг, и именно под него
-написан раздел «Тестирование под QEMU» ниже.
+**Статус на 2026-09-18: f4 собирается под `GOOS=haiku GOARCH=amd64` И РАБОТАЕТ в Haiku**
+(nightly hrev60122 x86_64, QEMU/KVM внутри GitHub Actions): рисует панели в родном
+Terminal, ходит по каталогам, создаёт папки (F7), исполняет команды из командной
+строки через PTY-бэкенд (`pty_haiku.go`) — проверено скриншотами и логами, см.
+раздел «Запуск в Haiku VM (vmlab)» ниже. Всё собирается и запускается только в
+GitHub Actions этого репозитория, локально ничего не собирается («Правило песочницы»).
+
+## Запуск в Haiku VM (vmlab) — как это устроено и что найдено
+
+`vmlab/` (QEMU-драйвер, изначально сделан для Redox) адаптирован под Haiku:
+
+- **`vmlab-haiku.yml`** — batch-workflow: KVM на раннере → загрузка Haiku (образ качается и
+  распаковывается за ~20 с, до окна «Welcome» ~10 с) → сценарий `vmlab/scenarios/haiku-*.txt`.
+  Не использует git-шину, поэтому не мешает чужим интерактивным сессиям. Запуск:
+  `gh workflow run vmlab-haiku.yml -f scenario=haiku-smoke`.
+- **Интерактивная сессия на своей шине.** `vmlab-session.yml` получил вход `bus`: шина команд
+  теперь `<bus>-cmd`/`<bus>-out` (по умолчанию `vmlab` — как было). Для Haiku:
+  ```bash
+  export GH_TOKEN=... VMLAB_BUS=vmlab-haiku VMLAB_AGENT_EXT=sh
+  python3 vmlab/ctl.py start --guest haiku --minutes 45 --scenario haiku-desktop
+  python3 vmlab/ctl.py do "shot x" "click 330 400" "typeln ./f4"   # клавиатура/мышь/скриншоты
+  python3 vmlab/ctl.py sh 'uname -a; ls /tmp'                      # команды через гостевого агента
+  python3 vmlab/ctl.py put файл имя                                # положить файл в гостя
+  python3 vmlab/ctl.py stop
+  ```
+  Сценарий `haiku-desktop` сам проходит Welcome → «Try Haiku» → Deskbar → Applications →
+  Terminal и запускает `vmlab/guests/haiku-agent.sh` (аналог `redox-agent.ion`: опрашивает
+  `http://10.0.2.2:8000/job.sh`, исполняет, заливает `job.out`; отклик ~8 с).
+- **Что доставляется в гостя** (каталог payload раздаётся хостом на `10.0.2.2:8000`): свежий
+  бинарник `f4-haiku-amd64` и `ptyrun-haiku` (PTY-харнесс из `vmlab/haiku/ptyrun`, собирается в
+  том же job'е `f4-haiku` тем же тулчейном, артефакт `f4-haiku-tools`).
+- **Инструменты разбора:** `vmlab/haiku/vtdump.py` (эмулятор терминала на stdlib: превращает
+  снапшоты `ptyrun` в текст экрана, `--bg` — карта цветов фона), `sgrtest*.sh` (эксперименты с SGR).
+
+**Практические грабли Haiku в VM:** Terminal использует раскладку US-International, поэтому
+в `typeln` нельзя `'` `"` `~` `^` `` ` `` (мёртвые клавиши); шаг `stable` не работает (экран
+постоянно меняется) — используйте `wait`; в образе нет `pkill` (только `kill PID`), а `kill -9 0`
+убивает всю группу; `ps` выводит `имя PID потоки 0 0`; syslog ядра идёт в `serial.log`;
+`f4` по умолчанию уходит в detached-сессию (`f4 --server …`, каталог `/tmp/f4-sessions-0`), из-за
+чего повторный запуск переподключается к старому состоянию — для чистых тестов убивайте процессы
+и удаляйте каталог сессий, либо запускайте `f4 --attached`.
+
+### Найдено и исправлено при запуске в реальной Haiku
+
+1. **PTY-бэкенд подтверждён.** Последовательность из исходников Haiku (`/dev/ptmx` →
+   `B_IOCTL_GRANT_TTY` → `B_IOCTL_GET_TTY_INDEX` → `/dev/tt/p<N>`) работает: в госте есть
+   `/dev/ptmx` и `/dev/tt/p0…`, шелл стартует, ввод/вывод идут, команда из командной строки f4
+   (`echo hello-from-f4`) исполняется во встроенном терминале. Найден и исправлен изъян в
+   `pty_haiku.go`: `ioctl` шёл сырым 3-аргументным `SYS_IOCTL`, а у Haiku `ioctl` берёт ещё и
+   длину буфера — теперь через `unix.Ioctl*` из `korli/sys_haiku` (libroot), а `Fd()` заменён на
+   `SyscallConn().Control` (не переводит мастер в блокирующий режим).
+2. **Enter приходил как LF (Ctrl+J), ввод был построчным.** `vtinput` включает raw-режим через
+   `golang.org/x/term.MakeRaw`, у которого нет порта под Haiku (`term_unsupported.go` → ошибка),
+   поэтому терминал оставался в каноническом режиме. Патч `patches/xterm-haiku.patch` (как у
+   `korli/term_haiku`): `term_unix_haiku.go` c `TCGETA`/`TCSETA`, подключён `go mod edit -replace`.
+3. **Зелёные фоны строк каталогов/исполняемых файлов.** Причина — баг Haiku Terminal: в
+   `TermParse.cpp` `#define NPARAM 10`, а vtui склеивает reset + стиль + fg + bg в одну
+   SGR-последовательность (`0;38;2;R;G;B;48;2;R;G;B` — 11 параметров), лишние `;` игнорируются,
+   цифры 11-го дописываются к 10-му. Найдено воспроизведением точного байтового потока f4 через
+   `cat` в Terminal и тестами форм SGR. Патч `patches/vtui-haiku.patch` (только `GOOS=haiku`):
+   `maxSGRParams = 10`, последовательности бьются на несколько CSI. Черновик отчёта в апстрим
+   Haiku — `haiku-terminal-sgr-params.md`.
+4. Прочее: `UPDATER ERROR: no suitable build found for your OS/Arch` в логе — ожидаемо (сервер
+   обновлений не знает про Haiku); `f4 --tty --attached` под `ptyrun` раньше выходил сразу из-за п. 2.
+
+### Ещё не проверено / следующие шаги
+
+Просмотр F3, редактор F4, копирование F5, удаление F8, меню F9, изменение размера окна Terminal,
+мышь; плагины и SQLite (`MmapPtr` в старом шиме была заглушкой — теперь настоящий `sys_haiku`, но
+рантайм не проверен); `--gui=x11` (у Haiku нет X-сервера — ожидается откат в терминал);
+автоматический регресс `vmlab-haiku` после каждой сборки (`workflow_run`).
 
 ## Обновление: переход на korli/go и korli/sys_haiku
 
