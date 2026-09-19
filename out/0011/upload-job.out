@@ -1,0 +1,16 @@
+/boot/home:
+total 105044
+-rw-r--r-- 1 user root        35 Sep 19 07:06 a.txt
+dr-xr-xr-x 1 user root         0 Sep 18 06:36 config
+drwxr-xr-x 1 user root      2048 Sep 18 06:36 Desktop
+-rwxr-xr-x 1 user root 107536730 Sep 19 07:06 f4
+drwxr-xr-x 1 user root      2048 Sep 18 06:36 mail
+drwxr-xr-x 1 user root      2048 Sep 19 07:08 t
+drwxr-xr-x 1 user root      2048 Sep 19 07:06 t2
+
+/boot/home/t:
+total 14
+-rw-r--r-- 1 user root   35 Sep 19 07:06 a.txt
+-rw-r--r-- 1 user root  692 Sep 19 07:06 numbers.txt
+drwxr-xr-x 1 user root 2048 Sep 19 07:06 sub
+exit=0
