@@ -3,7 +3,7 @@
 HTTPS + a GitHub token in $GH_TOKEN). Every command you send is appended to
 vmlab-history.txt, so a good interactive run can be turned into a scenario.
 
-  ctl.py start [--guest haiku] [--minutes 30] [--scenario NAME] [--loadvm SNAP]   dispatch a session
+  ctl.py start [--guest haiku] [--minutes 30] [--scenario NAME] [--loadvm SNAP] [--xvfb]   dispatch a session
   ctl.py do "shot a" "key ctrl-alt-t" ...                         run steps, fetch screenshots
   ctl.py put FILE [NAME]                                          publish a file to the guest (http://10.0.2.2:8000/NAME)
   ctl.py sh COMMAND...                                            run COMMAND through the guest agent (redox), print its output
@@ -51,7 +51,7 @@ def start(a):
     t0 = time.time()
     api("POST", "actions/workflows/vmlab-session.yml/dispatches",
         {"ref": "main", "inputs": {"guest": a.guest, "minutes": str(a.minutes), "scenario": a.scenario or "",
-                    "loadvm": a.loadvm or "", "bus": BUS}})
+                    "loadvm": a.loadvm or "", "bus": BUS, "xvfb": "true" if a.xvfb else "false"}})
     print("dispatched, waiting for run id ...")
     while True:
         time.sleep(3)
@@ -130,7 +130,7 @@ def stop(a):
 def main():
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
-    s = sp.add_parser("start"); s.add_argument("--guest", default="haiku"); s.add_argument("--minutes", type=int, default=30); s.add_argument("--scenario", default=""); s.add_argument("--loadvm", default="")
+    s = sp.add_parser("start"); s.add_argument("--guest", default="haiku"); s.add_argument("--minutes", type=int, default=30); s.add_argument("--scenario", default=""); s.add_argument("--loadvm", default=""); s.add_argument("--xvfb", action="store_true", help="host Xvfb :1 with TCP; guest DISPLAY=10.0.2.2:1")
     d = sp.add_parser("do"); d.add_argument("steps", nargs="+"); d.add_argument("--timeout", type=int, default=300)
     u = sp.add_parser("put"); u.add_argument("file"); u.add_argument("name", nargs="?")
     r = sp.add_parser("sh"); r.add_argument("command", nargs="+"); r.add_argument("--guest-timeout", type=int, default=120)

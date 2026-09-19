@@ -10,6 +10,7 @@ on:
       minutes:  {description: 'max session length',       default: '30'}
       scenario: {description: 'vmlab/scenarios/<name>.txt replayed before hand-over (optional)', default: ''}
       loadvm:   {description: 'restore this VM snapshot from the newest snapshot cache of the guest (optional)', default: ''}
+      xvfb:     {description: 'start a host Xvfb :1 (TCP 6001, no auth) for X11 clients in the guest: DISPLAY=10.0.2.2:1; steps xshot/xkey/xclick/xtype/xrun', default: 'false'}
       bus:      {description: 'command-bus branch prefix (<bus>-cmd / <bus>-out); use a distinct one per guest to run sessions side by side', default: 'vmlab'}
 
 permissions:
@@ -24,6 +25,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GITHUB_TOKEN: ${{ github.token }}
       VMLAB_BUS: ${{ inputs.bus || 'vmlab' }}
+      VMLAB_XVFB: ${{ inputs.xvfb == 'true' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +40,11 @@ jobs:
             sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils tesseract-ocr zstd ovmf
           fi
           qemu-system-x86_64 --version | head -1; lscpu | grep -E "Model name|Flags" | cut -c1-120
+
+      - name: Xvfb and X tools
+        if: inputs.xvfb == 'true'
+        run: |
+          sudo apt-get install -y -qq --no-install-recommends xvfb x11-apps xdotool imagemagick x11-utils
 
       - name: Payload = latest successful f4-haiku binary
         continue-on-error: true

@@ -17,6 +17,10 @@ Scenario language: one step per line, '#' starts a comment.
   waittext REGEX [TIMEOUT]    wait until OCR of the screen matches REGEX
   save NAME / load NAME       VM snapshot (RAM + disk) in the qcow2 overlay
   hmp CMD                     raw QEMU human-monitor command
+  payload NAME BASE64         publish a file for the guest (http://10.0.2.2:8000/NAME)
+  waitupload NAME [TIMEOUT]   wait for a file the guest PUT to the host server
+  xshot NAME                  screenshot of the host X display (VMLAB_XVFB=1 -> Xvfb :1, guest DISPLAY=10.0.2.2:1)
+  xkey KEYS / xclick X Y [right|middle|double] / xtype TEXT / xrun CMD   xdotool input on that display
 """
 import argparse
 import base64
@@ -342,6 +346,42 @@ class Lab:
             time.sleep(0.5)
         raise TimeoutError("guest did not upload %s" % p[0])
 
+    # -- host-side X11 (Xvfb, started when VMLAB_XVFB=1; the guest reaches it as DISPLAY=10.0.2.2:1)
+    def _x(self, argv, **kw):
+        env = dict(os.environ, DISPLAY=XDISPLAY)
+        return subprocess.run(argv, env=env, capture_output=True, text=True, timeout=60, **kw)
+
+    def do_xshot(self, rest):
+        p = self.out / (re.sub(r"[^\w.-]", "_", rest.strip() or "xshot") + ".png")
+        r = self._x(["import", "-window", "root", str(p)])
+        if r.returncode:
+            raise RuntimeError("import: " + r.stderr.strip()[:200])
+        return p.name
+
+    def do_xkey(self, rest):
+        r = self._x(["xdotool", "key", "--clearmodifiers"] + rest.split())
+        if r.returncode:
+            raise RuntimeError("xdotool: " + r.stderr.strip()[:200])
+
+    def do_xclick(self, rest):
+        p = rest.split()
+        btn = {"right": "3", "middle": "2"}.get(p[2] if len(p) > 2 else "", "1")
+        args = ["mousemove", p[0], p[1], "click"] + (["--repeat", "2", "--delay", "80"] if "double" in p[2:] else []) + [btn]
+        r = self._x(["xdotool"] + args)
+        if r.returncode:
+            raise RuntimeError("xdotool: " + r.stderr.strip()[:200])
+
+    def do_xtype(self, rest):
+        r = self._x(["xdotool", "type", "--delay", "20", "--", rest])
+        if r.returncode:
+            raise RuntimeError("xdotool: " + r.stderr.strip()[:200])
+
+    def do_xrun(self, rest):
+        """xrun CMD...: start an X client on the host display in the background (e.g. xclock, xterm)."""
+        subprocess.Popen(rest, shell=True, env=dict(os.environ, DISPLAY=XDISPLAY),
+                         stdout=open(WORK / "xrun.log", "a"), stderr=subprocess.STDOUT, start_new_session=True)
+        time.sleep(1)
+
     def do_hmp(self, rest):
         return self.q.hmp(rest).strip()
 
@@ -358,7 +398,7 @@ class Lab:
         if fn is None:
             raise ValueError("unknown step %r" % name)
         t0 = time.time()
-        res = fn(rest if name in ("type", "typeln") else rest.strip())
+        res = fn(rest if name in ("type", "typeln", "xtype") else rest.strip())
         return "%s%s  [%.1fs]" % (line[:80], (" -> " + str(res)) if res else "", time.time() - t0)
 
 
@@ -378,6 +418,24 @@ def run_lines(lab, lines, stop_on_error=True):
 
 
 # ---------------------------------------------------------------- payload/upload HTTP server
+XDISPLAY = os.environ.get("VMLAB_XDISPLAY", ":1")
+
+
+def start_xvfb():
+    """Optional host X server for guests with an X11 client (VMLAB_XVFB=1): TCP on 6000+N, no access control."""
+    if os.environ.get("VMLAB_XVFB") != "1":
+        return None
+    num = XDISPLAY.lstrip(":").split(".")[0]
+    proc = subprocess.Popen(["Xvfb", XDISPLAY, "-screen", "0", os.environ.get("VMLAB_XSCREEN", "1280x800x24"),
+                             "-listen", "tcp", "-ac"], stdout=open(WORK / "xvfb.log", "w"), stderr=subprocess.STDOUT)
+    for _ in range(50):
+        if os.path.exists("/tmp/.X11-unix/X" + num):
+            break
+        time.sleep(0.2)
+    log("xvfb: display %s, guest DISPLAY=10.0.2.2:%s (tcp %d)" % (XDISPLAY, num, 6000 + int(num)))
+    return proc
+
+
 def start_http(payload_dir, upload_dir, port=8000):
     payload_dir, upload_dir = pathlib.Path(payload_dir), pathlib.Path(upload_dir)
     payload_dir.mkdir(parents=True, exist_ok=True)
@@ -465,6 +523,7 @@ def session(args, guest):
     proc, q = start_qemu(guest, work, loadvm=loadvm)
     lab = Lab(q, work / "shots")
     start_http(work / "payload", work / "upload")
+    start_xvfb()
     bus = Bus(run_id)
     outroot = bus.dir / "out"
     deadline = time.time() + args.minutes * 60
@@ -522,6 +581,7 @@ def batch(args, guest):
     proc, q = start_qemu(guest, work, loadvm=loadvm)
     lab = Lab(q, work / "shots")
     start_http(work / "payload", work / "upload")
+    start_xvfb()
     ok = run_lines(lab, pathlib.Path(args.scenario).read_text().splitlines(), stop_on_error=True)
     lab.shot("final")
     if lab.saved:
