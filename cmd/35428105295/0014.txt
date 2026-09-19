@@ -1,0 +1,9 @@
+key esc
+wait 1
+shot e1
+key esc
+wait 1
+shot e2
+key esc
+wait 1
+shot e3
