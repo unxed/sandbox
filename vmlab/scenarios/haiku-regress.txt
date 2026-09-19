@@ -45,9 +45,11 @@ wait 1
 shot 05-editor
 key esc
 wait 1
-# copy a.txt to the other panel (/boot/home)
+# copy a.txt to /boot/home (on a fresh config both panels show /boot/home/t, so name the target;
+# the target field is pre-selected, typing replaces it)
 key f5
 wait 2
+type /boot/home/
 shot 06-copy-dialog
 key enter
 wait 2
