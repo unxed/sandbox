@@ -1,0 +1,39 @@
+name: go-redox-snapshot
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '17 */3 * * *'
+permissions:
+  contents: write
+concurrency: go-redox-snapshot
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export golang-1.26-redox from unxed/go
+        run: |
+          set -euo pipefail
+          BASE=a91d0c4068b9a20cda0f92dff302321148856f53
+          git init -q /tmp/g && cd /tmp/g
+          git remote add origin https://github.com/unxed/go.git
+          git fetch -q --depth=300 origin golang-1.26-redox
+          git cat-file -e "$BASE^{commit}" || git fetch -q --depth=1500 origin golang-1.26-redox
+          HEAD_SHA=$(git rev-parse FETCH_HEAD)
+          OUT="$GITHUB_WORKSPACE/go-redox"
+          mkdir -p "$OUT"
+          git format-patch --stdout "$BASE..$HEAD_SHA" > "$OUT/golang-1.26-redox.mbox"
+          git diff "$BASE" "$HEAD_SHA" > "$OUT/golang-1.26-redox.diff"
+          git show "$HEAD_SHA:.github/redox/upstream/README.md" > "$OUT/upstream-issues.md" || true
+          echo "$HEAD_SHA base=$BASE" > "$OUT/HEAD.txt"
+          echo "commits=$(git rev-list --count "$BASE..$HEAD_SHA")" | tee -a "$OUT/HEAD.txt"
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add go-redox
+          if git diff --cached --quiet; then echo "no change"; else
+            git commit -q -m "go-redox: refresh snapshot from unxed/go golang-1.26-redox"
+            git pull -q --rebase origin main && git push -q origin HEAD:main
+          fi
