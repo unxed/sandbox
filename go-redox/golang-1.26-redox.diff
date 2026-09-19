@@ -564,6 +564,113 @@ index 00000000..82e0be4b
 +-- 
 +2.43.0
 +
+diff --git a/.github/redox/kernel/0002-futex-wake-the-waiters-of-a-frame-when-a-copy-on-wri.patch b/.github/redox/kernel/0002-futex-wake-the-waiters-of-a-frame-when-a-copy-on-wri.patch
+new file mode 100644
+index 00000000..53b25f73
+--- /dev/null
++++ b/.github/redox/kernel/0002-futex-wake-the-waiters-of-a-frame-when-a-copy-on-wri.patch
+@@ -0,0 +1,101 @@
++From f7b246dc7fe8cafbc52e38dbd36b1f8f8209a9c5 Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 07:13:39 +0000
++Subject: [PATCH] futex: wake the waiters of a frame when a copy-on-write fault
++ moves the page
++
++Futexes are keyed by physical address. After a fork the parent's pages are shared
++copy-on-write with the child; when the parent (or one of its threads) writes to
++such a page, the page fault handler gives the writer a new frame. A thread of the
++same process that went to sleep in FUTEX_WAIT on that page before the fault is
++queued under the OLD physical address; every FUTEX_WAKE issued afterwards is
++translated through the new mapping and looks under the NEW address, so the sleeper
++is never woken. In a multi-threaded program (a language runtime parking worker
++threads on futexes, or any pthread program) that forks, threads then hang for good
++as soon as the parent writes the page holding the futex word while the child is
++still alive.
++
++When the handler moves a page, wake every waiter queued inside the old frame.
++FUTEX_WAIT may return spuriously, so the woken thread simply re-reads the futex word
++through its (now updated) mapping and, if the condition still does not hold, waits
++again, this time under the new address. Nothing changes for pages that are not moved
++(exclusive pages are written in place).
++---
++ src/context/memory.rs |  3 +++
++ src/syscall/futex.rs  | 39 ++++++++++++++++++++++++++++++++++++++-
++ 2 files changed, 41 insertions(+), 1 deletion(-)
++
++diff --git a/src/context/memory.rs b/src/context/memory.rs
++index 0d2ed0a..333af6b 100644
++--- a/src/context/memory.rs
+++++ b/src/context/memory.rs
++@@ -2647,6 +2647,9 @@ fn correct_inner<'l>(
++                     } else {
++                         let result = cow(frame, info, RefKind::Cow)?;
++                         if let Some(old_frame) = result.old_frame {
+++                            // The page moved to a new frame: futex waiters keyed by the old
+++                            // physical address would never be woken.
+++                            crate::syscall::futex::wake_frame(old_frame);
++                             flusher.queue(old_frame, None, TlbShootdownActions::FREE);
++                         }
++                         result.new_frame
++diff --git a/src/syscall/futex.rs b/src/syscall/futex.rs
++index b3d4c3d..02a2bbd 100644
++--- a/src/syscall/futex.rs
+++++ b/src/syscall/futex.rs
++@@ -17,7 +17,7 @@ use crate::{
++         memory::{AccessMode, AddrSpace, Provider},
++         unblock_context, ContextLock,
++     },
++-    memory::{Page, PhysicalAddress, VirtualAddress},
+++    memory::{Frame, Page, PhysicalAddress, VirtualAddress, PAGE_SIZE},
++     sync::{CleanLockToken, Mutex, L1},
++ };
++ 
++@@ -56,6 +56,43 @@ pub fn get_futex_stat(token: &mut CleanLockToken) -> (usize, usize) {
++     (regc, regl)
++ }
++ 
+++/// Wake every context that is waiting on a futex inside `frame`, without consuming a value.
+++///
+++/// Futexes are keyed by physical address. When a page that is shared copy-on-write (after a
+++/// fork) is written, the writer's mapping moves to a new frame, so a FUTEX_WAKE issued
+++/// afterwards, translated through the new mapping, no longer finds the threads of the same
+++/// process that went to sleep on the old frame: they sleep forever. Called by the page fault
+++/// handler when it moves a page, this wakes them; FUTEX_WAIT is allowed to return spuriously,
+++/// and the woken thread re-reads the futex word through the new mapping and, if need be, waits
+++/// again under the new address.
+++pub fn wake_frame(frame: Frame) {
+++    let base = frame.base().data();
+++    let end = base + PAGE_SIZE;
+++
+++    // Same lock-order bend as in `futex` below: called with the address space locked.
+++    let mut token = unsafe { CleanLockToken::new() };
+++    let mut futexes = FUTEXES.lock(token.token());
+++    let (futexes_map, mut token) = futexes.token_split();
+++    if futexes_map.is_empty() {
+++        return;
+++    }
+++
+++    let keys: Vec<PhysicalAddress> = futexes_map
+++        .keys()
+++        .copied()
+++        .filter(|key| (base..end).contains(&key.data()))
+++        .collect();
+++    for key in keys {
+++        if let Some(waiters) = futexes_map.remove(&key) {
+++            for waiter in waiters {
+++                if let Some(ctx) = waiter.context_lock.upgrade() {
+++                    unblock_context(&ctx, &mut token.token().downgrade());
+++                }
+++            }
+++        }
+++    }
+++}
+++
++ fn validate_and_translate_virt(space: &AddrSpace, addr: VirtualAddress) -> Option<PhysicalAddress> {
++     // TODO: Move this elsewhere!
++     if addr.data().saturating_add(size_of::<usize>()) >= crate::USER_END_OFFSET {
++-- 
++2.43.0
++
 diff --git a/.github/redox/kernel/ISSUE.md b/.github/redox/kernel/ISSUE.md
 new file mode 100644
 index 00000000..3832739e
@@ -624,10 +731,10 @@ index 00000000..3832739e
 +context is dying, so it is harmless, but a `FUTEX_WAKE` may count it as woken.
 diff --git a/.github/redox/kernel/VERIFICATION.md b/.github/redox/kernel/VERIFICATION.md
 new file mode 100644
-index 00000000..034d3546
+index 00000000..efa738e7
 --- /dev/null
 +++ b/.github/redox/kernel/VERIFICATION.md
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,37 @@
 +# Verification of the kernel patch
 +
 +Workflow: `.github/workflows/redox-kernel-verify.yml` (matrix, one QEMU boot each, redoxer):
@@ -654,18 +761,33 @@ index 00000000..034d3546
 +v2 (`Context::block()` refusing sigkilled contexts) verified the same hang counts but panicked the kernel
 +in the concurrent-spawn stress `x27_spawnpar_c` (run 35409694501: patched 2/2 panics at run 18, stock and
 +master 0/4). v3 is futex-only; see the table below once run for v3 completes.
++
++### v3 results (run 35410254114, KVM, 4 CPUs, x27 x40 first, then x17)
++
++| kernel | rep | x27 (40 x 4 spawns) | x17 `exit()` hangs /60 | x17 `_exit` hangs /30 |
++|---|---|---|---|---|
++| stock | 1 | ok | 3 | 0 |
++| stock | 2 | froze after an UNHANDLED EXCEPTION of a spawned child (run 13) | - | - |
++| master, unpatched | 1 | ok | 22 | 8 |
++| master, unpatched | 2 | ok | 6 | 4 |
++| patched v3 | 1 | KERNEL PANIC process.rs:83 (run 21) | - | - |
++| patched v3 | 2 | ok | **0** | **0** |
 diff --git a/.github/redox/kernel/run_kernel_ab.sh b/.github/redox/kernel/run_kernel_ab.sh
 new file mode 100755
-index 00000000..cc05dc74
+index 00000000..278b68d0
 --- /dev/null
 +++ b/.github/redox/kernel/run_kernel_ab.sh
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,11 @@
 +. /root/mnt/common.sh
-+# Concurrent posix_spawn stress FIRST (a kernel panic there ends the boot): does the patch matter?
-+loop_run /root/mnt/x27_spawnpar_c.bin default 40 60
-+# A/B probe for the exit hang, pure C (x17): exit(0) hung ~40% on the stock kernel.
++# futex vs fork (x23): "fork, child alive" must wake 4/4 (0002-*.patch)
++run_one /root/mnt/x23_futex_fork_c.bin default 1 90
++run_one /root/mnt/x23_futex_fork_c.bin default 2 90
++# exit hang repro (x17) BEFORE the spawn stress: the spawn stress wedges the VM on every kernel
++# variant sooner or later (upstream issue #9), which would cut the boot short
 +loop_run /root/mnt/x17_exit_c.bin exitarg 60 5
 +loop_run /root/mnt/x17_exit_c.bin default 30 5
++# concurrent posix_spawn stress last
++loop_run /root/mnt/x27_spawnpar_c.bin default 40 60
 +echo "=== LADDER DONE"
 diff --git a/.github/redox/ladder/p01_println/main.go b/.github/redox/ladder/p01_println/main.go
 new file mode 100644
@@ -2383,10 +2505,10 @@ index 00000000..7c3f0512
 +}
 diff --git a/.github/redox/ladder/x27_spawnpar_c/main.c b/.github/redox/ladder/x27_spawnpar_c/main.c
 new file mode 100644
-index 00000000..51346862
+index 00000000..5042f301
 --- /dev/null
 +++ b/.github/redox/ladder/x27_spawnpar_c/main.c
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,78 @@
 +/* Concurrent posix_spawn from 4 threads, the way the Go port does it: under a
 + * mutex, scan for close-on-exec descriptors, add a close action for each, dup2
 + * a pipe onto the child's stdout, spawn `sh -c "echo x"`. Closes of the parent's
@@ -2405,7 +2527,7 @@ index 00000000..51346862
 +extern char **environ;
 +static pthread_mutex_t big = PTHREAD_MUTEX_INITIALIZER;
 +static int errs, hangs, spawned;
-+static int noscan;
++static int noscan, lockclose;
 +
 +static void *worker(void *arg) {
 +    int fds[2];
@@ -2444,22 +2566,24 @@ index 00000000..51346862
 +        else usleep(20000);
 +        if (i == 199) { __sync_fetch_and_add(&hangs, 1); }
 +    }
++    if (lockclose) pthread_mutex_lock(&big);
 +    close(fds[0]);
++    if (lockclose) pthread_mutex_unlock(&big);
 +    int st; waitpid(p, &st, 0);
 +    return 0;
 +}
 +
 +static void round_(int threads, int ns) {
-+    noscan = ns; errs = hangs = spawned = 0;
++    noscan = ns & 1; lockclose = ns >> 1; errs = hangs = spawned = 0;
 +    pthread_t t[8];
 +    for (int i = 0; i < threads; i++) pthread_create(&t[i], 0, worker, 0);
 +    for (int i = 0; i < threads; i++) pthread_join(t[i], 0);
-+    printf("threads=%d scan=%s: spawned %d, spawn errors %d, pipe never EOF %d\n", threads, ns ? "no " : "yes", spawned, errs, hangs);
++    printf("threads=%d scan=%s close=%s: spawned %d, spawn errors %d, pipe never EOF %d\n", threads, (ns & 1) ? "no " : "yes", (ns >> 1) ? "locked  " : "unlocked", spawned, errs, hangs);
 +    fflush(stdout);
 +}
 +
 +int main(void) {
-+    round_(1, 0); round_(4, 0); round_(4, 0); round_(4, 1);
++    round_(1, 0); for (int i = 0; i < 3; i++) { round_(4, 0); round_(4, 2); round_(4, 1); }
 +    printf("OK x27_spawnpar_c\n");
 +    _exit(0);
 +}
@@ -2756,6 +2880,111 @@ index 00000000..26b48bde
 +    printf("OK x31_spawn_actions_c\n");
 +    _exit(0);
 +}
+diff --git a/.github/redox/ladder/x32_poll_regular_c/main.c b/.github/redox/ladder/x32_poll_regular_c/main.c
+new file mode 100644
+index 00000000..5fab49c3
+--- /dev/null
++++ b/.github/redox/ladder/x32_poll_regular_c/main.c
+@@ -0,0 +1,42 @@
++/* poll() with a regular file among the descriptors. POSIX: regular files are always
++ * ready. relibc's poll (epoll based) failed the whole call with EPERM. */
++#include <errno.h>
++#include <fcntl.h>
++#include <poll.h>
++#include <stdio.h>
++#include <string.h>
++#include <unistd.h>
++
++int main(void) {
++    int ok = 1;
++    int fd = open("/tmp/x32.txt", O_RDWR | O_CREAT | O_TRUNC, 0644);
++    write(fd, "hello\n", 6);
++    lseek(fd, 0, SEEK_SET);
++    int p[2];
++    pipe(p);
++
++    struct pollfd a = {fd, POLLIN | POLLOUT, 0};
++    int n = poll(&a, 1, 500);
++    printf("regular file alone:          n=%d revents=%#x errno=%d (%s)\n", n, a.revents, n < 0 ? errno : 0, n < 0 ? strerror(errno) : "-");
++    if (n != 1 || (a.revents & (POLLIN | POLLOUT)) != (POLLIN | POLLOUT)) ok = 0;
++
++    struct pollfd b[2] = {{p[0], POLLIN, 0}, {fd, POLLIN, 0}};
++    n = poll(b, 2, 500);
++    printf("idle pipe + regular file:    n=%d pipe=%#x file=%#x errno=%d\n", n, b[0].revents, b[1].revents, n < 0 ? errno : 0);
++    if (n != 1 || b[0].revents != 0 || !(b[1].revents & POLLIN)) ok = 0;
++
++    write(p[1], "x", 1);
++    struct pollfd c[2] = {{p[0], POLLIN, 0}, {fd, POLLIN, 0}};
++    n = poll(c, 2, 500);
++    printf("ready pipe + regular file:   n=%d pipe=%#x file=%#x\n", n, c[0].revents, c[1].revents);
++    if (n != 2 || !(c[0].revents & POLLIN) || !(c[1].revents & POLLIN)) ok = 0;
++
++    struct pollfd d = {p[1], POLLOUT, 0};
++    n = poll(&d, 1, 500);
++    printf("pipe write end only (control): n=%d revents=%#x\n", n, d.revents);
++    if (n != 1 || !(d.revents & POLLOUT)) ok = 0;
++
++    unlink("/tmp/x32.txt");
++    printf("%s x32_poll_regular_c\n", ok ? "OK" : "FAIL");
++    _exit(0);
++}
+diff --git a/.github/redox/ladder/x33_thread_sigmask_c/main.c b/.github/redox/ladder/x33_thread_sigmask_c/main.c
+new file mode 100644
+index 00000000..99b69732
+--- /dev/null
++++ b/.github/redox/ladder/x33_thread_sigmask_c/main.c
+@@ -0,0 +1,51 @@
++/* A new thread inherits its creator's signal mask (POSIX). The creator blocks every
++ * signal, then creates many short-lived threads while a helper thread (SIGUSR1
++ * unblocked) sends process-directed SIGUSR1s to the process. The handler may only ever
++ * run on the helper: any other thread is a signal delivered to a thread that has it
++ * blocked (in relibc: during thread start-up, before the inherited mask is applied). */
++#define _GNU_SOURCE
++#include <pthread.h>
++#include <signal.h>
++#include <stdatomic.h>
++#include <stdio.h>
++#include <unistd.h>
++
++static pthread_t helper;
++static atomic_int stop, wrong, total, ready;
++
++static void handler(int sig) {
++    atomic_fetch_add(&total, 1);
++    if (!pthread_equal(pthread_self(), helper)) atomic_fetch_add(&wrong, 1);
++}
++
++static void *helper_main(void *p) {
++    sigset_t s;
++    sigemptyset(&s);
++    sigaddset(&s, SIGUSR1);
++    pthread_sigmask(SIG_UNBLOCK, &s, 0);
++    while (!atomic_load(&ready)) {}
++    while (!atomic_load(&stop)) { kill(getpid(), SIGUSR1); }
++    return 0;
++}
++
++static void *short_lived(void *p) { return 0; }
++
++int main(void) {
++    struct sigaction sa = {0};
++    sa.sa_handler = handler;
++    sigaction(SIGUSR1, &sa, 0);
++    sigset_t all;
++    sigfillset(&all);
++    pthread_sigmask(SIG_SETMASK, &all, 0);      /* creator blocks everything; children inherit */
++    pthread_create(&helper, 0, helper_main, 0);
++    atomic_store(&ready, 1);
++    for (int i = 0; i < 1500; i++) {
++        pthread_t t;
++        if (pthread_create(&t, 0, short_lived, 0) == 0) pthread_join(t, 0);
++    }
++    atomic_store(&stop, 1);
++    pthread_join(helper, 0);
++    printf("handler runs: %d, on a thread that had SIGUSR1 blocked: %d\n", atomic_load(&total), atomic_load(&wrong));
++    printf("%s x33_thread_sigmask_c\n", atomic_load(&wrong) == 0 ? "OK" : "FAIL");
++    _exit(0);
++}
 diff --git a/.github/redox/ladder_summary.py b/.github/redox/ladder_summary.py
 new file mode 100644
 index 00000000..e9b13d0f
@@ -2976,6 +3205,485 @@ index 00000000..44e9f05f
 +fi
 +date
 +ls -la /src/target/x86_64-unknown-redox/release/
+diff --git a/.github/redox/relibc/debug/0001-DEBUG-report-the-failing-step-of-Sys-spawn.patch b/.github/redox/relibc/debug/0001-DEBUG-report-the-failing-step-of-Sys-spawn.patch
+new file mode 100644
+index 00000000..7652cd7b
+--- /dev/null
++++ b/.github/redox/relibc/debug/0001-DEBUG-report-the-failing-step-of-Sys-spawn.patch
+@@ -0,0 +1,223 @@
++From 697aa9193cd93c1bfa0a5edc57fe661a2a466a0a Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 07:04:05 +0000
++Subject: [PATCH] DEBUG: report the failing step of Sys::spawn
++
++---
++ src/platform/redox/mod.rs | 73 +++++++++++++++++++++------------------
++ 1 file changed, 39 insertions(+), 34 deletions(-)
++
++diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
++index 067a922..54d87f0 100644
++--- a/src/platform/redox/mod.rs
+++++ b/src/platform/redox/mod.rs
++@@ -1201,17 +1201,17 @@ impl Pal for Sys {
++         envp: Option<NulTerminated<*mut c_char>>,
++     ) -> Result<pid_t> {
++         use crate::header::spawn::Flags;
++-        let child = redox_rt::proc::new_child_process(&redox_rt::proc::ForkArgs::Managed)?;
+++        let child = redox_rt::proc::new_child_process(&redox_rt::proc::ForkArgs::Managed).map_err(|e| { spawn_dbg(9); e })?;
++         let mut cwd = path::clone_cwd().unwrap_or_default();
++-        let mut cwd_fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
+++        let mut cwd_fd = FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(1001); e })?.to_upper().map_err(|e| { spawn_dbg(11); e })?;
++         let proc_fd = child.proc_fd.unwrap();
++         let _curr_proc_fd = redox_rt::current_proc_fd(); // TODO use this variable?
++-        let cur_filetable_fd = RtTcb::current().thread_fd().dup_into_upper(b"filetable")?;
++-        let file_table = cur_filetable_fd.dup_into_upper(b"copy")?;
+++        let cur_filetable_fd = RtTcb::current().thread_fd().dup_into_upper(b"filetable").map_err(|e| { spawn_dbg(14); e })?;
+++        let file_table = cur_filetable_fd.dup_into_upper(b"copy").map_err(|e| { spawn_dbg(15); e })?;
++ 
++         {
++-            let new_file_table = child.thr_fd.dup_into_upper(b"current-filetable")?;
++-            new_file_table.write(&file_table.as_raw_fd().to_ne_bytes())?;
+++            let new_file_table = child.thr_fd.dup_into_upper(b"current-filetable").map_err(|e| { spawn_dbg(18); e })?;
+++            new_file_table.write(&file_table.as_raw_fd().to_ne_bytes()).map_err(|e| { spawn_dbg(19); e })?;
++         }
++ 
++         let mut args = Vec::new();
++@@ -1229,7 +1229,7 @@ impl Pal for Sys {
++ 
++         args[0] = program.to_bytes();
++ 
++-        let new_file_table = child.thr_fd.dup_into_upper(b"filetable-binary")?;
+++        let new_file_table = child.thr_fd.dup_into_upper(b"filetable-binary").map_err(|e| { spawn_dbg(37); e })?;
++ 
++         if let Some(fac) = fac {
++             for action in fac {
++@@ -1243,7 +1243,7 @@ impl Pal for Sys {
++                         let dirfd = {
++                             // TODO: Cannot use cwd_fd (being an upper fd), also
++                             // cannot set cwd_fd as regular fd then call to_upper later
++-                            FdGuard::open(cwd.as_str(), syscall::O_STAT)?
+++                            FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(51); e })?
++                         };
++                         let src_fd = Sys::openat(
++                             dirfd.as_c_fd().ok_or(Errno(EMFILE))?,
++@@ -1255,31 +1255,31 @@ impl Pal for Sys {
++                             &src_fd.to_ne_bytes(),
++                             syscall::CallFlags::FD,
++                             &[u64::try_from(fd).map_err(|_| Errno(EBADFD))?],
++-                        )?;
+++                        ).map_err(|e| { spawn_dbg(63); e })?;
++                     }
++                     crate::header::spawn::Action::Close(fd) => {
++                         new_file_table.call_wo(
++                             &(fd as usize).to_ne_bytes(),
++                             syscall::CallFlags::empty(),
++                             &[syscall::flag::FileTableVerb::Close as u64],
++-                        )?;
+++                        ).map_err(|e| { spawn_dbg(70); e })?;
++                     }
++                     crate::header::spawn::Action::Chdir(path) => {
++                         let cwd_str =
++-                            core::str::from_utf8(path.as_bytes()).map_err(|_| Errno(EINVAL))?;
++-                        cwd = to_cwd_path(cwd_str)?;
++-                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
+++                            core::str::from_utf8(path.as_bytes()).map_err(|_| Errno(EINVAL)).map_err(|e| { spawn_dbg(74); e })?;
+++                        cwd = to_cwd_path(cwd_str).map_err(|e| { spawn_dbg(75); e })?;
+++                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(1002); e })?.to_upper().map_err(|e| { spawn_dbg(76); e })?;
++                         cwd_fd = fd;
++                     }
++                     crate::header::spawn::Action::FChdir(fd) => {
++                         let mut buf = CwdPath::zero_filled();
++                         unsafe {
++                             // SAFETY: Sys::fpath is using str::from_utf8 already
++-                            let res = Sys::fpath(fd, buf.as_bytes_mut())?;
+++                            let res = Sys::fpath(fd, buf.as_bytes_mut()).map_err(|e| { spawn_dbg(83); e })?;
++                             buf.set_len(res);
++                         }
++                         cwd = buf;
++-                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
+++                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(1003); e })?.to_upper().map_err(|e| { spawn_dbg(87); e })?;
++                         cwd_fd = fd;
++                     }
++                     crate::header::spawn::Action::Dup2(old, new) => {
++@@ -1291,7 +1291,7 @@ impl Pal for Sys {
++                                 .as_slice(),
++                             syscall::CallFlags::empty(),
++                             &[syscall::flag::FileTableVerb::Dup2 as u64],
++-                        )?;
+++                        ).map_err(|e| { spawn_dbg(99); e })?;
++                     }
++                 }
++             }
++@@ -1300,7 +1300,7 @@ impl Pal for Sys {
++         let dirfd = {
++             // TODO: Cannot use cwd_fd (being an upper fd), also
++             // cannot set cwd_fd as regular fd then call to_upper later
++-            FdGuard::open(cwd.as_str(), syscall::O_STAT)?
+++            FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(108); e })?
++         };
++ 
++         let executable = Sys::openat(
++@@ -1308,10 +1308,10 @@ impl Pal for Sys {
++             program,
++             fcntl::O_RDONLY,
++             0,
++-        )?;
++-        let executable = FdGuard::new(executable as usize).to_upper()?;
+++        ).map_err(|e| { spawn_dbg(116); e })?;
+++        let executable = FdGuard::new(executable as usize).to_upper().map_err(|e| { spawn_dbg(117); e })?;
++         let mut executable_stat = syscall::Stat::default();
++-        executable.fstat(&mut executable_stat)?;
+++        executable.fstat(&mut executable_stat).map_err(|e| { spawn_dbg(119); e })?;
++         drop(dirfd);
++ 
++         // println!(
++@@ -1327,7 +1327,7 @@ impl Pal for Sys {
++             &new_file_table.as_raw_fd().to_ne_bytes(),
++             syscall::CallFlags::FD | syscall::CallFlags::FD_CLONE,
++             &[new_file_table.as_raw_fd() as u64],
++-        )?;
+++        ).map_err(|e| { spawn_dbg(135); e })?;
++ 
++         {
++             let fds_to_close = {
++@@ -1365,7 +1365,7 @@ impl Pal for Sys {
++             &cwd_fd.as_raw_fd().to_ne_bytes(),
++             syscall::CallFlags::FD | syscall::CallFlags::FD_CLONE,
++             &[cwd_fd.as_raw_fd() as u64],
++-        )?;
+++        ).map_err(|e| { spawn_dbg(173); e })?;
++ 
++         let extra_info = redox_rt::proc::ExtraInfo {
++             cwd: Some(cwd.as_bytes()),
++@@ -1391,13 +1391,13 @@ impl Pal for Sys {
++         };
++ 
++         if let Some(attr) = fat {
++-            let flags = Flags::from_bits(attr.flags).ok_or(Errno(EINVAL))?;
+++            let flags = Flags::from_bits(attr.flags).ok_or(Errno(EINVAL)).map_err(|e| { spawn_dbg(199); e })?;
++ 
++             if flags.contains(Flags::POSIX_SPAWN_SETPGROUP) && attr.pgroup != 0 {
++                 redox_rt::sys::posix_setpgid(
++                     proc_fd.as_raw_fd(),
++                     usize::try_from(attr.pgroup).map_err(|_| Errno(EINVAL))?,
++-                )?;
+++                ).map_err(|e| { spawn_dbg(205); e })?;
++             }
++ 
++             let set_schedparam = || -> Result<()> {
++@@ -1417,10 +1417,10 @@ impl Pal for Sys {
++ 
++             // scheduling paramters must be set regardless of whether the flag POSIX_SPAWN_SETSCHEDPARAM is set
++             if flags.contains(Flags::POSIX_SPAWN_SETSCHEDULER) {
++-                set_schedparam()?;
++-                set_scheduler()?;
+++                set_schedparam().map_err(|e| { spawn_dbg(225); e })?;
+++                set_scheduler().map_err(|e| { spawn_dbg(226); e })?;
++             } else if flags.contains(Flags::POSIX_SPAWN_SETSCHEDPARAM) {
++-                set_schedparam()?;
+++                set_schedparam().map_err(|e| { spawn_dbg(228); e })?;
++             }
++ 
++             let parent_resugid = redox_rt::sys::posix_getresugid();
++@@ -1447,7 +1447,7 @@ impl Pal for Sys {
++                     sgid: None,
++                 },
++                 Some(proc_fd.as_raw_fd()),
++-            )?;
+++            ).map_err(|e| { spawn_dbg(255); e })?;
++ 
++             // if POSIX_SPAWN_SETSIGDEF flag is set, the signals specified in
++             // sigdefault must have default actions
++@@ -1467,12 +1467,12 @@ impl Pal for Sys {
++             envs.as_slice(),
++             &extra_info,
++             None,
++-        )? {
+++        ).map_err(|e| { spawn_dbg(275); e })? {
++             let interp_path =
++-                CStr::from_bytes_with_nul(&interp_path).map_err(|_| Errno(ENOEXEC))?;
+++                CStr::from_bytes_with_nul(&interp_path).map_err(|_| Errno(ENOEXEC)).map_err(|e| { spawn_dbg(277); e })?;
++             let interp_path =
++-                RedoxReference::new_from_c(interp_path.to_cstr()).ok_or(Errno(ENOEXEC))?;
++-            let interpreter = FdGuard::open(interp_path.as_ref(), syscall::O_RDONLY)?.to_upper()?;
+++                RedoxReference::new_from_c(interp_path.to_cstr()).ok_or(Errno(ENOEXEC)).map_err(|e| { spawn_dbg(279); e })?;
+++            let interpreter = FdGuard::open(interp_path.as_ref(), syscall::O_RDONLY).map_err(|e| { spawn_dbg(1004); e })?.to_upper().map_err(|e| { spawn_dbg(280); e })?;
++ 
++             redox_rt::proc::fexec_impl(
++                 interpreter,
++@@ -1487,8 +1487,8 @@ impl Pal for Sys {
++             .unwrap();
++         }
++ 
++-        let start_fd = child.thr_fd.dup_into_upper(b"start")?;
++-        start_fd.write(&[0])?;
+++        let start_fd = child.thr_fd.dup_into_upper(b"start").map_err(|e| { spawn_dbg(295); e })?;
+++        start_fd.write(&[0]).map_err(|e| { spawn_dbg(296); e })?;
++ 
++         Ok(pid_t::try_from(child.pid).unwrap())
++     }
++@@ -1860,3 +1860,8 @@ impl Sys {
++         }
++     }
++ }
+++
+++fn spawn_dbg(line: usize) {
+++    let msg = alloc::format!("relibc spawn DEBUG: failed at spawn() body line {}\n", line);
+++    let _ = syscall::write(2, msg.as_bytes());
+++}
++-- 
++2.43.0
++
+diff --git a/.github/redox/relibc/patches/0001-poll-report-regular-files-and-other-epoll-unwatchabl.patch b/.github/redox/relibc/patches/0001-poll-report-regular-files-and-other-epoll-unwatchabl.patch
+new file mode 100644
+index 00000000..0e6439fa
+--- /dev/null
++++ b/.github/redox/relibc/patches/0001-poll-report-regular-files-and-other-epoll-unwatchabl.patch
+@@ -0,0 +1,68 @@
++From 054e8a3d2d062d5d0ff853e7234a072efffdea0c Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 06:46:47 +0000
++Subject: [PATCH] poll: report regular files (and other epoll-unwatchable fds)
++ as always ready
++
++poll() is built on epoll. epoll_ctl(ADD) fails with EPERM for descriptors that
++cannot be watched, notably regular files and directories, and poll_epoll
++returned -1 for the whole call, so one regular file among the descriptors made
++poll() useless for every other descriptor as well.
++
++POSIX says regular files always poll ready. Report POLLIN/POLLOUT (and the
++RDNORM/WRNORM variants) that the caller asked for as revents for such a
++descriptor, and do not block in epoll_pwait since something is ready already
++(it is still called, with a zero timeout, to collect the other descriptors).
++---
++ src/header/poll/mod.rs | 14 +++++++++++++-
++ 1 file changed, 13 insertions(+), 1 deletion(-)
++
++diff --git a/src/header/poll/mod.rs b/src/header/poll/mod.rs
++index 517c7e6..cb8a937 100644
++--- a/src/header/poll/mod.rs
+++++ b/src/header/poll/mod.rs
++@@ -9,7 +9,7 @@ use crate::{
++     fs::File,
++     header::{
++         bits_sigset_t::sigset_t,
++-        errno::{EBADF, EINTR},
+++        errno::{EBADF, EINTR, EPERM},
++         sys_epoll::{
++             EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLLERR, EPOLLHUP, EPOLLIN, EPOLLNVAL, EPOLLOUT,
++             EPOLLPRI, EPOLLRDBAND, EPOLLRDNORM, EPOLLWRBAND, EPOLLWRNORM, epoll_data, epoll_event,
++@@ -87,6 +87,9 @@ pub unsafe fn poll_epoll(fds: &mut [pollfd], timeout: c_int, sigmask: *const sig
++     };
++ 
++     let mut closed = 0;
+++    // Descriptors epoll cannot watch (regular files, directories: epoll_ctl fails with EPERM)
+++    // are always ready for reading and writing, as POSIX requires of regular files.
+++    let mut always_ready = 0;
++     for (i, fd) in fds.iter_mut().enumerate() {
++         let pfd = fd;
++ 
++@@ -111,6 +114,12 @@ pub unsafe fn poll_epoll(fds: &mut [pollfd], timeout: c_int, sigmask: *const sig
++                 pfd.revents |= POLLNVAL;
++                 closed += 1;
++             }
+++            Err(Errno(EPERM)) => {
+++                pfd.revents |= pfd.events & (POLLIN | POLLOUT | POLLRDNORM | POLLWRNORM);
+++                if pfd.revents != 0 {
+++                    always_ready += 1;
+++                }
+++            }
++             Err(Errno(err)) => {
++                 ERRNO.set(err);
++                 return -1;
++@@ -125,6 +134,9 @@ pub unsafe fn poll_epoll(fds: &mut [pollfd], timeout: c_int, sigmask: *const sig
++         return i32::try_from(closed).unwrap_or(i32::MAX);
++     }
++ 
+++    // Something is ready already: still collect what else is, but do not wait for more.
+++    let timeout = if always_ready > 0 { 0 } else { timeout };
+++
++     let mut events: [epoll_event; 32] = unsafe { mem::zeroed() };
++     match unsafe {
++         Sys::epoll_pwait(
++-- 
++2.43.0
++
+diff --git a/.github/redox/relibc/patches/0001-pthread-enable-signal-delivery-in-a-new-thread-with-.patch b/.github/redox/relibc/patches/0001-pthread-enable-signal-delivery-in-a-new-thread-with-.patch
+new file mode 100644
+index 00000000..cf2224f7
+--- /dev/null
++++ b/.github/redox/relibc/patches/0001-pthread-enable-signal-delivery-in-a-new-thread-with-.patch
+@@ -0,0 +1,100 @@
++From 1a2be4d92ddf45ed5369d50a7927052083a548aa Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 06:47:12 +0000
++Subject: [PATCH] pthread: enable signal delivery in a new thread with the
++ creator's mask
++
++A new thread inherits its creator's signal mask (POSIX). relibc passes that
++mask to the thread through the start-up mutex, but new_thread_shim called
++setup_sighandler first, which enables signal delivery with an EMPTY mask, and
++applied the inherited mask only after copy_masters(), the tid store and the
++unlock of the creator. In that window a process-directed signal (for example
++SIGCHLD of a child that just exited) can be delivered to the new thread even
++though the creator blocked it, while the thread's TLS state is still being
++set up. A runtime that keeps per-thread state in TLS and blocks all signals
++around pthread_create for exactly this reason (Go does) then receives the
++signal on a thread that is not ready for it and aborts ("bad g in signal
++handler").
++
++Let setup_sighandler take the initial mask (setup_sighandler_with_mask) and
++pass the creator's mask, so the thread never runs with a wider mask than it
++inherited.
++---
++ redox-rt/src/signal.rs | 10 +++++++++-
++ src/pthread/mod.rs     | 17 +++++++----------
++ 2 files changed, 16 insertions(+), 11 deletions(-)
++
++diff --git a/redox-rt/src/signal.rs b/redox-rt/src/signal.rs
++index cd2584c..c0a77b0 100644
++--- a/redox-rt/src/signal.rs
+++++ b/redox-rt/src/signal.rs
++@@ -659,6 +659,14 @@ const fn sig_bit(sig: u32) -> u64 {
++ }
++ 
++ pub fn setup_sighandler(tcb: &RtTcb, first_thread: bool) {
+++    setup_sighandler_with_mask(tcb, first_thread, 0)
+++}
+++
+++/// Like [`setup_sighandler`], but the thread's signal mask is `initial_mask` from the moment
+++/// signal delivery is enabled, instead of empty. A new thread must pass its creator's mask
+++/// here: applying it later leaves a window in which a process-directed signal can be
+++/// delivered to a thread that, according to POSIX, has it blocked.
+++pub fn setup_sighandler_with_mask(tcb: &RtTcb, first_thread: bool, initial_mask: u64) {
++     if first_thread {
++         let _guard = SIGACTIONS_LOCK.lock();
++         for (sig_idx, action) in PROC_CONTROL_STRUCT.actions.iter().enumerate() {
++@@ -714,7 +722,7 @@ pub fn setup_sighandler(tcb: &RtTcb, first_thread: bool) {
++ 
++     // TODO: Inherited set of ignored signals
++     // TODO: handle error
++-    let _ = set_sigmask(Some(0), None);
+++    let _ = set_sigmask(Some(initial_mask), None);
++ }
++ pub type RtSigarea = RtTcb; // TODO
++ pub fn current_setsighandler_struct() -> SetSighandlerData {
++diff --git a/src/pthread/mod.rs b/src/pthread/mod.rs
++index 0064911..5006b6a 100644
++--- a/src/pthread/mod.rs
+++++ b/src/pthread/mod.rs
++@@ -228,6 +228,9 @@ unsafe extern "C" fn new_thread_shim(
++     {
++         unsafe { tcb.activate() };
++     }
+++    #[cfg(target_os = "redox")]
+++    let procmask = unsafe { (&*synchronization_mutex).as_ptr().read() };
+++
++     #[cfg(target_os = "redox")]
++     {
++         // `thr_fd` in `tcb` is set by [`Sys::rlct_clone`] *before* jumping to
++@@ -235,24 +238,18 @@ unsafe extern "C" fn new_thread_shim(
++         unsafe {
++             tcb.activate(None);
++         }
++-        redox_rt::signal::setup_sighandler(&tcb.os_specific, false);
+++        // Enable signal delivery with the creator's mask already in place (POSIX: the new
+++        // thread inherits it). Applying it after the setup below left a window in which a
+++        // process-directed signal could be delivered to the still half-initialised thread.
+++        redox_rt::signal::setup_sighandler_with_mask(&tcb.os_specific, false, procmask);
++     }
++ 
++-    #[cfg(target_os = "redox")]
++-    let procmask = unsafe { (&*synchronization_mutex).as_ptr().read() };
++-
++     unsafe { tcb.copy_masters() }.unwrap();
++ 
++     unsafe { tcb.pthread.os_tid.get().write(Sys::current_os_tid()) };
++ 
++     unsafe { (&*synchronization_mutex).manual_unlock() };
++ 
++-    #[cfg(target_os = "redox")]
++-    {
++-        redox_rt::signal::set_sigmask(Some(procmask), None)
++-            .expect("failed to set procmask in child thread");
++-    }
++-
++     let retval = unsafe { entry_point(arg) };
++ 
++     unsafe { exit_current_thread(Retval(retval)) }
++-- 
++2.43.0
++
+diff --git a/.github/redox/relibc/patches/0001-redox-posix_spawn-close-the-parent-s-close-on-exec-d.patch b/.github/redox/relibc/patches/0001-redox-posix_spawn-close-the-parent-s-close-on-exec-d.patch
+new file mode 100644
+index 00000000..55db423a
+--- /dev/null
++++ b/.github/redox/relibc/patches/0001-redox-posix_spawn-close-the-parent-s-close-on-exec-d.patch
+@@ -0,0 +1,64 @@
++From ca8f25e773dcc3931bb8a18cf8588534a3563126 Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 06:45:57 +0000
++Subject: [PATCH] redox: posix_spawn: close the parent's close-on-exec
++ descriptors one by one
++
++Sys::spawn is supposed to close, in the child's copy of the file table, every
++descriptor that is close-on-exec in the parent. It builds the list from the
++parent's table after the child's copy was made and sends it to the filetable
++"Close" verb in a single call. The kernel validates all handles of a bulk
++remove before removing any (Context::bulk_remove_files: "avoid partial
++results"), so one entry the child's table does not have (a descriptor opened
++by another thread in the meantime, or one opened by spawn itself) made the whole
++call fail with EBADF. The error was ignored, and no close-on-exec descriptor
++was closed in the child.
++
++Visible effect: `cat` spawned with the read end of a pipe on stdin never sees
++EOF, because the child still holds a copy of the pipe's write end that the
++parent closed after writing.
++
++Close the descriptors with one Close call each and ignore the ones that are
++not there.
++---
++ src/platform/redox/mod.rs | 24 ++++++++++++------------
++ 1 file changed, 12 insertions(+), 12 deletions(-)
++
++diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
++index 067a922..7c516bb 100644
++--- a/src/platform/redox/mod.rs
+++++ b/src/platform/redox/mod.rs
++@@ -1347,18 +1347,18 @@ impl Pal for Sys {
++                 fds
++             };
++ 
++-            let fds_to_close_bytes: &[u8] = unsafe {
++-                core::slice::from_raw_parts(
++-                    fds_to_close.as_ptr() as *mut u8,
++-                    fds_to_close.len() * core::mem::size_of::<usize>(),
++-                )
++-            };
++-
++-            let _ = new_file_table.call_wo(
++-                fds_to_close_bytes,
++-                syscall::CallFlags::empty(),
++-                &[syscall::FileTableVerb::Close as u64],
++-            );
+++            // Close them one at a time: the Close verb is all-or-nothing, and this list
+++            // is computed from the parent's table *after* the child's copy of it was made,
+++            // so it can name descriptors the child's table does not have (opened by other
+++            // threads, or by this very function). One such entry used to make the whole
+++            // batch fail, silently leaving every close-on-exec descriptor open in the child.
+++            for fd in fds_to_close {
+++                let _ = new_file_table.call_wo(
+++                    &fd.to_ne_bytes(),
+++                    syscall::CallFlags::empty(),
+++                    &[syscall::FileTableVerb::Close as u64],
+++                );
+++            }
++         }
++ 
++         new_file_table.call_wo(
++-- 
++2.43.0
++
 diff --git a/.github/redox/relibc/sigentry-rcx.patch b/.github/redox/relibc/sigentry-rcx.patch
 new file mode 100644
 index 00000000..b5a448b8
@@ -3005,6 +3713,38 @@ index 00000000..b5a448b8
 + 
 +     bt qword ptr [rdx], {SA_ONSTACK_BIT}
 +     jnc 4f
+diff --git a/.github/redox/relibc_ab_summary.py b/.github/redox/relibc_ab_summary.py
+new file mode 100644
+index 00000000..4a1afdf2
+--- /dev/null
++++ b/.github/redox/relibc_ab_summary.py
+@@ -0,0 +1,26 @@
++#!/usr/bin/env python3
++"""Summarise run_relibc_ab.sh: per repro and variant, how many runs printed OK / FAIL / hung, plus
++the interesting counters (x27 spawn errors, x33 wrong-thread handler runs)."""
++import os, re, sys, collections
++log = open(sys.argv[1], errors="replace").read().replace("\r", "") if os.path.exists(sys.argv[1]) else ""
++rows = collections.OrderedDict()
++for m in re.finditer(r"=== BEGIN \S*?/(\w+?)_(unpatched|patched)\.bin variant=\w+ run=(\d+)\n(.*?)=== END \S+ variant=\w+ run=\d+ exit=(\S+)", log, re.S):
++    name, v, n, out, rc = m.groups()
++    r = rows.setdefault((name, v), dict(runs=0, ok=0, fail=0, hang=0, extra=0))
++    r["runs"] += 1
++    if "HANG" in out: r["hang"] += 1
++    elif re.search(r"^OK %s" % name, out, re.M): r["ok"] += 1
++    else: r["fail"] += 1
++    if name == "x27_spawnpar_c":
++        r["extra"] += sum(int(x) for x in re.findall(r"spawn errors (\d+)", out))
++    if name == "x33_thread_sigmask_c":
++        r["extra"] += sum(int(x) for x in re.findall(r"had SIGUSR1 blocked: (\d+)", out))
++md = ["| repro | variant | runs | OK | FAIL | HANG | counter (x27: spawn errors, x33: wrong-thread handler runs) |", "|---|---|---|---|---|---|---|"]
++for (name, v), r in rows.items():
++    md.append(f"| {name} | {v} | {r['runs']} | {r['ok']} | {r['fail']} | {r['hang']} | {r['extra'] if name in ('x27_spawnpar_c','x33_thread_sigmask_c') else ''} |")
++if "VM FROZE" in log or "KERNEL PANIC" in log:
++    md.append("\nVM froze / kernel panic during the run (later runs missing)")
++text = "\n".join(md) if rows else "no results in the log"
++print(text)
++if os.environ.get("GITHUB_STEP_SUMMARY"):
++    open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("\n### relibc patches A/B\n\n" + text + "\n")
 diff --git a/.github/redox/relibc_verify_summary.py b/.github/redox/relibc_verify_summary.py
 new file mode 100644
 index 00000000..3906b440
@@ -3172,6 +3912,35 @@ index 00000000..194888b9
 +run_one /root/mnt/x20_execpar.bin default 1
 +run_one /root/mnt/p14_exec.bin default 1
 +echo "=== LADDER DONE"
+diff --git a/.github/redox/run_relibc_ab.sh b/.github/redox/run_relibc_ab.sh
+new file mode 100644
+index 00000000..b31b110f
+--- /dev/null
++++ b/.github/redox/run_relibc_ab.sh
+@@ -0,0 +1,23 @@
++# Runs the C repros against the unpatched and the patched relibc (libc.so used as the ELF
++# interpreter of each binary, found through LD_LIBRARY_PATH=/root/mnt/<variant>).
++run() { # run <variant> <name> <run#> <limit-seconds>
++  v=$1; name=$2; n=$3; lim=${4:-30}
++  bin=/root/mnt/bins/${name}_$v.bin
++  echo "=== BEGIN $bin variant=$v run=$n"
++  rm -f /tmp/rc.done
++  ( LD_LIBRARY_PATH=/root/mnt/$v $bin; echo $? > /tmp/rc.done ) &
++  sp=$!
++  t=0
++  while [ ! -f /tmp/rc.done ] && [ $t -lt $lim ]; do sleep 1; t=$((t+1)); done
++  if [ -f /tmp/rc.done ]; then rc=`cat /tmp/rc.done`; else echo "HANG $bin"; kill -9 $sp 2>/dev/null; rc=hang; fi
++  echo "=== END $bin variant=$v run=$n exit=$rc"
++}
++v=${1:-patched}
++if [ "$v" != debug ]; then
++run $v x26_spawn_cloexec_c 1 30
++run $v x32_poll_regular_c 1 30
++n=1; while [ $n -le 3 ]; do run $v x33_thread_sigmask_c $n 60; n=$((n+1)); done
++fi
++# last: a wedged/panicked VM ends the boot
++n=1; while [ $n -le 15 ]; do run $v x27_spawnpar_c $n 60; n=$((n+1)); done
++echo "=== LADDER DONE"
 diff --git a/.github/redox/run_tests.sh b/.github/redox/run_tests.sh
 new file mode 100644
 index 00000000..0dc983b5
@@ -3270,7 +4039,7 @@ index 00000000..830e4653
 +    open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("\n### std package tests on Redox (go test -c, -short)\n\n" + text + "\n" + "".join(f"\n<details><summary>failing tests of {n}</summary>\n\n```\n{d}\n```\n</details>\n" for n, d in details))
 diff --git a/.github/redox/upstream/README.md b/.github/redox/upstream/README.md
 new file mode 100644
-index 00000000..ff461e44
+index 00000000..ad1b744f
 --- /dev/null
 +++ b/.github/redox/upstream/README.md
 @@ -0,0 +1,31 @@
@@ -3282,15 +4051,15 @@ index 00000000..ff461e44
 +
 +| # | where | issue | repro | CI run | status |
 +|---|---|---|---|---|---|
-+| 1 | kernel | A ForceKill that lands while the target thread is about to block is lost (`Context::block()` overwrites Runnable with Blocked); the process never finishes exiting | `x17_exit_c` | 35403271670 (stock 14/60 `exit()` hangs, master 8/60, patched 0/60; `_exit` 2/30, 0/30, 0/30) | **patch verified**: `../kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch`, `../kernel/ISSUE.md` |
-+| 2 | kernel | Futexes are keyed by physical address; `fork()` makes the parent's pages copy-on-write, the parent's next write moves the page, and sleepers on the old frame are never woken (`sem_post` finds nobody) | `x23_futex_fork_c` | 35399661211 (child alive across `sem_post`: 0/4 woke; `posix_spawn`: 4/4; no fork: 4/4) | worked around in Go (`posix_spawn`, timed `semasleep`); kernel fix not written (idea: wake waiters of the old frame on the CoW copy, or key private futexes by address space + vaddr) |
++| 1 | kernel | A ForceKill that lands while the target thread is about to block is lost (`Context::block()` overwrites Runnable with Blocked); the process never finishes exiting | `x17_exit_c` | 35410254114 (v3: patched 0/60 `exit()` and 0/30 `_exit`; stock 3/60; master 22/60 and 6/60); v2 in 35403271670 | **patch v3 verified**: `../kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch`, `../kernel/ISSUE.md` |
++| 2 | kernel | Futexes are keyed by physical address; `fork()` makes the parent's pages copy-on-write, the parent's next write moves the page, and threads already asleep on the old frame are never woken (`sem_post` finds nobody). MR !650 (in the base) only covers waiters that start waiting after the fork | `x23_futex_fork_c` | 35428992551 (master: "fork, child alive" 0/4 woke in 8 of 8 runs; patched 4/4 in 8 of 8; exit repro with the ForceKill patch 0/60 and 0/30) | **patch verified**: `../kernel/0002-*.patch`, unxed/sandbox `kernel-futex-cow-wake/` (wake the old frame's waiters when a CoW fault moves a page) |
 +| 3 | kernel + procmgr | CPU exceptions are never delivered to a user signal handler (`excp_handler` in `context/signal.rs` is a TODO): the faulting thread is killed with "UNHANDLED EXCEPTION" and, because procmgr starts the exit only once *all* threads are dead, a multi-threaded process just lingers | `x24_nilpanic` at 35400663199 (before the compiler emitted explicit nil checks) | 35400663199 | worked around in the Go compiler (explicit nil checks); not fixed |
-+| 4 | relibc | `posix_spawn` does not close the parent's close-on-exec descriptors in the child (a `cat` child keeps the write end of its own stdin pipe open and never sees EOF) | `x26_spawn_cloexec_c` | 35406285068 (fork+exec: cat exited; posix_spawn: cat HUNG) | worked around in Go (explicit `addclose`) |
-+| 5 | relibc | `posix_spawn` fails with EBADF for some descriptor layouts when several children are started concurrently and leaves a half-built child process (holding copies of every fd) behind | Go: `x20_execpar`, `p14_exec` (C `x27_spawnpar_c` and, single-threaded, every action layout of `x31_spawn_actions_c` succeed, so it is concurrency-related) | 35406285068 | worked around in Go (fall back to fork on EBADF); cause unknown |
-+| 6 | relibc | a new thread starts with an empty signal mask and applies the creator's mask a little later (`pthread/mod.rs`); a process-directed signal (SIGCHLD of an exited child) can hit it before its TLS/`g` exists | Go: "fatal: bad g in signal handler" in `x20_execpar` | 35400663199 | worked around in Go (drop benign async signals on a g-less thread) |
++| 4 | relibc | `posix_spawn` does not close the parent's close-on-exec descriptors in the child (a `cat` child keeps the write end of its own stdin pipe open and never sees EOF). Cause: the close list is sent to the filetable `Close` verb in one call, the kernel's `bulk_remove_files` is all-or-nothing, and the list names fds the child's table lacks, so it fails with EBADF, ignored | `x26_spawn_cloexec_c` | 35428002403 (unpatched 4/4 FAIL, patched 4/4 OK) | **patch verified**: unxed/sandbox `relibc-spawn-cloexec/` |
++| 5 | relibc | `posix_spawn` fails with EBADF when other threads close/open descriptors at the same time, and a failed spawn leaves a half-built child process (holding copies of every fd, so pipes never reach EOF; a never-started child that is later killed runs with all registers zero and can wedge the kernel, #9). Narrowed down with a debug build (run 35428330310): 122 of 124 failures are the call in `Sys::spawn` that hands the child's filetable over (`new_file_table.call_wo(<its own fd>, FD \| FD_CLONE)`, base line 1330), the rest a `Close` action; it happens only while other threads close descriptors (`x27_spawnpar_c` rounds "scan=no close=unlocked"). Suspect: the fd number is no longer valid in the caller's table at that moment, i.e. a race between `close()` (kernel close first, userspace `FILETABLE` bookkeeping after) and descriptor allocation | `x27_spawnpar_c` (pure C); not changed by patch #4 | 35428330310 | open: cause narrowed, no fix yet |
++| 6 | relibc | a new thread starts with an empty signal mask and applies the creator's mask a little later (`pthread/mod.rs`); a process-directed signal can hit it before its state exists | `x33_thread_sigmask_c` (unpatched: 1267/1886/1614 handler runs on a thread with the signal blocked; patched 0); Go: "fatal: bad g in signal handler" in `x20_execpar` | 35428002403 | **patch verified**: unxed/sandbox `relibc-pthread-sigmask/` |
 +| 7 | relibc | `sigentry` clobbers RCX of the interrupted code | `x10_sigstorm` | (earlier) | fixed upstream: unxed/relibc `fix-sigentry-rcx-clobber` (8022058e); Go still keeps async preemption off by default until the image has the fix |
-+| 8 | relibc | `poll()` fails the *whole call* (EPERM) when one descriptor cannot be watched, e.g. a regular file | found by f4-redox, unxed/sandbox run 35399359761; no C repro yet | | worked around in Go (`netpollopen` probes each fd) |
-+| 9 | kernel (or relibc spawn) | under 4-way concurrent `posix_spawn`, a just-spawned child ran with all registers zero (page fault at RIP 0) and the kernel then panicked in `exit_this_context` (`syscall/process.rs:83`, `context::switch` returned to a dead context) - seen once, on the patched kernel (35407656018); not reproduced in 8 repeats on either kernel (run 35408639606) | `x27_spawnpar_c` | 35407656018 | open |
++| 8 | relibc | `poll()` fails the *whole call* (EPERM) when one descriptor is a regular file (epoll_ctl refuses it) | `x32_poll_regular_c` | 35428002403 (unpatched 4/4 FAIL, patched 4/4 OK) | **patch verified**: unxed/sandbox `relibc-poll-regular-files/` |
++| 9 | kernel | a context that takes an exception (here: a just-spawned child that ran with garbage state, page fault at RIP 0 or #UD) and calls `exit_this_context` can wedge the kernel: `context::switch` returns to the dead context and `unreachable!()` panics at `syscall/process.rs:83`, or the VM silently freezes after "UNHANDLED EXCEPTION". Seen on the stock kernel (freeze, 1/2 runs), master (faults survived) and both patch versions (panic v2 2/2, v3 1/2) - not caused by the ForceKill patch | `x27_spawnpar_c` (40 rounds of 4 concurrent spawns) | 35409694501, 35410254114 | open; needs a look at `select_next_context`/`AllContextsIdle` for a dead current context whose sched context differs (direct switch) |
 +| 10 | QEMU TCG only | CLOCK_MONOTONIC / CLOCK_REALTIME read on different vCPUs go backwards by up to ~4 ms | `x21_clock_c` | 35392788829 | gone with KVM |
 +
 +Checked and *not* a bug: `poll()` on a pty slave (C `x29_pty_c` and f4-redox's pollprobe both get POLLIN correctly, canonical and raw). The Go port still ticks terminals every 10 ms as a precaution (`netpoll_redox.go`).
@@ -3367,7 +4136,7 @@ index 00000000..6794ef57
 +tail -5 $log
 diff --git a/.github/workflows/redox-cross-build.yml b/.github/workflows/redox-cross-build.yml
 new file mode 100644
-index 00000000..adafe26f
+index 00000000..feede8f4
 --- /dev/null
 +++ b/.github/workflows/redox-cross-build.yml
 @@ -0,0 +1,365 @@
@@ -3455,7 +4224,7 @@ index 00000000..adafe26f
 +          path: |
 +            bin
 +            pkg
-+          key: redox-toolchain-v2-${{ hashFiles('src/**', 'VERSION') }}
++          key: redox-toolchain-v3-${{ hashFiles('src/**', 'VERSION') }}
 +
 +      - name: Cache the go build cache
 +        uses: actions/cache@v4
@@ -3465,7 +4234,7 @@ index 00000000..adafe26f
 +          restore-keys: redox-gocache-
 +
 +      - name: Build host (linux/amd64) toolchain
-+        if: steps.tc.outputs.cache-hit != 'true'
++        if: steps.tc.outputs.cache-hit != 'true' || hashFiles('genfiles.tgz') == ''
 +        timeout-minutes: 4
 +        working-directory: src
 +        run: |
@@ -3479,7 +4248,7 @@ index 00000000..adafe26f
 +          tar tzf genfiles.tgz | head -20
 +
 +      - name: Restore generated sources of the cached toolchain
-+        if: steps.tc.outputs.cache-hit == 'true'
++        if: steps.tc.outputs.cache-hit == 'true' && hashFiles('genfiles.tgz') != ''
 +        run: tar xzf genfiles.tgz && tar tzf genfiles.tgz | wc -l
 +
 +      # Bulk compile check of the std packages we care about, reporting ALL
@@ -3806,10 +4575,10 @@ index 00000000..c59aca65
 +          if-no-files-found: warn
 diff --git a/.github/workflows/redox-kernel-verify.yml b/.github/workflows/redox-kernel-verify.yml
 new file mode 100644
-index 00000000..cdb18c93
+index 00000000..0a45b036
 --- /dev/null
 +++ b/.github/workflows/redox-kernel-verify.yml
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,110 @@
 +name: redox-kernel-verify
 +
 +# A/B verification of a kernel patch for the "process never exits" hang
@@ -3817,7 +4586,8 @@ index 00000000..cdb18c93
 +#   stock     the kernel shipped in redoxer's image, untouched
 +#   baseline  Redox kernel master, built here, unpatched
 +#   patched   the same source + .github/redox/kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch
-+# Each boots under redoxer and runs the pure-C reproducer x17 (no Go involved).
++# Variants: baseline (master), patched (0001, ForceKill), cow (0002, futex waiters woken when a CoW
++# fault moves the page), both. Each boots under redoxer and runs the pure-C reproducer x17 (no Go involved).
 +on:
 +  push:
 +    branches: [golang-1.26-redox]
@@ -3837,7 +4607,7 @@ index 00000000..cdb18c93
 +    strategy:
 +      fail-fast: false
 +      matrix:
-+        variant: [stock, baseline, patched]
++        variant: [baseline, cow, both]
 +        rep: [1, 2]
 +    steps:
 +      - uses: actions/checkout@v4
@@ -3852,11 +4622,14 @@ index 00000000..cdb18c93
 +          git init -q . && git remote add origin https://gitlab.redox-os.org/redox-os/kernel.git
 +          git fetch -q --depth 1 origin $KERNEL_SHA && git checkout -q FETCH_HEAD
 +          git log --oneline -1
-+          if [ "${{ matrix.variant }}" = patched ]; then
-+            git apply --check $GITHUB_WORKSPACE/.github/redox/kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch
-+            git apply $GITHUB_WORKSPACE/.github/redox/kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch
-+            git diff --stat
-+          fi
++          K=$GITHUB_WORKSPACE/.github/redox/kernel
++          git config user.name ci && git config user.email ci@example.com
++          case "${{ matrix.variant }}" in
++            patched) git am -3 $K/0001-*.patch ;;
++            cow)     git am -3 $K/0002-*.patch ;;
++            both)    git am -3 $K/0001-*.patch $K/0002-*.patch ;;
++          esac
++          git log --oneline -3; git diff --stat 2d2eef7 | tail -3
 +          make ARCH=x86_64 OBJCOPY=objcopy BUILD=/tmp/kbuild all 2>&1 | tail -15
 +          ls -la /tmp/kbuild/kernel && sha1sum /tmp/kbuild/kernel
 +
@@ -3869,6 +4642,10 @@ index 00000000..cdb18c93
 +          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
 +            -o /tmp/pkg/out/x17_exit_c.bin /tmp/x17.c
 +          sudo chmod +x /tmp/pkg/out/x17_exit_c.bin
++          cp $GITHUB_WORKSPACE/.github/redox/ladder/x23_futex_fork_c/main.c /tmp/x23.c
++          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
++            -o /tmp/pkg/out/x23_futex_fork_c.bin /tmp/x23.c
++          sudo chmod +x /tmp/pkg/out/x23_futex_fork_c.bin
 +          cp $GITHUB_WORKSPACE/.github/redox/ladder/x27_spawnpar_c/main.c /tmp/x27.c
 +          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
 +            -o /tmp/pkg/out/x27_spawnpar_c.bin /tmp/x27.c
@@ -3912,6 +4689,155 @@ index 00000000..cdb18c93
 +          print(out)
 +          open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write("### kernel A/B\n```\n" + out + "\n```\n")
 +          PY
+diff --git a/.github/workflows/redox-relibc-patches.yml b/.github/workflows/redox-relibc-patches.yml
+new file mode 100644
+index 00000000..9f38fbec
+--- /dev/null
++++ b/.github/workflows/redox-relibc-patches.yml
+@@ -0,0 +1,143 @@
++name: redox-relibc-patches
++
++# A/B verification of the relibc patches in .github/redox/relibc/patches/ (applied together, they
++# touch different files): relibc at the pinned upstream commit, unpatched vs patched, built in the
++# redoxer environment; pure-C repros are linked against each build's libc.so as their ELF
++# interpreter and run in a KVM VM.
++on:
++  workflow_dispatch: {}
++  push:
++    branches: [golang-1.26-redox]
++    paths:
++      - '.github/workflows/redox-relibc-patches.yml'
++      - '.github/redox/relibc/patches/**'
++      - '.github/redox/run_relibc_ab.sh'
++      - '.github/redox/relibc_ab_summary.py'
++      - '.github/redox/ladder/x26_spawn_cloexec_c/**'
++      - '.github/redox/ladder/x27_spawnpar_c/**'
++      - '.github/redox/ladder/x32_poll_regular_c/**'
++      - '.github/redox/ladder/x33_thread_sigmask_c/**'
++
++permissions:
++  contents: read
++
++env:
++  RELIBC_COMMIT: 69bb008af1f6d93758631cf0df250500d53a065b
++
++jobs:
++  relibc:
++    runs-on: ubuntu-latest
++    timeout-minutes: 16
++    strategy:
++      fail-fast: false
++      matrix:
++        variant: [unpatched, patched, debug]
++    steps:
++      - uses: actions/checkout@v4
++      - name: Pull redoxer image
++        timeout-minutes: 4
++        run: docker pull redoxos/redoxer
++      - name: Fetch relibc at the pinned upstream commit
++        timeout-minutes: 4
++        run: |
++          mkdir relibc && cd relibc
++          git init -q
++          git remote add origin https://gitlab.redox-os.org/redox-os/relibc.git
++          git fetch --depth 1 origin "$RELIBC_COMMIT"
++          git checkout -q FETCH_HEAD
++          git submodule update --init --recursive --depth 1
++          git log -1 --format='%H %s'
++      - name: Apply the patches (patched variant only)
++        if: matrix.variant != 'unpatched'
++        run: |
++          cd relibc
++          git config user.name ci && git config user.email ci@example.com
++          for p in ../.github/redox/relibc/patches/*.patch; do echo "== $p"; git am "$p"; done
++          if [ "${{ matrix.variant }}" = debug ]; then git am ../.github/redox/relibc/debug/*.patch; fi
++          git log --oneline -6; git diff --stat 69bb008 | tail -3
++      - name: Build relibc inside the redoxer environment
++        timeout-minutes: 12
++        run: |
++          docker run --rm -v "$PWD/relibc:/src" -v "$PWD/.github/redox/relibc:/scripts:ro" redoxos/redoxer \
++            sh /scripts/build_relibc.sh 2>&1 | tee build-${{ matrix.variant }}.log
++      - name: Collect libc.so
++        if: always()
++        run: |
++          mkdir -p out/${{ matrix.variant }}
++          B=relibc/target/x86_64-unknown-redox/release
++          cp $B/libc.so out/${{ matrix.variant }}/libc.so
++          cp $B/libc.so out/${{ matrix.variant }}/libc.so.6
++          cp $B/libc.so out/${{ matrix.variant }}/ld64.so.1
++          sha256sum out/${{ matrix.variant }}/libc.so
++      - uses: actions/upload-artifact@v4
++        if: always()
++        with:
++          name: relibc-${{ matrix.variant }}
++          path: |
++            out/${{ matrix.variant }}
++            build-${{ matrix.variant }}.log
++          if-no-files-found: warn
++
++  repros:
++    runs-on: ubuntu-latest
++    timeout-minutes: 8
++    steps:
++      - uses: actions/checkout@v4
++      - name: Build the C repros once per variant (custom ELF interpreter)
++        timeout-minutes: 5
++        run: |
++          docker pull redoxos/redoxer >/dev/null
++          mkdir -p /tmp/w/bins && cp -r .github/redox/ladder/x26_spawn_cloexec_c .github/redox/ladder/x27_spawnpar_c .github/redox/ladder/x32_poll_regular_c .github/redox/ladder/x33_thread_sigmask_c /tmp/w/
++          for v in unpatched patched debug; do
++            for p in x26_spawn_cloexec_c x27_spawnpar_c x32_poll_regular_c x33_thread_sigmask_c; do
++              docker run --rm -v /tmp:/tmp -w /tmp/w redoxos/redoxer redoxer cc -O1 -pthread \
++                -Wl,--dynamic-linker=/root/mnt/$v/ld64.so.1 -o bins/${p}_$v.bin $p/main.c
++            done
++          done
++          sudo chmod +x /tmp/w/bins/*; ls -la /tmp/w/bins
++      - uses: actions/upload-artifact@v4
++        with:
++          name: repro-bins
++          path: /tmp/w/bins
++
++  verify:
++    needs: [relibc, repros]
++    if: always() && needs.repros.result == 'success'
++    runs-on: ubuntu-latest
++    timeout-minutes: 12
++    strategy:
++      fail-fast: false
++      matrix:
++        variant: [unpatched, patched, debug]
++        rep: [1, 2]
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/download-artifact@v4
++        with:
++          path: art
++      - name: Enable KVM
++        run: .github/redox/enable_kvm.sh
++      - name: Assemble the VM folder
++        run: |
++          mkdir -p vm/bins
++          cp art/repro-bins/* vm/bins/
++          for v in unpatched patched debug; do
++            d=$(find art/relibc-$v -type d -name $v | head -1)
++            [ -n "$d" ] && cp -r "$d" vm/$v || echo "no libc for $v"
++          done
++          chmod +x vm/bins/* vm/*/* || true
++          cp .github/redox/run_relibc_ab.sh vm/
++      - name: Run in a Redox VM
++        timeout-minutes: 8
++        continue-on-error: true
++        run: |
++          PKGOUT=$PWD/vm .github/redox/vm_run.sh "run_relibc_ab.sh ${{ matrix.variant }}" /tmp/relibc-ab.log
++      - uses: actions/upload-artifact@v4
++        if: always()
++        with:
++          name: relibc-ab-log-${{ matrix.variant }}-${{ matrix.rep }}
++          path: /tmp/relibc-ab.log
++          if-no-files-found: ignore
++      - name: Summary (${{ matrix.variant }}, rep ${{ matrix.rep }})
++        if: always()
++        run: python3 .github/redox/relibc_ab_summary.py /tmp/relibc-ab.log
 diff --git a/.github/workflows/redox-relibc-verify.yml b/.github/workflows/redox-relibc-verify.yml
 new file mode 100644
 index 00000000..ddaf4a48
