@@ -1,0 +1,15 @@
+key f5
+wait 2
+shot copy1
+key enter
+wait 2
+shot copy2
+key tab
+key f8
+wait 2
+shot del1
+key esc
+key f9
+wait 2
+shot menu
+key esc
