@@ -1,0 +1,6 @@
+click 838 512
+wait 2
+click 300 300
+typeln clear; /boot/home/f4 --gui=x11; echo GUIRC=$?
+wait 6
+shot gui2
