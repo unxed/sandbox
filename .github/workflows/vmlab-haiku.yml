@@ -60,7 +60,7 @@ jobs:
           gh run download "$ID" -n f4-haiku-amd64 -D /tmp/vmlab/payload
           chmod +x /tmp/vmlab/payload/f4-haiku-amd64 || true
           gh run download "$ID" -n f4-haiku-tools -D /tmp/vmlab/payload || echo "(no f4-haiku-tools in run $ID)"
-          cp vmlab/haiku/* /tmp/vmlab/payload/ 2>/dev/null || true
+          cp vmlab/haiku/* vmlab/guests/haiku-agent.sh /tmp/vmlab/payload/ 2>/dev/null || true
           ls -l /tmp/vmlab/payload
 
       - name: X server for the guest (Xvfb on TCP :6001) and a screenshot loop

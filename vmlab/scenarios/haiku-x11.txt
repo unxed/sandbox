@@ -22,7 +22,7 @@ wait 2
 typeln mkdir -p /boot/home/t/sub && cd /boot/home/t && echo line one > a.txt
 wait 2
 typeln curl -sf -o /boot/home/f4 http://10.0.2.2:8000/f4-haiku-amd64 && chmod +x /boot/home/f4 && clear
-wait 8
+wait 40
 typeln DISPLAY=10.0.2.2:1 /boot/home/f4 --gui=x11 --attached /boot/home/t > /tmp/x11.log 2>&1 &
 wait 20
 shot 02-after-start

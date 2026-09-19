@@ -24,7 +24,7 @@ wait 2
 typeln mkdir -p /boot/home/t/sub && cd /boot/home/t && echo line one > a.txt && echo bee > b.txt && echo see > c.txt
 wait 2
 typeln curl -sf -o /boot/home/f4 http://10.0.2.2:8000/f4-haiku-amd64 && chmod +x /boot/home/f4 && clear && /boot/home/f4 --attached /boot/home/t
-wait 8
+wait 40
 shot 03-f4-panels
 # arrows: .. -> sub -> a.txt
 key down
