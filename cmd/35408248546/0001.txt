@@ -1,0 +1,3 @@
+xsh ss -ltn | grep -E ':60|State'
+xrun xclock
+xsh xwininfo -root -tree | head -8
