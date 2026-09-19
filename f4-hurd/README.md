@@ -20,8 +20,21 @@ Workflow `workflows/hurd-f4-build.yml` лежит в unxed/go (ветка golang
   `TIOCGPGRP` на мастере — нет (`IsBusy` спрашивает слейв). Замерено `../go-hurd/probes/pty_poc.c`.
 - afero: `BADFD` = `EBADF` (на Hurd нет `EBADFD`).
 
+## X11-бэкенд (чистый Go, без FFI) — работает
+
+f4 `--gui=x11` (jezek/xgb + purexkb, никакого goffi) в госте Hurd подключается по TCP к **Xvfb на хосте CI** (`DISPLAY=10.0.2.2:1`), окно рисуется там,
+ввод и скриншоты — с хоста (xdotool, ImageMagick `import`). Как и для Redox: X-сервера в образе Hurd нет, а сеть есть — QEMU `-nic user,model=e1000`,
+гость получает `10.0.2.15` по DHCP, хост виден как `10.0.2.2` (проверено wget/ping). Запуск в госте:
+`DISPLAY=10.0.2.2:1 f4 --gui=x11 --attached` (`--attached`, иначе f4 отсоединяется и выходит), на хосте `Xvfb :1 -screen 0 1024x768x24 -listen tcp -ac`.
+Оконного менеджера нет: фокус следует за указателем, поэтому перед клавишами сценарий кликает в окно. Сценарий — в `../go-hurd/probes/run_poc.py`
+(блок «f4's X11 backend»), workflow — `../go-hurd/probes/run-hurd-poc.yml`; run-hurd-poc #35411660397: старт, F1, стрелки, F9, F10 → выход с кодом 0.
+Предупреждения XGB про `.Xauthority` безвредны.
+
+| старт | справка F1 | меню F9 |
+|---|---|---|
+| ![start](screens/x11-start.png) | ![help](screens/x11-help-f1.png) | ![menu](screens/x11-menu-f9.png) |
+
 ## Что осталось
 
 - PR в f4/vtui/vtinput: `hurd` в build-теги, `pty_hurd.go`; порт (или отдельный модуль) `x/sys/unix` для Hurd.
 - `daemonStartTimeout = 10s` в f4 (сессионный демон) мал для TCG-эмуляции; с KVM не проявляется.
-- **Следующий шаг: X11-бэкенд f4 без FFI** — нужен X-сервер в госте (или X по сети) и проверка, что нативный Go-клиент X11 работает поверх сокетов Hurd.
