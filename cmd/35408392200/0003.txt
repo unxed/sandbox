@@ -1,0 +1,4 @@
+wait 25
+xsh ss -tan | grep 6001
+xsh xwininfo -root -tree | head -20
+xshot x11-f4
