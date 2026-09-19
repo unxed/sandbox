@@ -1,0 +1,64 @@
+From 7ecd12ee28b93c8b6bba22c459e274ad07bdc9df Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 08:42:44 +0000
+Subject: [PATCH] redox: posix_spawn: grow the child's upper file table before
+ handing descriptors over
+
+Sys::spawn takes a snapshot of the parent's file table for the child, then keeps
+allocating descriptors in the parent (the filetable handle, the executable, ...) and
+hands some of them to the child with a call that inserts them into the child's table at
+the same index. The child's snapshot has only the size the parent's table had at that
+moment. When the index of a descriptor allocated afterwards lies beyond it -- easy as
+soon as other threads use upper-table slots at the same time, since the lowest free
+index is then higher -- the kernel refuses the insert with EMFILE and the whole spawn
+fails with "Too many open files", leaving a half-built child behind.
+
+Before the handover, resize the child's upper table (FileTableVerb::Resize) to cover the
+highest upper index the parent has in use. EINVAL ("already large enough") is ignored.
+---
+ src/platform/redox/mod.rs | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+
+diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
+index 7c516bb..7fe9ea9 100644
+--- a/src/platform/redox/mod.rs
++++ b/src/platform/redox/mod.rs
+@@ -1323,6 +1323,35 @@ impl Pal for Sys {
+         //     cwd.as_str()
+         // );
+ 
++        // The child's file table is a snapshot taken at the top of this function. Descriptors
++        // allocated after that (by this function itself, or by other threads) can have upper-table
++        // indices beyond the snapshot's size, and handing them to the child then fails with EMFILE
++        // ("Too many open files") although nothing is anywhere near the limit. Grow the child's
++        // upper table to cover everything this process has in its own; EINVAL just means it is
++        // large enough already.
++        {
++            let upper_len = {
++                let guard = redox_rt::current_filetable();
++                guard
++                    .iter()
++                    .filter(|(fd, _)| fd & syscall::UPPER_FDTBL_TAG != 0)
++                    .map(|(fd, _)| (fd & !syscall::UPPER_FDTBL_TAG) + 1)
++                    .max()
++                    .unwrap_or(0)
++            };
++            if upper_len > 0 {
++                let _ = new_file_table.call_wo(
++                    &[],
++                    syscall::CallFlags::empty(),
++                    &[
++                        syscall::FileTableVerb::Resize as u64,
++                        syscall::UPPER_FDTBL_TAG as u64,
++                        upper_len as u64,
++                    ],
++                );
++            }
++        }
++
+         new_file_table.call_wo(
+             &new_file_table.as_raw_fd().to_ne_bytes(),
+             syscall::CallFlags::FD | syscall::CallFlags::FD_CLONE,
+-- 
+2.43.0
+
