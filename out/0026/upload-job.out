@@ -1,0 +1,29 @@
+   Used Nodes: 0
+   Free Nodes: 0
+   Root Inode: 131072
+1080	/boot/home
+0	/tmp
+228	/boot/system/cache
+46580	/boot/system/var
+total 108
+drwxr-xr-x 1 user root 2048 Sep 19 07:06 .
+dr-xr-xr-x 1 user root    0 Sep 18 06:36 ..
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 boot
+drwxr-xr-x 1 user root 2048 Sep 19 07:01 deskbar
+drwxr-xr-x 1 user root 2048 Sep 19 07:14 f4
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 global
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 kernel
+-rw-r--r-- 1 user root 7726 Sep 19 07:00 Key_map
+-rw-r--r-- 1 user root  391 Sep 19 07:00 Locale settings
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 Mail
+drwxr-xr-x 1 user root 2048 Sep 19 07:00 Media
+drwxr-xr-x 1 user root 2048 Sep 19 07:00 mime_db
+-rw-r--r-- 1 user root    0 Sep 19 07:00 mount_server
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 printers
+-rw-r--r-- 1 user root  111 Sep 19 07:01 ProcessController Prefs
+-rw-r--r-- 1 user root 4555 Sep 18 06:36 shortcuts_settings
+drwxr-xr-x 1 user root 2048 Sep 19 07:00 system
+drwxr-xr-x 1 user root 2048 Sep 19 07:01 Terminal
+-rw------- 1 user root    1 Sep 19 07:01 time_dststatus
+lrwxrwxrwx 1 user root 22 Sep 19 07:00 /tmp -> /boot/system/cache/tmp
+exit=0
