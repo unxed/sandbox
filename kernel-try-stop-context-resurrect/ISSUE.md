@@ -31,7 +31,7 @@ EXIT_STEP   1129 5                  (context::switch returned inside exit_this_c
 
 Related upstream items found: MR !663 "Drop context Arc on force kill" and !621 "Solve context leak when switching" (both merged) are about other context-lifetime problems; nothing about `try_stop_context`.
 
-**Reproducer.** No small deterministic one; the race needs a stop of a context that is dying. Statistical: `x27_spawnpar_c` (4 threads spawning `sh`; some children die with an invalid-opcode fault in the loader, see the relibc ld.so FPU issue, which makes them a steady source of dying contexts), boots of 40 runs on QEMU+KVM, 4 CPUs:
+**Reproducer.** No small deterministic one; the race needs a stop of a context that is dying. Statistical: `x27_spawnpar_c` (4 threads spawning `sh`; with stock relibc some threads/children start with all registers zero or die with an invalid-opcode fault, see the relibc issue `relibc-spawn-clone-lock`, which makes them a steady source of dying contexts), boots of 40 runs on QEMU+KVM, 4 CPUs:
 - unpatched master: **2 of 5 boots ended in the panic** (187 runs completed), and 2 of 3 boots in the full script;
 - with this patch: **0 of 5 boots** (200 runs) and, together with the two futex patches (`kernel-forcekill-lost-wakeup`, `kernel-futex-cow-wake`), 0 of 5 boots (200 runs) and 0 of 3 in the full script.
 - The event ring trace above comes from https://github.com/unxed/go/actions/runs/35437379734.
