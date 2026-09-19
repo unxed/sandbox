@@ -1,0 +1,6 @@
+key ctrl-c
+wait 1
+typeln clear
+typeln curl -s -m 5 -o /dev/null -w 'x11 tcp: http=%{http_code} exit-next' http://10.0.2.2:6001/; echo rc=0
+wait 8
+shot xtcp
