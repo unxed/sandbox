@@ -7,11 +7,16 @@ name: vmlab-haiku
 # vmlab-session that may be running at the same time.
 #
 # Iterate by editing vmlab/scenarios/haiku-*.txt (push triggers a run of
-# haiku-smoke) or dispatch with another scenario name.
+# haiku-regress) or dispatch with another scenario name. haiku-regress fails the job
+# when the guest-side check (vmlab/haiku/regress-check.sh) reports FAIL.
 on:
+  # Every successful f4-haiku build is regression-tested on a fresh Haiku VM.
+  workflow_run:
+    workflows: [f4-haiku]
+    types: [completed]
   workflow_dispatch:
     inputs:
-      scenario: {description: 'vmlab/scenarios/<name>.txt', default: 'haiku-smoke'}
+      scenario: {description: 'vmlab/scenarios/<name>.txt', default: 'haiku-regress'}
       f4_run:   {description: 'f4-haiku run id to take the binary from (empty = latest successful)', default: ''}
       accel:    {description: 'kvm or tcg', default: 'kvm'}
   push:
@@ -29,9 +34,10 @@ jobs:
   boot:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     env:
       GH_TOKEN: ${{ github.token }}
-      SCEN: ${{ inputs.scenario || 'haiku-smoke' }}
+      SCEN: ${{ inputs.scenario || 'haiku-regress' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +54,7 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p /tmp/vmlab/payload
-          ID="${{ inputs.f4_run }}"
+          ID="${{ inputs.f4_run || github.event.workflow_run.id }}"
           [ -n "$ID" ] || ID=$(gh run list --workflow f4-haiku.yml --status success -L 1 --json databaseId -q '.[0].databaseId')
           echo "f4-haiku run: $ID"
           gh run download "$ID" -n f4-haiku-amd64 -D /tmp/vmlab/payload
@@ -75,6 +81,14 @@ jobs:
           python3 f4-redox/scripts/render_screens.py "$f" /tmp/vmlab/screens 100 30 | tee /tmp/vmlab/screens.log
           echo '--- guest log (without snapshots) ---'
           grep -v '^[A-Za-z0-9+/=]\{60,\}$' "$f" | head -150
+
+      - name: Check the guest-side regression result
+        if: env.SCEN == 'haiku-regress'
+        run: |
+          f=/tmp/vmlab/upload/regress.out
+          [ -f "$f" ] || { echo "::error::guest did not upload regress.out"; exit 1; }
+          cat "$f"
+          grep -q '^RESULT PASS' "$f" || { echo "::error::Haiku regression failed, see the log and screenshots"; exit 1; }
 
       - name: Upload
         if: always()

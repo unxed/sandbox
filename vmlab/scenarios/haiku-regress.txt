@@ -1,0 +1,86 @@
+# Regression run for f4 on Haiku: boot -> Terminal -> guest agent -> f4 in the Terminal window driven
+# by keys (arrows, F3, F4+F2, F5, F6, F8, F9) -> a check script verifies the results on disk and uploads
+# regress.out ("RESULT PASS"/"RESULT FAIL"). Coordinates are for 1280x800 (see haiku-desktop.txt).
+# US-International keymap in the guest: no apostrophes/double quotes/tildes/carets in typeln lines.
+wait 10
+click 903 582
+wait 15
+shot 01-desktop
+click 1213 14
+wait 2
+move 1041 226
+wait 1.5
+move 900 300
+move 881 707
+wait 0.5
+click 881 707
+wait 4
+shot 02-terminal
+click 330 300
+typeln curl -s -o /tmp/agent.sh http://10.0.2.2:8000/haiku-agent.sh
+wait 3
+typeln sh /tmp/agent.sh &
+wait 2
+typeln mkdir -p /boot/home/t/sub && cd /boot/home/t && echo line one > a.txt && echo bee > b.txt && echo see > c.txt
+wait 2
+typeln curl -sf -o /boot/home/f4 http://10.0.2.2:8000/f4-haiku-amd64 && chmod +x /boot/home/f4 && clear && /boot/home/f4 --attached /boot/home/t
+wait 8
+shot 03-f4-panels
+# arrows: .. -> sub -> a.txt
+key down
+key down
+key f3
+wait 2
+shot 04-viewer
+key esc
+wait 1
+# editor: type X, save with F2, leave
+key f4
+wait 2
+type X
+key f2
+wait 1
+shot 05-editor
+key esc
+wait 1
+# copy a.txt to the other panel (/boot/home)
+key f5
+wait 2
+shot 06-copy-dialog
+key enter
+wait 2
+# delete c.txt: Home, then .. sub a.txt b.txt c.txt -> 4 downs; the default button is Delete
+key home
+key down
+key down
+key down
+key down
+key f8
+wait 2
+shot 07-delete-dialog
+key enter
+wait 2
+# rename b.txt -> moved.txt: Home, 3 downs; the target field is pre-selected, typing replaces it
+key home
+key down
+key down
+key down
+key f6
+wait 2
+shot 08-rename-dialog
+type /boot/home/t/moved.txt
+key enter
+wait 2
+shot 09-after-rename
+key f9
+wait 2
+shot 10-menu
+key esc
+wait 1
+key f10
+wait 1
+key enter
+wait 2
+typeln curl -s http://10.0.2.2:8000/regress-check.sh | sh > /tmp/regress.out 2>&1; curl -s -T /tmp/regress.out http://10.0.2.2:8000/upload/regress.out
+waitupload regress.out 60
+shot 11-done
