@@ -1,0 +1,101 @@
+From f7b246dc7fe8cafbc52e38dbd36b1f8f8209a9c5 Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 07:13:39 +0000
+Subject: [PATCH] futex: wake the waiters of a frame when a copy-on-write fault
+ moves the page
+
+Futexes are keyed by physical address. After a fork the parent's pages are shared
+copy-on-write with the child; when the parent (or one of its threads) writes to
+such a page, the page fault handler gives the writer a new frame. A thread of the
+same process that went to sleep in FUTEX_WAIT on that page before the fault is
+queued under the OLD physical address; every FUTEX_WAKE issued afterwards is
+translated through the new mapping and looks under the NEW address, so the sleeper
+is never woken. In a multi-threaded program (a language runtime parking worker
+threads on futexes, or any pthread program) that forks, threads then hang for good
+as soon as the parent writes the page holding the futex word while the child is
+still alive.
+
+When the handler moves a page, wake every waiter queued inside the old frame.
+FUTEX_WAIT may return spuriously, so the woken thread simply re-reads the futex word
+through its (now updated) mapping and, if the condition still does not hold, waits
+again, this time under the new address. Nothing changes for pages that are not moved
+(exclusive pages are written in place).
+---
+ src/context/memory.rs |  3 +++
+ src/syscall/futex.rs  | 39 ++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 41 insertions(+), 1 deletion(-)
+
+diff --git a/src/context/memory.rs b/src/context/memory.rs
+index 0d2ed0a..333af6b 100644
+--- a/src/context/memory.rs
++++ b/src/context/memory.rs
+@@ -2647,6 +2647,9 @@ fn correct_inner<'l>(
+                     } else {
+                         let result = cow(frame, info, RefKind::Cow)?;
+                         if let Some(old_frame) = result.old_frame {
++                            // The page moved to a new frame: futex waiters keyed by the old
++                            // physical address would never be woken.
++                            crate::syscall::futex::wake_frame(old_frame);
+                             flusher.queue(old_frame, None, TlbShootdownActions::FREE);
+                         }
+                         result.new_frame
+diff --git a/src/syscall/futex.rs b/src/syscall/futex.rs
+index b3d4c3d..02a2bbd 100644
+--- a/src/syscall/futex.rs
++++ b/src/syscall/futex.rs
+@@ -17,7 +17,7 @@ use crate::{
+         memory::{AccessMode, AddrSpace, Provider},
+         unblock_context, ContextLock,
+     },
+-    memory::{Page, PhysicalAddress, VirtualAddress},
++    memory::{Frame, Page, PhysicalAddress, VirtualAddress, PAGE_SIZE},
+     sync::{CleanLockToken, Mutex, L1},
+ };
+ 
+@@ -56,6 +56,43 @@ pub fn get_futex_stat(token: &mut CleanLockToken) -> (usize, usize) {
+     (regc, regl)
+ }
+ 
++/// Wake every context that is waiting on a futex inside `frame`, without consuming a value.
++///
++/// Futexes are keyed by physical address. When a page that is shared copy-on-write (after a
++/// fork) is written, the writer's mapping moves to a new frame, so a FUTEX_WAKE issued
++/// afterwards, translated through the new mapping, no longer finds the threads of the same
++/// process that went to sleep on the old frame: they sleep forever. Called by the page fault
++/// handler when it moves a page, this wakes them; FUTEX_WAIT is allowed to return spuriously,
++/// and the woken thread re-reads the futex word through the new mapping and, if need be, waits
++/// again under the new address.
++pub fn wake_frame(frame: Frame) {
++    let base = frame.base().data();
++    let end = base + PAGE_SIZE;
++
++    // Same lock-order bend as in `futex` below: called with the address space locked.
++    let mut token = unsafe { CleanLockToken::new() };
++    let mut futexes = FUTEXES.lock(token.token());
++    let (futexes_map, mut token) = futexes.token_split();
++    if futexes_map.is_empty() {
++        return;
++    }
++
++    let keys: Vec<PhysicalAddress> = futexes_map
++        .keys()
++        .copied()
++        .filter(|key| (base..end).contains(&key.data()))
++        .collect();
++    for key in keys {
++        if let Some(waiters) = futexes_map.remove(&key) {
++            for waiter in waiters {
++                if let Some(ctx) = waiter.context_lock.upgrade() {
++                    unblock_context(&ctx, &mut token.token().downgrade());
++                }
++            }
++        }
++    }
++}
++
+ fn validate_and_translate_virt(space: &AddrSpace, addr: VirtualAddress) -> Option<PhysicalAddress> {
+     // TODO: Move this elsewhere!
+     if addr.data().saturating_add(size_of::<usize>()) >= crate::USER_END_OFFSET {
+-- 
+2.43.0
+
