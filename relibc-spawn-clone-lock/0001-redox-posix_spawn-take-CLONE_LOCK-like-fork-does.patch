@@ -1,0 +1,48 @@
+From 56ff81cbea53f36cddf2c3fe7d82d6d6d81c20b9 Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 11:24:28 +0000
+Subject: [PATCH] redox: posix_spawn: take CLONE_LOCK like fork does
+
+pthread_create on Redox builds the new thread from a set of handles ("new-thread",
+"current-addrspace", "current-filetable", "start") that are held in the creating
+process's file table. The initial instruction and stack pointers, and the file table, are
+applied by the kernel when the "current-addrspace" / "current-filetable" handle is
+CLOSED, i.e. when the last reference to it is dropped. fork() therefore holds
+CLONE_LOCK for writing (pthread_create holds it for reading) so that its file-table
+snapshot cannot contain those in-flight handles. posix_spawn takes the same kind of
+snapshot for the child but did not take the lock.
+
+If a thread is being created in the parent while another thread spawns, the child's
+snapshot holds a second reference to the "current-addrspace" handle; the parent's close
+then does not apply the registers, and the new thread is started with all registers zero.
+It faults at once ("Page fault: 0000000000000000 US | ID", RIP = 0, RSP = 0); the
+kernel kills that thread but the rest of the process keeps running, typically with its
+main thread blocked in pthread_join forever: the program hangs.
+
+Hold CLONE_LOCK for writing in Sys::spawn, as fork does.
+---
+ src/platform/redox/mod.rs | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
+index 7fe9ea9..55a98de 100644
+--- a/src/platform/redox/mod.rs
++++ b/src/platform/redox/mod.rs
+@@ -1201,6 +1201,14 @@ impl Pal for Sys {
+         envp: Option<NulTerminated<*mut c_char>>,
+     ) -> Result<pid_t> {
+         use crate::header::spawn::Flags;
++        // Like fork(): keep pthread_create out while the child gets a snapshot of this process's
++        // file table. A thread being created holds handles that only take effect when the
++        // last reference to them is closed (the "current-addrspace" handle sets the new thread's
++        // instruction and stack pointers when it is closed); a reference in the child's snapshot
++        // keeps that from happening, and the new thread then starts with all registers zero:
++        // "Page fault: 0000000000000000 US | ID" at RIP 0. The thread's process is left with
++        // its other threads blocked forever (pthread_join never returns).
++        let _guard = CLONE_LOCK.write();
+         let child = redox_rt::proc::new_child_process(&redox_rt::proc::ForkArgs::Managed)?;
+         let mut cwd = path::clone_cwd().unwrap_or_default();
+         let mut cwd_fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
+-- 
+2.43.0
+
