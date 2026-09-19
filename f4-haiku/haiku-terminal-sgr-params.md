@@ -1,5 +1,17 @@
 # Haiku Terminal: SGR sequences with more than 10 parameters are misparsed
 
+**Ready to paste into https://dev.haiku-os.org/newticket** (needs an account: https://dev.haiku-os.org/register).
+
+| Field | Value |
+|---|---|
+| Summary | Terminal: escape sequences with more than 10 parameters are misparsed (24-bit colour SGR gets a wrong background) |
+| Component | Applications/Terminal |
+| Type | bug |
+| Version | R1/Development (hrev60122, x86_64, nightly `haiku-master-hrev60122-x86_64-anyboot`) |
+| Tested on | QEMU/KVM guest (vmlab, GitHub Actions); Terminal with default settings, TERM=xterm-256color |
+| Related | ticket #6227 mentions `TermParse::EscParse()`; search the tracker for `NPARAM` before filing to avoid a duplicate |
+| Attachment | screenshot of the four repro lines (`vmlab/haiku/sgrtest2.sh` output; run artifacts of the `vmlab-haiku` workflow in github.com/unxed/sandbox) |
+
 Draft of an upstream bug report (for dev.haiku-os.org / the Haiku issue tracker), found while
 running f4 (https://github.com/unxed/f4) on Haiku hrev60122 x86_64 in QEMU/KVM.
 
