@@ -1,0 +1,7 @@
+07:06:31 ok   typeln cd /boot/home && ./f4  [0.7s]
+07:06:35 ok   wait 4  [4.0s]
+07:06:35 ok   key down  [0.2s]
+07:06:35 ok   key down  [0.2s]
+07:06:35 ok   key down  [0.2s]
+07:06:36 ok   wait 1  [1.0s]
+07:06:36 ok   shot arrows1 -> arrows1.png (1280x800)  [0.0s]
