@@ -671,6 +671,67 @@ index 00000000..53b25f73
 +-- 
 +2.43.0
 +
+diff --git a/.github/redox/kernel/0003-proc-don-t-resurrect-a-context-that-died-while-it-was-stopped.patch b/.github/redox/kernel/0003-proc-don-t-resurrect-a-context-that-died-while-it-was-stopped.patch
+new file mode 100644
+index 00000000..21a806cd
+--- /dev/null
++++ b/.github/redox/kernel/0003-proc-don-t-resurrect-a-context-that-died-while-it-was-stopped.patch
+@@ -0,0 +1,55 @@
++From a748c536e1b0a614cbc0837a1e0e5e5beeda3b81 Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 10:11:23 +0000
++Subject: [PATCH] proc: don't resurrect a context that died while it was being
++ stopped
++
++try_stop_context (used to read and write a context's registers and environment) stops
++another context by replacing its status with a HardBlocked{NotYetStarted} marker, waits
++until it is no longer running, runs the callback and then writes the previously saved
++status back, unconditionally.
++
++If the context was running when it was stopped, it can still be on its way out: a
++thread that takes an exception runs exit_this_context, which sets its status to Dead,
++switches away and is never supposed to run again. The unconditional restore then
++overwrites Dead with the saved status (Runnable), wakes the context, and the scheduler
++resumes it inside exit_this_context, after its final context::switch(), where
++`unreachable!()` panics the kernel ("entered unreachable code", syscall/process.rs). The
++same overwrite throws away a ForceKill (Runnable + being_sigkilled) that arrived while
++the context was stopped.
++
++Restore the saved status only if the status is still the marker; otherwise leave what
++the context, or a ForceKill, set in the meantime.
++---
++ src/scheme/proc.rs | 15 ++++++++++++++-
++ 1 file changed, 14 insertions(+), 1 deletion(-)
++
++diff --git a/src/scheme/proc.rs b/src/scheme/proc.rs
++index d82c573..b9006de 100644
++--- a/src/scheme/proc.rs
+++++ b/src/scheme/proc.rs
++@@ -93,7 +93,20 @@ fn try_stop_context<T>(
++     let (context, l4_token) = guard.token_split();
++     let ret = callback(context, l4_token);
++ 
++-    context.status = prev_status;
+++    // Restore the status the context had before it was stopped, but only if it is still the
+++    // marker we put there. The context may have been running when we stopped it and finished
+++    // its way out before it noticed: exit_this_context replaces the marker with Dead, ForceKill
+++    // with Runnable. Writing the saved status over those brings a dead context back to life
+++    // (it is then scheduled again, resumes inside exit_this_context and hits unreachable!(), or
+++    // is never seen dead by procmgr) or throws a ForceKill away.
+++    if matches!(
+++        context.status,
+++        context::Status::HardBlocked {
+++            reason: HardBlockedReason::NotYetStarted
+++        }
+++    ) {
+++        context.status = prev_status;
+++    }
++ 
++     let cpu_id = context.cpu_id;
++ 
++-- 
++2.43.0
++
 diff --git a/.github/redox/kernel/ISSUE.md b/.github/redox/kernel/ISSUE.md
 new file mode 100644
 index 00000000..3832739e
@@ -772,13 +833,1049 @@ index 00000000..efa738e7
 +| master, unpatched | 2 | ok | 6 | 4 |
 +| patched v3 | 1 | KERNEL PANIC process.rs:83 (run 21) | - | - |
 +| patched v3 | 2 | ok | **0** | **0** |
+diff --git a/.github/redox/kernel/debug/0001-dbg-dead-switch.patch b/.github/redox/kernel/debug/0001-dbg-dead-switch.patch
+new file mode 100644
+index 00000000..e08499a8
+--- /dev/null
++++ b/.github/redox/kernel/debug/0001-dbg-dead-switch.patch
+@@ -0,0 +1,191 @@
++From 9223021f3d469bc67e59e6e0bae3fcd232a4779b Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 08:37:06 +0000
++Subject: [PATCH] DEBUG: report why a dead context keeps running after
++ context::switch
++
++---
++ src/context/switch.rs  | 65 ++++++++++++++++++++++++++++++++++++++++++
++ src/cpu_stats.rs       |  4 +++
++ src/syscall/process.rs | 17 ++++++++++-
++ 3 files changed, 85 insertions(+), 1 deletion(-)
++
++diff --git a/src/context/switch.rs b/src/context/switch.rs
++index e4f6cac..f18cc57 100644
++--- a/src/context/switch.rs
+++++ b/src/context/switch.rs
++@@ -187,12 +187,47 @@ pub fn switch(token: &mut CleanLockToken) -> SwitchResult {
++ 
++     switch_inner(percpu, schedule_time, token)
++ }
+++/// DEBUG: describe the current and sched contexts if the current one is Dead.
+++fn dbg_dead(percpu: &PercpuBlock, token: &mut CleanLockToken) -> Option<alloc::string::String> {
+++    let cur = Arc::clone(&*percpu.switch_internals.current_context());
+++    let dead = match cur.try_read(token.token()) {
+++        Some(g) => matches!(g.status, super::Status::Dead { .. }),
+++        None => false,
+++    };
+++    if dead {
+++        let sched = Arc::clone(&*percpu.switch_internals.sched_context());
+++        let idle = Arc::clone(&*percpu.switch_internals.idle_context());
+++        let (cid, cname) = cur
+++            .try_read(token.token())
+++            .map(|g| (g.debug_id, alloc::string::String::from(g.name.as_str())))
+++            .unwrap_or((0, alloc::string::String::new()));
+++        let sinfo = sched
+++            .try_read(token.token())
+++            .map(|g| alloc::format!("id={} status={:?} running={} cur_sched={} is_idle={}", g.debug_id, g.status, g.running, g.currently_scheduled, Arc::ptr_eq(&sched, &idle)))
+++            .unwrap_or_else(|| alloc::string::String::from("locked"));
+++        return Some(alloc::format!(
+++            "cpu={} dead current id={} name={} ; sched: {} ; same={} was_idle_state={}",
+++            percpu.cpu_id.get(),
+++            cid,
+++            cname,
+++            sinfo,
+++            Arc::ptr_eq(&cur, &sched),
+++            percpu.stats.state_dbg()
+++        ));
+++    }
+++    None
+++}
+++
++ fn switch_inner(
++     percpu: &PercpuBlock,
++     schedule_time: u128,
++     token: &mut CleanLockToken,
++ ) -> SwitchResult {
+++    let dbg = dbg_dead(percpu, token);
++     if try_direct_switch_back(percpu, schedule_time, token) {
+++        if let Some(d) = &dbg {
+++            println!("DBGDEAD: try_direct_switch_back switched and RETURNED here (dead context resumed): {}", d);
+++        }
++         return SwitchResult::Switched;
++     }
++ 
++@@ -211,6 +246,17 @@ fn switch_inner(
++             ),
++             // didn't change sched context, so will not change current context
++             ScheduleResult::AllContextsIdle => {
+++                if let Some(d) = &dbg {
+++                    println!("DBGDEAD: schedule() -> AllContextsIdle with a dead current context: {}", d);
+++                }
+++                {
+++                    // DEBUG: an idle CPU whose run queue is not empty
+++                    static DBG_TICKS: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
+++                    let q = percpu.switch_internals.queue_len.load(Ordering::Relaxed);
+++                    if q > 0 && DBG_TICKS.fetch_add(1, Ordering::Relaxed) % 256 == 0 {
+++                        println!("DBGIDLEQ cpu={} idle with run queue length {}", percpu.cpu_id.get(), q);
+++                    }
+++                }
++                 percpu.stats.set_state(cpu_stats::CpuState::Idle);
++ 
++                 return SwitchResult::AllContextsIdle;
++@@ -225,6 +271,9 @@ fn switch_inner(
++     ) {
++         // We had already switched the current context to the one now picked by the scheduler, so
++         // no switch needs to be done.
+++        if let Some(d) = &dbg {
+++            println!("DBGDEAD: early return, scheduler picked the (dead) current context: {}", d);
+++        }
++         return SwitchResult::Switched;
++     }
++     let current_context_guard = if Arc::ptr_eq(
++@@ -258,6 +307,9 @@ fn switch_inner(
++         );
++     }
++ 
+++    if let Some(d) = &dbg {
+++        println!("DBGDEAD: switch_to returned into the dead context (it was switched back to): {}", d);
+++    }
++     SwitchResult::Switched
++ }
++ enum ScheduleResult {
++@@ -1135,6 +1187,7 @@ pub fn direct_switch_to(
++ // - percpu must be the current hardware thread's
++ // - prev_context_guard must be a write guard of the current context
++ // - addr_space_guard must be a guard of the next context's addrsp
+++#[track_caller]
++ unsafe fn switch_to(
++     percpu: &PercpuBlock,
++     mut prev_context_guard: ArcRwLockWriteGuard<L4, Context>,
++@@ -1143,6 +1196,18 @@ unsafe fn switch_to(
++     switch_time: u128,
++     was_idle: bool,
++ ) {
+++    if matches!(next_context_guard.status, context::Status::Dead { .. }) {
+++        println!(
+++            "DBGDEAD: switch_to NEXT is DEAD: next id={} name={} status={:?} prev id={} prev status={:?} cpu={} caller={}",
+++            next_context_guard.debug_id,
+++            next_context_guard.name.as_str(),
+++            next_context_guard.status,
+++            prev_context_guard.debug_id,
+++            prev_context_guard.status,
+++            percpu.cpu_id.get(),
+++            core::panic::Location::caller()
+++        );
+++    }
++     // When direct-switching to contexts present on a different CPU's runqueue, the current context
++     // can get removed from that runqueue (as it was already running) and hence *all* runqueues. We
++     // thus check if it has been removed, and if so reinsert it to the fast wakeup queue.
++diff --git a/src/cpu_stats.rs b/src/cpu_stats.rs
++index aa02fd4..98316e6 100644
++--- a/src/cpu_stats.rs
+++++ b/src/cpu_stats.rs
++@@ -80,6 +80,10 @@ pub struct CpuStatsData {
++ impl CpuStats {
++     /// Set the CPU's current state for the following ticks.
++     #[inline]
+++    pub fn state_dbg(&self) -> u8 {
+++        self.state.load(core::sync::atomic::Ordering::Relaxed)
+++    }
+++
++     pub fn set_state(&self, new_state: CpuState) {
++         self.state.store(new_state as u8, Ordering::Relaxed);
++     }
++diff --git a/src/syscall/process.rs b/src/syscall/process.rs
++index a89f80b..cedbe57 100644
++--- a/src/syscall/process.rs
+++++ b/src/syscall/process.rs
++@@ -35,6 +35,11 @@ use super::usercopy::UserSliceWo;
++ ///
++ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLockToken) -> ! {
++     let context_lock = Arc::clone(&*context::current());
+++    let dbg_id = context_lock.read(token.token()).debug_id;
+++    let dbg_exc = excp.is_some();
+++    if dbg_exc {
+++        println!("DBGEXC1 cpu={} ctx={} enters exit_this_context (exception)", crate::cpu_id().get(), dbg_id);
+++    }
++     let (addrspace_opt, mut close_files) = {
++         let mut context = context_lock.write(token.token());
++         let (context, token) = context.token_split();
++@@ -46,8 +51,14 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++         (addrspace_opt, close_files)
++     };
++ 
+++    if dbg_exc {
+++        println!("DBGEXC2 ctx={} closing files", dbg_id);
+++    }
++     // Files must be closed while context is valid so that messages can be passed
++     close_files.force_close_all(token);
+++    if dbg_exc {
+++        println!("DBGEXC3 ctx={} files closed, dropping address space", dbg_id);
+++    }
++     if let Some(addrspace) = addrspace_opt {
++         if let Ok(addrspace) = Arc::try_unwrap(addrspace) {
++             addrspace.into_drop(token);
++@@ -79,7 +90,11 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++         drop(context_ref);
++     }
++     drop(close_files);
++-    context::switch(token);
+++    if dbg_exc {
+++        println!("DBGEXC4 ctx={} status Dead, switching away", dbg_id);
+++    }
+++    let dbg_result = context::switch(token);
+++    println!("DBGDEAD exit_this_context: switch returned {:?}", dbg_result as u8);
++     unreachable!();
++ }
++ 
++-- 
++2.43.0
++
+diff --git a/.github/redox/kernel/debug/0002-dbg-ring.patch b/.github/redox/kernel/debug/0002-dbg-ring.patch
+new file mode 100644
+index 00000000..5c35f4fd
+--- /dev/null
++++ b/.github/redox/kernel/debug/0002-dbg-ring.patch
+@@ -0,0 +1,370 @@
++From 5868a5d92421afd33691fae09d5458db8abe83ef Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 09:55:03 +0000
++Subject: [PATCH] DEBUG: lock-free per-CPU event ring + no-progress watchdog
++ for context-switch bugs
++
++---
++ src/context/context.rs |   3 +
++ src/context/mod.rs     |   7 +++
++ src/context/switch.rs  |  21 +++++++
++ src/dbgring.rs         | 130 +++++++++++++++++++++++++++++++++++++++++
++ src/main.rs            |   3 +
++ src/panic.rs           |   2 +
++ src/scheme/proc.rs     |   6 ++
++ src/syscall/process.rs |  12 ++++
++ 8 files changed, 184 insertions(+)
++ create mode 100644 src/dbgring.rs
++
++diff --git a/src/context/context.rs b/src/context/context.rs
++index 4032c34..95f918a 100644
++--- a/src/context/context.rs
+++++ b/src/context/context.rs
++@@ -276,13 +276,16 @@ impl Context {
++         if self.status.is_runnable() {
++             self.status = Status::Blocked;
++             self.status_reason = reason;
+++            crate::dbgring::ev(crate::dbgring::BLOCK, self.debug_id as u64, 1);
++             true
++         } else {
+++            crate::dbgring::ev(crate::dbgring::BLOCK, self.debug_id as u64, 0);
++             false
++         }
++     }
++ 
++     pub fn hard_block(&mut self, reason: HardBlockedReason) -> bool {
+++        crate::dbgring::ev(crate::dbgring::HARDBLOCK, self.debug_id as u64, 0);
++         if self.status.is_runnable() {
++             self.status = Status::HardBlocked { reason };
++ 
++diff --git a/src/context/mod.rs b/src/context/mod.rs
++index 86ec64b..fe8021e 100644
++--- a/src/context/mod.rs
+++++ b/src/context/mod.rs
++@@ -129,6 +129,7 @@ pub fn contexts_mut(token: LockToken<'_, L1>) -> RwLockWriteGuard<'_, L2, BTreeS
++ pub fn unblock_context(context_lock: &Arc<ContextLock>, token: &mut LockToken<'_, L3>) -> bool {
++     let cpu_id = {
++         let mut guard = context_lock.write(token.token());
+++        crate::dbgring::ev(crate::dbgring::UNBLOCK, guard.debug_id as u64, crate::dbgring::st_code(&guard.status));
++         if !guard.unblock_no_ipi() {
++             let guard_runnable = guard.status.is_runnable();
++             let guard_cpu_id = guard.cpu_id;
++@@ -154,6 +155,12 @@ pub fn wakeup_context(
++ ) {
++     let weak = WeakContextRef(Arc::downgrade(context_lock));
++     let curr_cpu = crate::cpu_id();
+++    // a = address of the context lock (matches "ptr=" in the context dump), b = target cpu
+++    crate::dbgring::ev(
+++        crate::dbgring::WAKEUP,
+++        Arc::as_ptr(context_lock) as usize as u64,
+++        cpu_id.map_or(255, |c| c.get() as u64),
+++    );
++ 
++     let target_cpu = cpu_id.unwrap_or(curr_cpu);
++ 
++diff --git a/src/context/switch.rs b/src/context/switch.rs
++index e4f6cac..1053892 100644
++--- a/src/context/switch.rs
+++++ b/src/context/switch.rs
++@@ -120,6 +120,9 @@ pub fn tick(token: &mut CleanLockToken) {
++     let new_ticks = ticks_cell.get() + 1;
++     ticks_cell.set(new_ticks);
++ 
+++    // DEBUG: no-progress watchdog from the timer tick (also fires when CPUs never go idle)
+++    crate::dbgring::watchdog(crate::time::monotonic(token));
+++
++     // Trigger a context switch after every 3 ticks (approx. 6.75 ms).
++     if new_ticks >= TICK_INTERVAL as usize {
++         switch(token);
++@@ -193,6 +196,7 @@ fn switch_inner(
++     token: &mut CleanLockToken,
++ ) -> SwitchResult {
++     if try_direct_switch_back(percpu, schedule_time, token) {
+++        crate::dbgring::ev(crate::dbgring::DIRECT_BACK, 0, 0);
++         return SwitchResult::Switched;
++     }
++ 
++@@ -211,6 +215,12 @@ fn switch_inner(
++             ),
++             // didn't change sched context, so will not change current context
++             ScheduleResult::AllContextsIdle => {
+++                crate::dbgring::ev(
+++                    crate::dbgring::IDLE_RET,
+++                    percpu.switch_internals.queue_len.load(Ordering::Relaxed) as u64,
+++                    0,
+++                );
+++                crate::dbgring::watchdog(schedule_time);
++                 percpu.stats.set_state(cpu_stats::CpuState::Idle);
++ 
++                 return SwitchResult::AllContextsIdle;
++@@ -225,6 +235,7 @@ fn switch_inner(
++     ) {
++         // We had already switched the current context to the one now picked by the scheduler, so
++         // no switch needs to be done.
+++        crate::dbgring::ev(crate::dbgring::EARLY_SAME, next_sched_guard.debug_id as u64, 0);
++         return SwitchResult::Switched;
++     }
++     let current_context_guard = if Arc::ptr_eq(
++@@ -469,8 +480,10 @@ fn schedule(
++         was_idle,
++         &mut prev_context_guard,
++     ) else {
+++        crate::dbgring::ev(crate::dbgring::PICK, 0, prev_context_guard.debug_id as u64);
++         return ScheduleResult::AllContextsIdle;
++     };
+++    crate::dbgring::ev(crate::dbgring::PICK, next_sched_context.debug_id as u64, prev_context_guard.debug_id as u64);
++ 
++     *percpu.switch_internals.sched_ctxt.borrow_mut() = Some(Arc::clone(
++         ArcContextLockWriteGuard::rwlock(&next_sched_context),
++@@ -1143,6 +1156,14 @@ unsafe fn switch_to(
++     switch_time: u128,
++     was_idle: bool,
++ ) {
+++    crate::dbgring::ev(
+++        crate::dbgring::SWITCH_TO,
+++        ((prev_context_guard.debug_id as u64) << 32) | next_context_guard.debug_id as u64,
+++        (crate::dbgring::st_code(&prev_context_guard.status) << 8) | crate::dbgring::st_code(&next_context_guard.status),
+++    );
+++    if !Arc::ptr_eq(ArcRwLockWriteGuard::rwlock(&next_context_guard), &*percpu.switch_internals.idle_context()) {
+++        crate::dbgring::PROGRESS.fetch_add(1, Ordering::Relaxed);
+++    }
++     // When direct-switching to contexts present on a different CPU's runqueue, the current context
++     // can get removed from that runqueue (as it was already running) and hence *all* runqueues. We
++     // thus check if it has been removed, and if so reinsert it to the fast wakeup queue.
++diff --git a/src/dbgring.rs b/src/dbgring.rs
++new file mode 100644
++index 0000000..dc3354b
++--- /dev/null
+++++ b/src/dbgring.rs
++@@ -0,0 +1,130 @@
+++//! DEBUG: lock-free per-CPU event ring for hunting context-switch bugs. No formatting in the hot
+++//! path: an event is a few stores. Dumped from the panic path and by a "no progress" watchdog.
+++use alloc::sync::Arc;
+++use core::{
+++    cell::UnsafeCell,
+++    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+++};
+++
+++pub const NEV: usize = 2048;
+++const NCPU: usize = 8;
+++
+++#[derive(Clone, Copy)]
+++pub struct Ev {
+++    pub seq: u64,
+++    pub a: u64,
+++    pub b: u64,
+++    pub code: u8,
+++}
+++const EV0: Ev = Ev { seq: 0, a: 0, b: 0, code: 0 };
+++
+++pub struct Ring {
+++    ev: UnsafeCell<[Ev; NEV]>,
+++    head: AtomicU64,
+++}
+++unsafe impl Sync for Ring {}
+++#[allow(clippy::declare_interior_mutable_const)]
+++const R0: Ring = Ring { ev: UnsafeCell::new([EV0; NEV]), head: AtomicU64::new(0) };
+++static RINGS: [Ring; NCPU] = [R0; NCPU];
+++static SEQ: AtomicU64 = AtomicU64::new(1);
+++static DUMPED: AtomicBool = AtomicBool::new(false);
+++/// Bumped on every switch to a non-idle context (progress indicator for the watchdog).
+++pub static PROGRESS: AtomicU64 = AtomicU64::new(0);
+++static LAST_PROGRESS: AtomicU64 = AtomicU64::new(0);
+++static LAST_CHANGE_NS: AtomicU64 = AtomicU64::new(0);
+++
+++// event codes
+++pub const SWITCH_TO: u8 = 1; // a = prev_id<<32|next_id, b = prev_st<<8|next_st
+++pub const DEAD_SET: u8 = 2; // a = id
+++pub const UNBLOCK: u8 = 3; // a = id, b = status code seen | result<<8
+++pub const WAKEUP: u8 = 4; // a = id, b = target cpu (or 255)
+++pub const BLOCK: u8 = 5; // a = id, b = 1 if it really blocked
+++pub const HARDBLOCK: u8 = 6; // a = id
+++pub const IDLE_RET: u8 = 7; // a = queue_len, b = sched id
+++pub const EARLY_SAME: u8 = 8; // a = current id
+++pub const EXIT_STEP: u8 = 9; // a = id, b = step
+++pub const FORCEKILL: u8 = 10; // a = target id, b = old status code
+++pub const PICK: u8 = 11; // a = picked id (or 0 = none) , b = prev sched id
+++pub const DIRECT_BACK: u8 = 12; // a = current id
+++pub const EXCEPTION: u8 = 13; // a = id
+++pub const TRYSTOP_END: u8 = 14; // a = id, b = status now <<8 | saved status being restored
+++
+++#[inline(always)]
+++pub fn ev(code: u8, a: u64, b: u64) {
+++    let cpu = (crate::cpu_id().get() as usize).min(NCPU - 1);
+++    let r = &RINGS[cpu];
+++    let i = r.head.fetch_add(1, Ordering::Relaxed) as usize % NEV;
+++    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+++    unsafe {
+++        (*r.ev.get())[i] = Ev { seq, a, b, code };
+++    }
+++}
+++
+++pub fn st_code(s: &crate::context::Status) -> u64 {
+++    use crate::context::Status::*;
+++    match s {
+++        Runnable => 1,
+++        Blocked => 2,
+++        HardBlocked { .. } => 3,
+++        Dead { .. } => 4,
+++    }
+++}
+++
+++/// Print the last `per_cpu` events of every CPU (lines "R seq cpu code a b"; sort by seq).
+++pub fn dump(reason: &str, per_cpu: usize) {
+++    if DUMPED.swap(true, Ordering::SeqCst) {
+++        return;
+++    }
+++    println!("DBGRING-BEGIN {}", reason);
+++    for (cpu, r) in RINGS.iter().enumerate() {
+++        let head = r.head.load(Ordering::Relaxed) as usize;
+++        let n = per_cpu.min(head).min(NEV);
+++        for k in 0..n {
+++            let i = (head - 1 - k) % NEV;
+++            let e = unsafe { (*r.ev.get())[i] };
+++            println!("R {} {} {} {:x} {:x}", e.seq, cpu, e.code, e.a, e.b);
+++        }
+++    }
+++    println!("DBGRING-END");
+++}
+++
+++/// Called on every CPU tick that found nothing to run; if no context switch to a non-idle
+++/// context happened for ~15 s, dump the ring and the state of all contexts, once.
+++pub fn watchdog(now_ns: u128) {
+++    // (called from the timer tick of every CPU and from the idle path)
+++    let now = now_ns as u64;
+++    let p = PROGRESS.load(Ordering::Relaxed);
+++    if p != LAST_PROGRESS.load(Ordering::Relaxed) {
+++        LAST_PROGRESS.store(p, Ordering::Relaxed);
+++        LAST_CHANGE_NS.store(now, Ordering::Relaxed);
+++        return;
+++    }
+++    let last = LAST_CHANGE_NS.load(Ordering::Relaxed);
+++    if last == 0 {
+++        LAST_CHANGE_NS.store(now, Ordering::Relaxed);
+++        return;
+++    }
+++    if now.saturating_sub(last) > 12_000_000_000 && !DUMPED.load(Ordering::Relaxed) {
+++        dump("watchdog: no switch to a non-idle context for 15 s", 120);
+++        dump_contexts();
+++    }
+++}
+++
+++pub fn dump_contexts() {
+++    let mut token = unsafe { crate::sync::CleanLockToken::new() };
+++    let mut token2 = unsafe { crate::sync::CleanLockToken::new() };
+++    println!("DBGCTX-BEGIN");
+++    let ctxs = crate::context::contexts(token.downgrade());
+++    for c in ctxs.iter() {
+++        let lock = &c.0;
+++        if let Some(g) = lock.try_read(token2.token()) {
+++            println!(
+++                "C ptr={:x} id={} name={} status={:?} reason={} running={} sched={} cpu={:?} wake={:?} pid={}",
+++                Arc::as_ptr(lock) as usize, g.debug_id, g.name.as_str(), g.status, g.status_reason, g.running, g.currently_scheduled, g.cpu_id, g.wake, g.pid
+++            );
+++        } else {
+++            println!("C (locked)");
+++        }
+++    }
+++    println!("DBGCTX-END");
+++}
++diff --git a/src/main.rs b/src/main.rs
++index a29621f..ca9023f 100644
++--- a/src/main.rs
+++++ b/src/main.rs
++@@ -49,6 +49,9 @@ mod cpu_set;
++ /// Stats for the CPUs
++ mod cpu_stats;
++ 
+++#[macro_use]
+++mod dbgring;
+++
++ /// Context management
++ mod context;
++ 
++diff --git a/src/panic.rs b/src/panic.rs
++index ded62e6..db54cfc 100644
++--- a/src/panic.rs
+++++ b/src/panic.rs
++@@ -35,6 +35,8 @@ fn panic_handler(info: &PanicInfo) -> ! {
++ #[cfg_attr(test, expect(dead_code))]
++ fn panic_handler_inner(info: &PanicInfo) -> ! {
++     println!("KERNEL PANIC: {}", info);
+++    crate::dbgring::dump("kernel panic", 200);
+++    crate::dbgring::dump_contexts();
++ 
++     unsafe {
++         stack_trace();
++diff --git a/src/scheme/proc.rs b/src/scheme/proc.rs
++index d82c573..0d3b093 100644
++--- a/src/scheme/proc.rs
+++++ b/src/scheme/proc.rs
++@@ -93,6 +93,11 @@ fn try_stop_context<T>(
++     let (context, l4_token) = guard.token_split();
++     let ret = callback(context, l4_token);
++ 
+++    crate::dbgring::ev(
+++        crate::dbgring::TRYSTOP_END,
+++        context.debug_id as u64,
+++        (crate::dbgring::st_code(&context.status) << 8) | crate::dbgring::st_code(&prev_status),
+++    );
++     context.status = prev_status;
++ 
++     let cpu_id = context.cpu_id;
++@@ -1328,6 +1333,7 @@ impl ContextHandle {
++                             let cpu_id = {
++                                 let mut ctxt = context.write(token.token());
++                                 //trace!("FORCEKILL NONSELF={} {}, SELF={}", ctxt.debug_id, ctxt.pid, context::current().read().debug_id);
+++                                crate::dbgring::ev(crate::dbgring::FORCEKILL, ctxt.debug_id as u64, crate::dbgring::st_code(&ctxt.status));
++                                 if ctxt.status.is_dead() {
++                                     return Ok(size_of::<usize>());
++                                 }
++diff --git a/src/syscall/process.rs b/src/syscall/process.rs
++index a89f80b..6516fe0 100644
++--- a/src/syscall/process.rs
+++++ b/src/syscall/process.rs
++@@ -35,6 +35,11 @@ use super::usercopy::UserSliceWo;
++ ///
++ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLockToken) -> ! {
++     let context_lock = Arc::clone(&*context::current());
+++    let dbg_id = context_lock.read(token.token()).debug_id as u64;
+++    if excp.is_some() {
+++        crate::dbgring::ev(crate::dbgring::EXCEPTION, dbg_id, 0);
+++    }
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 1);
++     let (addrspace_opt, mut close_files) = {
++         let mut context = context_lock.write(token.token());
++         let (context, token) = context.token_split();
++@@ -46,8 +51,10 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++         (addrspace_opt, close_files)
++     };
++ 
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 2);
++     // Files must be closed while context is valid so that messages can be passed
++     close_files.force_close_all(token);
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 3);
++     if let Some(addrspace) = addrspace_opt {
++         if let Ok(addrspace) = Arc::try_unwrap(addrspace) {
++             addrspace.into_drop(token);
++@@ -57,6 +64,7 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++     let owner = {
++         let mut guard = context_lock.write(token.token());
++         guard.status = context::Status::Dead { excp };
+++        crate::dbgring::ev(crate::dbgring::DEAD_SET, dbg_id, 0);
++ 
++         guard.owner_proc_id
++     };
++@@ -79,7 +87,11 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++         drop(context_ref);
++     }
++     drop(close_files);
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 4);
++     context::switch(token);
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 5);
+++    crate::dbgring::dump("exit_this_context: switch returned", 200);
+++    crate::dbgring::dump_contexts();
++     unreachable!();
++ }
++ 
++-- 
++2.43.0
++
+diff --git a/.github/redox/kernel/debug/0003-dbg-ring-on-series.patch b/.github/redox/kernel/debug/0003-dbg-ring-on-series.patch
+new file mode 100644
+index 00000000..a8176f80
+--- /dev/null
++++ b/.github/redox/kernel/debug/0003-dbg-ring-on-series.patch
+@@ -0,0 +1,442 @@
++From 11648731015bc7f2e9377b6dd535f7638aba7dfb Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 09:55:03 +0000
++Subject: [PATCH] DEBUG: lock-free per-CPU event ring + no-progress watchdog
++ for context-switch bugs
++
++---
++ src/context/context.rs         |   3 +
++ src/context/mod.rs             |   7 ++
++ src/context/switch.rs          |  21 +++++
++ src/dbgring.rs                 | 166 +++++++++++++++++++++++++++++++++
++ src/main.rs                    |   3 +
++ src/panic.rs                   |   2 +
++ src/scheme/proc.rs             |   6 ++
++ src/scheme/sys/dbgring_file.rs |   7 ++
++ src/scheme/sys/mod.rs          |   2 +
++ src/syscall/process.rs         |  12 +++
++ 10 files changed, 229 insertions(+)
++ create mode 100644 src/dbgring.rs
++ create mode 100644 src/scheme/sys/dbgring_file.rs
++
++diff --git a/src/context/context.rs b/src/context/context.rs
++index 4032c34..95f918a 100644
++--- a/src/context/context.rs
+++++ b/src/context/context.rs
++@@ -276,13 +276,16 @@ impl Context {
++         if self.status.is_runnable() {
++             self.status = Status::Blocked;
++             self.status_reason = reason;
+++            crate::dbgring::ev(crate::dbgring::BLOCK, self.debug_id as u64, 1);
++             true
++         } else {
+++            crate::dbgring::ev(crate::dbgring::BLOCK, self.debug_id as u64, 0);
++             false
++         }
++     }
++ 
++     pub fn hard_block(&mut self, reason: HardBlockedReason) -> bool {
+++        crate::dbgring::ev(crate::dbgring::HARDBLOCK, self.debug_id as u64, 0);
++         if self.status.is_runnable() {
++             self.status = Status::HardBlocked { reason };
++ 
++diff --git a/src/context/mod.rs b/src/context/mod.rs
++index 86ec64b..fe8021e 100644
++--- a/src/context/mod.rs
+++++ b/src/context/mod.rs
++@@ -129,6 +129,7 @@ pub fn contexts_mut(token: LockToken<'_, L1>) -> RwLockWriteGuard<'_, L2, BTreeS
++ pub fn unblock_context(context_lock: &Arc<ContextLock>, token: &mut LockToken<'_, L3>) -> bool {
++     let cpu_id = {
++         let mut guard = context_lock.write(token.token());
+++        crate::dbgring::ev(crate::dbgring::UNBLOCK, guard.debug_id as u64, crate::dbgring::st_code(&guard.status));
++         if !guard.unblock_no_ipi() {
++             let guard_runnable = guard.status.is_runnable();
++             let guard_cpu_id = guard.cpu_id;
++@@ -154,6 +155,12 @@ pub fn wakeup_context(
++ ) {
++     let weak = WeakContextRef(Arc::downgrade(context_lock));
++     let curr_cpu = crate::cpu_id();
+++    // a = address of the context lock (matches "ptr=" in the context dump), b = target cpu
+++    crate::dbgring::ev(
+++        crate::dbgring::WAKEUP,
+++        Arc::as_ptr(context_lock) as usize as u64,
+++        cpu_id.map_or(255, |c| c.get() as u64),
+++    );
++ 
++     let target_cpu = cpu_id.unwrap_or(curr_cpu);
++ 
++diff --git a/src/context/switch.rs b/src/context/switch.rs
++index 7b09e9d..4cb1bd4 100644
++--- a/src/context/switch.rs
+++++ b/src/context/switch.rs
++@@ -120,6 +120,9 @@ pub fn tick(token: &mut CleanLockToken) {
++     let new_ticks = ticks_cell.get() + 1;
++     ticks_cell.set(new_ticks);
++ 
+++    // DEBUG: no-progress watchdog from the timer tick (also fires when CPUs never go idle)
+++    crate::dbgring::watchdog(crate::time::monotonic(token));
+++
++     // Trigger a context switch after every 3 ticks (approx. 6.75 ms).
++     if new_ticks >= TICK_INTERVAL as usize {
++         switch(token);
++@@ -193,6 +196,7 @@ fn switch_inner(
++     token: &mut CleanLockToken,
++ ) -> SwitchResult {
++     if try_direct_switch_back(percpu, schedule_time, token) {
+++        crate::dbgring::ev(crate::dbgring::DIRECT_BACK, 0, 0);
++         return SwitchResult::Switched;
++     }
++ 
++@@ -211,6 +215,12 @@ fn switch_inner(
++             ),
++             // didn't change sched context, so will not change current context
++             ScheduleResult::AllContextsIdle => {
+++                crate::dbgring::ev(
+++                    crate::dbgring::IDLE_RET,
+++                    percpu.switch_internals.queue_len.load(Ordering::Relaxed) as u64,
+++                    0,
+++                );
+++                crate::dbgring::watchdog(schedule_time);
++                 percpu.stats.set_state(cpu_stats::CpuState::Idle);
++ 
++                 return SwitchResult::AllContextsIdle;
++@@ -233,6 +243,7 @@ fn switch_inner(
++             .switch_internals
++             .being_sigkilled
++             .set(next_sched_guard.being_sigkilled);
+++        crate::dbgring::ev(crate::dbgring::EARLY_SAME, next_sched_guard.debug_id as u64, 0);
++         return SwitchResult::Switched;
++     }
++     let current_context_guard = if Arc::ptr_eq(
++@@ -477,8 +488,10 @@ fn schedule(
++         was_idle,
++         &mut prev_context_guard,
++     ) else {
+++        crate::dbgring::ev(crate::dbgring::PICK, 0, prev_context_guard.debug_id as u64);
++         return ScheduleResult::AllContextsIdle;
++     };
+++    crate::dbgring::ev(crate::dbgring::PICK, next_sched_context.debug_id as u64, prev_context_guard.debug_id as u64);
++ 
++     *percpu.switch_internals.sched_ctxt.borrow_mut() = Some(Arc::clone(
++         ArcContextLockWriteGuard::rwlock(&next_sched_context),
++@@ -1151,6 +1164,14 @@ unsafe fn switch_to(
++     switch_time: u128,
++     was_idle: bool,
++ ) {
+++    crate::dbgring::ev(
+++        crate::dbgring::SWITCH_TO,
+++        ((prev_context_guard.debug_id as u64) << 32) | next_context_guard.debug_id as u64,
+++        (crate::dbgring::st_code(&prev_context_guard.status) << 8) | crate::dbgring::st_code(&next_context_guard.status),
+++    );
+++    if !Arc::ptr_eq(ArcRwLockWriteGuard::rwlock(&next_context_guard), &*percpu.switch_internals.idle_context()) {
+++        crate::dbgring::PROGRESS.fetch_add(1, Ordering::Relaxed);
+++    }
++     // When direct-switching to contexts present on a different CPU's runqueue, the current context
++     // can get removed from that runqueue (as it was already running) and hence *all* runqueues. We
++     // thus check if it has been removed, and if so reinsert it to the fast wakeup queue.
++diff --git a/src/dbgring.rs b/src/dbgring.rs
++new file mode 100644
++index 0000000..543ca4a
++--- /dev/null
+++++ b/src/dbgring.rs
++@@ -0,0 +1,166 @@
+++//! DEBUG: lock-free per-CPU event ring for hunting context-switch bugs. No formatting in the hot
+++//! path: an event is a few stores. Dumped from the panic path and by a "no progress" watchdog.
+++use alloc::sync::Arc;
+++use core::{
+++    cell::UnsafeCell,
+++    sync::atomic::{AtomicBool, AtomicU64, Ordering},
+++};
+++
+++pub const NEV: usize = 2048;
+++const NCPU: usize = 8;
+++
+++#[derive(Clone, Copy)]
+++pub struct Ev {
+++    pub seq: u64,
+++    pub a: u64,
+++    pub b: u64,
+++    pub code: u8,
+++}
+++const EV0: Ev = Ev { seq: 0, a: 0, b: 0, code: 0 };
+++
+++pub struct Ring {
+++    ev: UnsafeCell<[Ev; NEV]>,
+++    head: AtomicU64,
+++}
+++unsafe impl Sync for Ring {}
+++#[allow(clippy::declare_interior_mutable_const)]
+++const R0: Ring = Ring { ev: UnsafeCell::new([EV0; NEV]), head: AtomicU64::new(0) };
+++static RINGS: [Ring; NCPU] = [R0; NCPU];
+++static SEQ: AtomicU64 = AtomicU64::new(1);
+++static DUMPED: AtomicBool = AtomicBool::new(false);
+++/// Bumped on every switch to a non-idle context (progress indicator for the watchdog).
+++pub static PROGRESS: AtomicU64 = AtomicU64::new(0);
+++static LAST_PROGRESS: AtomicU64 = AtomicU64::new(0);
+++static LAST_CHANGE_NS: AtomicU64 = AtomicU64::new(0);
+++
+++// event codes
+++pub const SWITCH_TO: u8 = 1; // a = prev_id<<32|next_id, b = prev_st<<8|next_st
+++pub const DEAD_SET: u8 = 2; // a = id
+++pub const UNBLOCK: u8 = 3; // a = id, b = status code seen | result<<8
+++pub const WAKEUP: u8 = 4; // a = id, b = target cpu (or 255)
+++pub const BLOCK: u8 = 5; // a = id, b = 1 if it really blocked
+++pub const HARDBLOCK: u8 = 6; // a = id
+++pub const IDLE_RET: u8 = 7; // a = queue_len, b = sched id
+++pub const EARLY_SAME: u8 = 8; // a = current id
+++pub const EXIT_STEP: u8 = 9; // a = id, b = step
+++pub const FORCEKILL: u8 = 10; // a = target id, b = old status code
+++pub const PICK: u8 = 11; // a = picked id (or 0 = none) , b = prev sched id
+++pub const DIRECT_BACK: u8 = 12; // a = current id
+++pub const EXCEPTION: u8 = 13; // a = id
+++pub const HANDLE_CLOSE: u8 = 15; // a = context id of the proc-scheme handle being closed, b = kind
+++pub const TRYSTOP_END: u8 = 14; // a = id, b = status now <<8 | saved status being restored
+++
+++#[inline(always)]
+++pub fn ev(code: u8, a: u64, b: u64) {
+++    let cpu = (crate::cpu_id().get() as usize).min(NCPU - 1);
+++    let r = &RINGS[cpu];
+++    let i = r.head.fetch_add(1, Ordering::Relaxed) as usize % NEV;
+++    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+++    unsafe {
+++        (*r.ev.get())[i] = Ev { seq, a, b, code };
+++    }
+++}
+++
+++pub fn st_code(s: &crate::context::Status) -> u64 {
+++    use crate::context::Status::*;
+++    match s {
+++        Runnable => 1,
+++        Blocked => 2,
+++        HardBlocked { .. } => 3,
+++        Dead { .. } => 4,
+++    }
+++}
+++
+++/// Print the last `per_cpu` events of every CPU (lines "R seq cpu code a b"; sort by seq).
+++pub fn dump(reason: &str, per_cpu: usize) {
+++    if DUMPED.swap(true, Ordering::SeqCst) {
+++        return;
+++    }
+++    println!("DBGRING-BEGIN {}", reason);
+++    for (cpu, r) in RINGS.iter().enumerate() {
+++        let head = r.head.load(Ordering::Relaxed) as usize;
+++        let n = per_cpu.min(head).min(NEV);
+++        for k in 0..n {
+++            let i = (head - 1 - k) % NEV;
+++            let e = unsafe { (*r.ev.get())[i] };
+++            println!("R {} {} {} {:x} {:x}", e.seq, cpu, e.code, e.a, e.b);
+++        }
+++    }
+++    println!("DBGRING-END");
+++}
+++
+++/// Called on every CPU tick that found nothing to run; if no context switch to a non-idle
+++/// context happened for ~15 s, dump the ring and the state of all contexts, once.
+++pub fn watchdog(now_ns: u128) {
+++    // (called from the timer tick of every CPU and from the idle path)
+++    let now = now_ns as u64;
+++    let p = PROGRESS.load(Ordering::Relaxed);
+++    if p != LAST_PROGRESS.load(Ordering::Relaxed) {
+++        LAST_PROGRESS.store(p, Ordering::Relaxed);
+++        LAST_CHANGE_NS.store(now, Ordering::Relaxed);
+++        return;
+++    }
+++    let last = LAST_CHANGE_NS.load(Ordering::Relaxed);
+++    if last == 0 {
+++        LAST_CHANGE_NS.store(now, Ordering::Relaxed);
+++        return;
+++    }
+++    if now.saturating_sub(last) > 12_000_000_000 && !DUMPED.load(Ordering::Relaxed) {
+++        dump("watchdog: no switch to a non-idle context for 15 s", 120);
+++        dump_contexts();
+++    }
+++}
+++
+++/// Text for /scheme/sys/dbgring: the last events of every CPU and the state of every context.
+++pub fn render(per_cpu: usize) -> alloc::string::String {
+++    use core::fmt::Write;
+++    let mut out = alloc::string::String::new();
+++    let _ = writeln!(out, "DBGRING-BEGIN sys file");
+++    for (cpu, r) in RINGS.iter().enumerate() {
+++        let head = r.head.load(Ordering::Relaxed) as usize;
+++        let n = per_cpu.min(head).min(NEV);
+++        for k in 0..n {
+++            let i = (head - 1 - k) % NEV;
+++            let e = unsafe { (*r.ev.get())[i] };
+++            let _ = writeln!(out, "R {} {} {} {:x} {:x}", e.seq, cpu, e.code, e.a, e.b);
+++        }
+++    }
+++    let _ = writeln!(out, "DBGRING-END");
+++    let mut token = unsafe { crate::sync::CleanLockToken::new() };
+++    let mut token2 = unsafe { crate::sync::CleanLockToken::new() };
+++    let _ = writeln!(out, "DBGCTX-BEGIN");
+++    let ctxs = crate::context::contexts(token.downgrade());
+++    for c in ctxs.iter() {
+++        let lock = &c.0;
+++        if let Some(g) = lock.try_read(token2.token()) {
+++            let _ = writeln!(
+++                out,
+++                "C ptr={:x} id={} name={} status={:?} reason={} running={} sched={} cpu={:?} wake={:?} pid={} owner={:?} sigkilled={} files={}",
+++                Arc::as_ptr(lock) as usize, g.debug_id, g.name.as_str(), g.status, g.status_reason, g.running, g.currently_scheduled, g.cpu_id, g.wake, g.pid, g.owner_proc_id, g.being_sigkilled, 0
+++            );
+++        } else {
+++            let _ = writeln!(out, "C (locked)");
+++        }
+++    }
+++    let _ = writeln!(out, "DBGCTX-END");
+++    out
+++}
+++
+++pub fn dump_contexts() {
+++    let mut token = unsafe { crate::sync::CleanLockToken::new() };
+++    let mut token2 = unsafe { crate::sync::CleanLockToken::new() };
+++    println!("DBGCTX-BEGIN");
+++    let ctxs = crate::context::contexts(token.downgrade());
+++    for c in ctxs.iter() {
+++        let lock = &c.0;
+++        if let Some(g) = lock.try_read(token2.token()) {
+++            println!(
+++                "C ptr={:x} id={} name={} status={:?} reason={} running={} sched={} cpu={:?} wake={:?} pid={}",
+++                Arc::as_ptr(lock) as usize, g.debug_id, g.name.as_str(), g.status, g.status_reason, g.running, g.currently_scheduled, g.cpu_id, g.wake, g.pid
+++            );
+++        } else {
+++            println!("C (locked)");
+++        }
+++    }
+++    println!("DBGCTX-END");
+++}
++diff --git a/src/main.rs b/src/main.rs
++index a29621f..ca9023f 100644
++--- a/src/main.rs
+++++ b/src/main.rs
++@@ -49,6 +49,9 @@ mod cpu_set;
++ /// Stats for the CPUs
++ mod cpu_stats;
++ 
+++#[macro_use]
+++mod dbgring;
+++
++ /// Context management
++ mod context;
++ 
++diff --git a/src/panic.rs b/src/panic.rs
++index ded62e6..db54cfc 100644
++--- a/src/panic.rs
+++++ b/src/panic.rs
++@@ -35,6 +35,8 @@ fn panic_handler(info: &PanicInfo) -> ! {
++ #[cfg_attr(test, expect(dead_code))]
++ fn panic_handler_inner(info: &PanicInfo) -> ! {
++     println!("KERNEL PANIC: {}", info);
+++    crate::dbgring::dump("kernel panic", 200);
+++    crate::dbgring::dump_contexts();
++ 
++     unsafe {
++         stack_trace();
++diff --git a/src/scheme/proc.rs b/src/scheme/proc.rs
++index b9006de..b8a14da 100644
++--- a/src/scheme/proc.rs
+++++ b/src/scheme/proc.rs
++@@ -454,6 +454,11 @@ impl KernelScheme for ProcScheme {
++             .remove(&id)
++             .ok_or(Error::new(EBADF))?;
++ 
+++        crate::dbgring::ev(
+++            crate::dbgring::HANDLE_CLOSE,
+++            handle.context.try_read(token.token()).map_or(0, |g| g.debug_id as u64),
+++            0,
+++        );
++         match handle {
++             Handle {
++                 context,
++@@ -1341,6 +1346,7 @@ impl ContextHandle {
++                             let cpu_id = {
++                                 let mut ctxt = context.write(token.token());
++                                 //trace!("FORCEKILL NONSELF={} {}, SELF={}", ctxt.debug_id, ctxt.pid, context::current().read().debug_id);
+++                                crate::dbgring::ev(crate::dbgring::FORCEKILL, ctxt.debug_id as u64, crate::dbgring::st_code(&ctxt.status));
++                                 if ctxt.status.is_dead() {
++                                     return Ok(size_of::<usize>());
++                                 }
++diff --git a/src/scheme/sys/dbgring_file.rs b/src/scheme/sys/dbgring_file.rs
++new file mode 100644
++index 0000000..a7f1b24
++--- /dev/null
+++++ b/src/scheme/sys/dbgring_file.rs
++@@ -0,0 +1,7 @@
+++use alloc::vec::Vec;
+++
+++use crate::{sync::CleanLockToken, syscall::error::Result};
+++
+++pub fn resource(_token: &mut CleanLockToken) -> Result<Vec<u8>> {
+++    Ok(crate::dbgring::render(150).into_bytes())
+++}
++diff --git a/src/scheme/sys/mod.rs b/src/scheme/sys/mod.rs
++index fa44c95..bfdec77 100644
++--- a/src/scheme/sys/mod.rs
+++++ b/src/scheme/sys/mod.rs
++@@ -26,6 +26,7 @@ use crate::{
++ use super::{CallerCtx, HandleMap, KernelScheme, OpenResult, StrOrBytes};
++ 
++ mod block;
+++mod dbgring_file;
++ mod context;
++ mod cpu;
++ mod exe;
++@@ -69,6 +70,7 @@ static HANDLES: RwLock<L1, HandleMap<Handle>> = RwLock::new(HandleMap::new());
++ const FILES: &[(&str, Kind)] = &[
++     ("block", Rd(block::resource)),
++     ("context", Rd(context::resource)),
+++    ("dbgring", Rd(dbgring_file::resource)),
++     ("cpu", Rd(cpu::resource)),
++     #[cfg(feature = "sys_fdstat")]
++     ("fdstat", Rd(fdstat::resource)),
++diff --git a/src/syscall/process.rs b/src/syscall/process.rs
++index a89f80b..6516fe0 100644
++--- a/src/syscall/process.rs
+++++ b/src/syscall/process.rs
++@@ -35,6 +35,11 @@ use super::usercopy::UserSliceWo;
++ ///
++ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLockToken) -> ! {
++     let context_lock = Arc::clone(&*context::current());
+++    let dbg_id = context_lock.read(token.token()).debug_id as u64;
+++    if excp.is_some() {
+++        crate::dbgring::ev(crate::dbgring::EXCEPTION, dbg_id, 0);
+++    }
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 1);
++     let (addrspace_opt, mut close_files) = {
++         let mut context = context_lock.write(token.token());
++         let (context, token) = context.token_split();
++@@ -46,8 +51,10 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++         (addrspace_opt, close_files)
++     };
++ 
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 2);
++     // Files must be closed while context is valid so that messages can be passed
++     close_files.force_close_all(token);
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 3);
++     if let Some(addrspace) = addrspace_opt {
++         if let Ok(addrspace) = Arc::try_unwrap(addrspace) {
++             addrspace.into_drop(token);
++@@ -57,6 +64,7 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++     let owner = {
++         let mut guard = context_lock.write(token.token());
++         guard.status = context::Status::Dead { excp };
+++        crate::dbgring::ev(crate::dbgring::DEAD_SET, dbg_id, 0);
++ 
++         guard.owner_proc_id
++     };
++@@ -79,7 +87,11 @@ pub fn exit_this_context(excp: Option<syscall::Exception>, token: &mut CleanLock
++         drop(context_ref);
++     }
++     drop(close_files);
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 4);
++     context::switch(token);
+++    crate::dbgring::ev(crate::dbgring::EXIT_STEP, dbg_id, 5);
+++    crate::dbgring::dump("exit_this_context: switch returned", 200);
+++    crate::dbgring::dump_contexts();
++     unreachable!();
++ }
++ 
++-- 
++2.43.0
++
 diff --git a/.github/redox/kernel/run_kernel_ab.sh b/.github/redox/kernel/run_kernel_ab.sh
 new file mode 100755
-index 00000000..278b68d0
+index 00000000..98d6123e
 --- /dev/null
 +++ b/.github/redox/kernel/run_kernel_ab.sh
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,28 @@
 +. /root/mnt/common.sh
++# x37 first for every variant: crash-loop trigger (wedges per boot), then the rest
++if [ "$1" = ring ] || [ "$1" = b27 ] || [ "$1" = f27 ] || [ "$1" = a27 ] || [ "$1" = r12 ]; then
++  # the wedge happens in the x27 phase (children killed by #UD in the loader), skip the x37 warm-up
++  loop_run /root/mnt/x27_spawnpar_c.bin default 40 30
++  echo "=== LADDER DONE"
++  exit 0
++fi
++loop_run /root/mnt/x37_crash_loop_c.bin default 12 120
++if [ "$1" = dbg ]; then
++  # debug kernel: only the spawn stress, as long as it takes to wedge (DBGDEAD lines say why)
++  # (a heartbeat process, x36, hides the wedge: 0 of 2 boots froze with it, 4 of 4 without)
++  loop_run /root/mnt/x27_spawnpar_c.bin default 80 60
++  echo "=== LADDER DONE"
++  exit 0
++fi
 +# futex vs fork (x23): "fork, child alive" must wake 4/4 (0002-*.patch)
 +run_one /root/mnt/x23_futex_fork_c.bin default 1 90
 +run_one /root/mnt/x23_futex_fork_c.bin default 2 90
@@ -786,6 +1883,8 @@ index 00000000..278b68d0
 +# variant sooner or later (upstream issue #9), which would cut the boot short
 +loop_run /root/mnt/x17_exit_c.bin exitarg 60 5
 +loop_run /root/mnt/x17_exit_c.bin default 30 5
++# failing spawns (half-built children) then exit
++loop_run /root/mnt/x34_spawn_fail_c.bin default 5 60
 +# concurrent posix_spawn stress last
 +loop_run /root/mnt/x27_spawnpar_c.bin default 40 60
 +echo "=== LADDER DONE"
@@ -2985,6 +4084,149 @@ index 00000000..99b69732
 +    printf("%s x33_thread_sigmask_c\n", atomic_load(&wrong) == 0 ? "OK" : "FAIL");
 +    _exit(0);
 +}
+diff --git a/.github/redox/ladder/x34_spawn_fail_c/main.c b/.github/redox/ladder/x34_spawn_fail_c/main.c
+new file mode 100644
+index 00000000..f51c6658
+--- /dev/null
++++ b/.github/redox/ladder/x34_spawn_fail_c/main.c
+@@ -0,0 +1,39 @@
++/* Failed posix_spawn calls leave half-built children behind (relibc creates the child process
++ * first, then fails, e.g. with ENOENT for a missing program). What happens to them, and can the
++ * kernel survive them? Loops N failing spawns, optionally from 4 threads, then waits so that
++ * whatever kills the leftovers gets a chance, then exits (exit of the parent is another chance). */
++#include <errno.h>
++#include <pthread.h>
++#include <spawn.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++extern char **environ;
++static int n_iter = 100;
++
++static void *worker(void *a) {
++    int bad = 0;
++    for (int i = 0; i < n_iter; i++) {
++        pid_t p = 0;
++        char *av[] = {"nonexistent", 0};
++        int e = posix_spawn(&p, "/nonexistent/prog", 0, 0, av, environ);
++        if (e == 0) bad++;
++    }
++    return (void *)(long)bad;
++}
++
++int main(int argc, char **argv) {
++    int threads = argc > 1 ? atoi(argv[1]) : 1;
++    pthread_t t[8];
++    for (int i = 0; i < threads; i++) pthread_create(&t[i], 0, worker, 0);
++    long bad = 0;
++    for (int i = 0; i < threads; i++) { void *r; pthread_join(t[i], &r); bad += (long)r; }
++    printf("%d threads x %d failing spawns done, unexpected successes: %ld\n", threads, n_iter, bad);
++    fflush(stdout);
++    usleep(500000);
++    printf("OK x34_spawn_fail_c\n");
++    fflush(stdout);
++    _exit(0);
++}
+diff --git a/.github/redox/ladder/x36_heartbeat_c/main.c b/.github/redox/ladder/x36_heartbeat_c/main.c
+new file mode 100644
+index 00000000..11b69208
+--- /dev/null
++++ b/.github/redox/ladder/x36_heartbeat_c/main.c
+@@ -0,0 +1,29 @@
++/* Background heartbeat: proves the kernel and this process are alive while something else is
++ * wedged, and periodically dumps the kernel's view of every context (/scheme/sys/context),
++ * which needs no help from procmgr. Runs until killed. */
++#include <fcntl.h>
++#include <stdio.h>
++#include <string.h>
++#include <time.h>
++#include <unistd.h>
++
++int main(void) {
++    for (int n = 1;; n++) {
++        struct timespec t = {1, 0};
++        nanosleep(&t, 0);
++        char m[32];
++        int l = snprintf(m, sizeof m, "HB %d\n", n);
++        write(1, m, l);
++        if (n % 20 == 0) {
++            int fd = open("/scheme/sys/context", O_RDONLY);
++            if (fd >= 0) {
++                char buf[4096];
++                int r;
++                write(1, "HBDUMP begin\n", 13);
++                while ((r = read(fd, buf, sizeof buf)) > 0) write(1, buf, r);
++                write(1, "HBDUMP end\n", 11);
++                close(fd);
++            }
++        }
++    }
++}
+diff --git a/.github/redox/ladder/x37_crash_loop_c/main.c b/.github/redox/ladder/x37_crash_loop_c/main.c
+new file mode 100644
+index 00000000..7fce8baf
+--- /dev/null
++++ b/.github/redox/ladder/x37_crash_loop_c/main.c
+@@ -0,0 +1,57 @@
++/* Deterministic, cheap trigger for the kernel's exit-after-exception path: many short-lived
++ * children whose only thread takes an exception immediately (null store or ud2), spawned from a
++ * few parallel workers that wait for them. A wedge (kernel panic or silent freeze) ends the boot.
++ *   x37 [workers=4] [iters=50] [spawn|fork] [null|ud2]      x37 child <kind>   (the crashing child) */
++#include <pthread.h>
++#include <spawn.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/wait.h>
++#include <unistd.h>
++
++extern char **environ;
++static char *self, *kind, *how;
++static int iters;
++static volatile int done_count, crashed, spawn_err;
++
++static void *worker(void *a) {
++    for (int i = 0; i < iters; i++) {
++        pid_t p = 0;
++        char *av[] = {self, "child", kind, 0};
++        if (!strcmp(how, "fork")) {
++            p = fork();
++            if (p == 0) { execv(self, av); _exit(99); }
++            if (p < 0) { __sync_fetch_and_add(&spawn_err, 1); continue; }
++        } else if (posix_spawn(&p, self, 0, 0, av, environ) != 0) {
++            __sync_fetch_and_add(&spawn_err, 1);
++            continue;
++        }
++        int st = 0;
++        waitpid(p, &st, 0);
++        if (!WIFEXITED(st) || WEXITSTATUS(st) != 0) __sync_fetch_and_add(&crashed, 1);
++        int d = __sync_add_and_fetch(&done_count, 1);
++        if (d % 50 == 0) { printf("x37 progress: %d children\n", d); fflush(stdout); }
++    }
++    return 0;
++}
++
++int main(int argc, char **argv) {
++    if (argc > 2 && !strcmp(argv[1], "child")) {
++        if (!strcmp(argv[2], "ud2")) __builtin_trap();
++        *(volatile int *)0 = 1;
++        _exit(0);
++    }
++    self = argv[0];
++    int workers = argc > 1 ? atoi(argv[1]) : 4;
++    iters = argc > 2 ? atoi(argv[2]) : 50;
++    how = argc > 3 ? argv[3] : "spawn";
++    kind = argc > 4 ? argv[4] : "null";
++    pthread_t t[16];
++    for (int i = 0; i < workers; i++) pthread_create(&t[i], 0, worker, 0);
++    for (int i = 0; i < workers; i++) pthread_join(t[i], 0);
++    printf("x37: %d children done, %d crashed, %d spawn errors (%s, %s, %d workers)\n", done_count, crashed, spawn_err, how, kind, workers);
++    printf("OK x37_crash_loop_c\n");
++    fflush(stdout);
++    _exit(0);
++}
 diff --git a/.github/redox/ladder_summary.py b/.github/redox/ladder_summary.py
 new file mode 100644
 index 00000000..e9b13d0f
@@ -3167,7 +4409,7 @@ index 00000000..aed0d630
 +remains (~10% of runs in a multi-threaded process); not investigated further.
 diff --git a/.github/redox/relibc/build_relibc.sh b/.github/redox/relibc/build_relibc.sh
 new file mode 100755
-index 00000000..44e9f05f
+index 00000000..92451d2a
 --- /dev/null
 +++ b/.github/redox/relibc/build_relibc.sh
 @@ -0,0 +1,34 @@
@@ -3193,7 +4435,7 @@ index 00000000..44e9f05f
 +if redoxer env make -j2 PROFILE=release libs > /src/build1.log 2>&1; then
 +  echo "=== relibc built with the redoxer toolchain"
 +else
-+  echo "=== attempt 1 (redoxer toolchain) failed; tail of log:"; tail -40 /src/build1.log
++  echo "=== attempt 1 (redoxer toolchain) failed; errors and tail of log:"; grep -n -i "error\|\*\*\*\|undefined\|cannot" /src/build1.log | grep -v "^.*WARN" | tail -25; tail -15 /src/build1.log
 +  date
 +  rustup toolchain install nightly-2026-05-24 --profile minimal -c rust-src
 +  if redoxer env make -j2 PROFILE=release CARGO="rustup run nightly-2026-05-24 cargo" libs > /src/build2.log 2>&1; then
@@ -3205,232 +4447,97 @@ index 00000000..44e9f05f
 +fi
 +date
 +ls -la /src/target/x86_64-unknown-redox/release/
-diff --git a/.github/redox/relibc/debug/0001-DEBUG-report-the-failing-step-of-Sys-spawn.patch b/.github/redox/relibc/debug/0001-DEBUG-report-the-failing-step-of-Sys-spawn.patch
+diff --git a/.github/redox/relibc/debug/0001-lockclose.patch b/.github/redox/relibc/debug/0001-lockclose.patch
 new file mode 100644
-index 00000000..7652cd7b
+index 00000000..4f40916d
 --- /dev/null
-+++ b/.github/redox/relibc/debug/0001-DEBUG-report-the-failing-step-of-Sys-spawn.patch
-@@ -0,0 +1,223 @@
-+From 697aa9193cd93c1bfa0a5edc57fe661a2a466a0a Mon Sep 17 00:00:00 2001
++++ b/.github/redox/relibc/debug/0001-lockclose.patch
+@@ -0,0 +1,31 @@
++From 701b53365f6ad2efda160b7f3eee8849c4d966ae Mon Sep 17 00:00:00 2001
 +From: unxed <ivan.sorokin.tech@gmail.com>
-+Date: Sat, 19 Sep 2026 07:04:05 +0000
-+Subject: [PATCH] DEBUG: report the failing step of Sys::spawn
++Date: Sat, 19 Sep 2026 08:35:04 +0000
++Subject: [PATCH] EXPERIMENT: close() holds the filetable lock across the
++ kernel close
 +
 +---
-+ src/platform/redox/mod.rs | 73 +++++++++++++++++++++------------------
-+ 1 file changed, 39 insertions(+), 34 deletions(-)
++ redox-rt/src/sys.rs | 4 +++-
++ 1 file changed, 3 insertions(+), 1 deletion(-)
++
++diff --git a/redox-rt/src/sys.rs b/redox-rt/src/sys.rs
++index bc44223..9e9709c 100644
++--- a/redox-rt/src/sys.rs
+++++ b/redox-rt/src/sys.rs
++@@ -900,10 +900,12 @@ pub fn dup_into_upper_raw(fd: usize, buf: &[u8]) -> Result<usize> {
++ pub fn close(fd: usize) -> Result<usize> {
++     let _siglock = tmp_disable_signals();
++ 
+++    // EXPERIMENT: keep the userspace table locked across the kernel close, so that closing a
+++    // descriptor and forgetting about it is one step as seen by the other threads.
+++    let mut guard = FILETABLE.lock();
++     let res = unsafe { syscall::syscall1(syscall::SYS_CLOSE, fd) };
++ 
++     if res.is_ok() || res.err().is_some_and(|e| e.errno == EBADF) {
++-        let mut guard = FILETABLE.lock();
++         let _ = guard.remove(fd);
++     }
++ 
++-- 
++2.43.0
++
+diff --git a/.github/redox/relibc/debug/0002-diag.patch b/.github/redox/relibc/debug/0002-diag.patch
+new file mode 100644
+index 00000000..dedb24dd
+--- /dev/null
++++ b/.github/redox/relibc/debug/0002-diag.patch
+@@ -0,0 +1,51 @@
++From aad19f34f49a3dcfab4107d1cd2d236cdaacf1e4 Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 08:35:04 +0000
++Subject: [PATCH] DIAG: describe the failing FD_CLONE call in Sys::spawn
++
++---
++ src/platform/redox/mod.rs | 25 +++++++++++++++++++++++--
++ 1 file changed, 23 insertions(+), 2 deletions(-)
 +
 +diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
-+index 067a922..54d87f0 100644
++index 067a922..23c5d50 100644
 +--- a/src/platform/redox/mod.rs
 ++++ b/src/platform/redox/mod.rs
-+@@ -1201,17 +1201,17 @@ impl Pal for Sys {
-+         envp: Option<NulTerminated<*mut c_char>>,
-+     ) -> Result<pid_t> {
-+         use crate::header::spawn::Flags;
-+-        let child = redox_rt::proc::new_child_process(&redox_rt::proc::ForkArgs::Managed)?;
-++        let child = redox_rt::proc::new_child_process(&redox_rt::proc::ForkArgs::Managed).map_err(|e| { spawn_dbg(9); e })?;
-+         let mut cwd = path::clone_cwd().unwrap_or_default();
-+-        let mut cwd_fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
-++        let mut cwd_fd = FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(1001); e })?.to_upper().map_err(|e| { spawn_dbg(11); e })?;
-+         let proc_fd = child.proc_fd.unwrap();
-+         let _curr_proc_fd = redox_rt::current_proc_fd(); // TODO use this variable?
-+-        let cur_filetable_fd = RtTcb::current().thread_fd().dup_into_upper(b"filetable")?;
-+-        let file_table = cur_filetable_fd.dup_into_upper(b"copy")?;
-++        let cur_filetable_fd = RtTcb::current().thread_fd().dup_into_upper(b"filetable").map_err(|e| { spawn_dbg(14); e })?;
-++        let file_table = cur_filetable_fd.dup_into_upper(b"copy").map_err(|e| { spawn_dbg(15); e })?;
++@@ -1323,11 +1323,32 @@ impl Pal for Sys {
++         //     cwd.as_str()
++         // );
 + 
-+         {
-+-            let new_file_table = child.thr_fd.dup_into_upper(b"current-filetable")?;
-+-            new_file_table.write(&file_table.as_raw_fd().to_ne_bytes())?;
-++            let new_file_table = child.thr_fd.dup_into_upper(b"current-filetable").map_err(|e| { spawn_dbg(18); e })?;
-++            new_file_table.write(&file_table.as_raw_fd().to_ne_bytes()).map_err(|e| { spawn_dbg(19); e })?;
-+         }
-+ 
-+         let mut args = Vec::new();
-+@@ -1229,7 +1229,7 @@ impl Pal for Sys {
-+ 
-+         args[0] = program.to_bytes();
-+ 
-+-        let new_file_table = child.thr_fd.dup_into_upper(b"filetable-binary")?;
-++        let new_file_table = child.thr_fd.dup_into_upper(b"filetable-binary").map_err(|e| { spawn_dbg(37); e })?;
-+ 
-+         if let Some(fac) = fac {
-+             for action in fac {
-+@@ -1243,7 +1243,7 @@ impl Pal for Sys {
-+                         let dirfd = {
-+                             // TODO: Cannot use cwd_fd (being an upper fd), also
-+                             // cannot set cwd_fd as regular fd then call to_upper later
-+-                            FdGuard::open(cwd.as_str(), syscall::O_STAT)?
-++                            FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(51); e })?
-+                         };
-+                         let src_fd = Sys::openat(
-+                             dirfd.as_c_fd().ok_or(Errno(EMFILE))?,
-+@@ -1255,31 +1255,31 @@ impl Pal for Sys {
-+                             &src_fd.to_ne_bytes(),
-+                             syscall::CallFlags::FD,
-+                             &[u64::try_from(fd).map_err(|_| Errno(EBADFD))?],
-+-                        )?;
-++                        ).map_err(|e| { spawn_dbg(63); e })?;
-+                     }
-+                     crate::header::spawn::Action::Close(fd) => {
-+                         new_file_table.call_wo(
-+                             &(fd as usize).to_ne_bytes(),
-+                             syscall::CallFlags::empty(),
-+                             &[syscall::flag::FileTableVerb::Close as u64],
-+-                        )?;
-++                        ).map_err(|e| { spawn_dbg(70); e })?;
-+                     }
-+                     crate::header::spawn::Action::Chdir(path) => {
-+                         let cwd_str =
-+-                            core::str::from_utf8(path.as_bytes()).map_err(|_| Errno(EINVAL))?;
-+-                        cwd = to_cwd_path(cwd_str)?;
-+-                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
-++                            core::str::from_utf8(path.as_bytes()).map_err(|_| Errno(EINVAL)).map_err(|e| { spawn_dbg(74); e })?;
-++                        cwd = to_cwd_path(cwd_str).map_err(|e| { spawn_dbg(75); e })?;
-++                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(1002); e })?.to_upper().map_err(|e| { spawn_dbg(76); e })?;
-+                         cwd_fd = fd;
-+                     }
-+                     crate::header::spawn::Action::FChdir(fd) => {
-+                         let mut buf = CwdPath::zero_filled();
-+                         unsafe {
-+                             // SAFETY: Sys::fpath is using str::from_utf8 already
-+-                            let res = Sys::fpath(fd, buf.as_bytes_mut())?;
-++                            let res = Sys::fpath(fd, buf.as_bytes_mut()).map_err(|e| { spawn_dbg(83); e })?;
-+                             buf.set_len(res);
-+                         }
-+                         cwd = buf;
-+-                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
-++                        let fd = FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(1003); e })?.to_upper().map_err(|e| { spawn_dbg(87); e })?;
-+                         cwd_fd = fd;
-+                     }
-+                     crate::header::spawn::Action::Dup2(old, new) => {
-+@@ -1291,7 +1291,7 @@ impl Pal for Sys {
-+                                 .as_slice(),
-+                             syscall::CallFlags::empty(),
-+                             &[syscall::flag::FileTableVerb::Dup2 as u64],
-+-                        )?;
-++                        ).map_err(|e| { spawn_dbg(99); e })?;
-+                     }
-+                 }
-+             }
-+@@ -1300,7 +1300,7 @@ impl Pal for Sys {
-+         let dirfd = {
-+             // TODO: Cannot use cwd_fd (being an upper fd), also
-+             // cannot set cwd_fd as regular fd then call to_upper later
-+-            FdGuard::open(cwd.as_str(), syscall::O_STAT)?
-++            FdGuard::open(cwd.as_str(), syscall::O_STAT).map_err(|e| { spawn_dbg(108); e })?
-+         };
-+ 
-+         let executable = Sys::openat(
-+@@ -1308,10 +1308,10 @@ impl Pal for Sys {
-+             program,
-+             fcntl::O_RDONLY,
-+             0,
-+-        )?;
-+-        let executable = FdGuard::new(executable as usize).to_upper()?;
-++        ).map_err(|e| { spawn_dbg(116); e })?;
-++        let executable = FdGuard::new(executable as usize).to_upper().map_err(|e| { spawn_dbg(117); e })?;
-+         let mut executable_stat = syscall::Stat::default();
-+-        executable.fstat(&mut executable_stat)?;
-++        executable.fstat(&mut executable_stat).map_err(|e| { spawn_dbg(119); e })?;
-+         drop(dirfd);
-+ 
-+         // println!(
-+@@ -1327,7 +1327,7 @@ impl Pal for Sys {
++-        new_file_table.call_wo(
+++        if let Err(e) = new_file_table.call_wo(
 +             &new_file_table.as_raw_fd().to_ne_bytes(),
 +             syscall::CallFlags::FD | syscall::CallFlags::FD_CLONE,
 +             &[new_file_table.as_raw_fd() as u64],
 +-        )?;
-++        ).map_err(|e| { spawn_dbg(135); e })?;
+++        ) {
+++            // DIAGNOSTIC: is the descriptor known to the userspace table / to the kernel?
+++            let fd = new_file_table.as_raw_fd();
+++            let user = {
+++                let g = redox_rt::current_filetable();
+++                g.iter().any(|(f, _)| f == fd)
+++            };
+++            let mut buf = [0u8; 64];
+++            let kern = syscall::fpath(fd, &mut buf);
+++            let ft = new_file_table.fstat(&mut syscall::Stat::default());
+++            let msg = alloc::format!(
+++                "relibc spawn DIAG: FD_CLONE failed errno={} fd={:#x} userspace_has={} kernel_fpath={:?} fstat={:?} thread={:?}\n",
+++                e.errno,
+++                fd,
+++                user,
+++                kern.map_err(|e| e.errno),
+++                ft.map_err(|e| e.errno),
+++                RtTcb::current().thread_fd().as_raw_fd()
+++            );
+++            let _ = syscall::write(2, msg.as_bytes());
+++            return Err(e.into());
+++        }
 + 
 +         {
 +             let fds_to_close = {
-+@@ -1365,7 +1365,7 @@ impl Pal for Sys {
-+             &cwd_fd.as_raw_fd().to_ne_bytes(),
-+             syscall::CallFlags::FD | syscall::CallFlags::FD_CLONE,
-+             &[cwd_fd.as_raw_fd() as u64],
-+-        )?;
-++        ).map_err(|e| { spawn_dbg(173); e })?;
-+ 
-+         let extra_info = redox_rt::proc::ExtraInfo {
-+             cwd: Some(cwd.as_bytes()),
-+@@ -1391,13 +1391,13 @@ impl Pal for Sys {
-+         };
-+ 
-+         if let Some(attr) = fat {
-+-            let flags = Flags::from_bits(attr.flags).ok_or(Errno(EINVAL))?;
-++            let flags = Flags::from_bits(attr.flags).ok_or(Errno(EINVAL)).map_err(|e| { spawn_dbg(199); e })?;
-+ 
-+             if flags.contains(Flags::POSIX_SPAWN_SETPGROUP) && attr.pgroup != 0 {
-+                 redox_rt::sys::posix_setpgid(
-+                     proc_fd.as_raw_fd(),
-+                     usize::try_from(attr.pgroup).map_err(|_| Errno(EINVAL))?,
-+-                )?;
-++                ).map_err(|e| { spawn_dbg(205); e })?;
-+             }
-+ 
-+             let set_schedparam = || -> Result<()> {
-+@@ -1417,10 +1417,10 @@ impl Pal for Sys {
-+ 
-+             // scheduling paramters must be set regardless of whether the flag POSIX_SPAWN_SETSCHEDPARAM is set
-+             if flags.contains(Flags::POSIX_SPAWN_SETSCHEDULER) {
-+-                set_schedparam()?;
-+-                set_scheduler()?;
-++                set_schedparam().map_err(|e| { spawn_dbg(225); e })?;
-++                set_scheduler().map_err(|e| { spawn_dbg(226); e })?;
-+             } else if flags.contains(Flags::POSIX_SPAWN_SETSCHEDPARAM) {
-+-                set_schedparam()?;
-++                set_schedparam().map_err(|e| { spawn_dbg(228); e })?;
-+             }
-+ 
-+             let parent_resugid = redox_rt::sys::posix_getresugid();
-+@@ -1447,7 +1447,7 @@ impl Pal for Sys {
-+                     sgid: None,
-+                 },
-+                 Some(proc_fd.as_raw_fd()),
-+-            )?;
-++            ).map_err(|e| { spawn_dbg(255); e })?;
-+ 
-+             // if POSIX_SPAWN_SETSIGDEF flag is set, the signals specified in
-+             // sigdefault must have default actions
-+@@ -1467,12 +1467,12 @@ impl Pal for Sys {
-+             envs.as_slice(),
-+             &extra_info,
-+             None,
-+-        )? {
-++        ).map_err(|e| { spawn_dbg(275); e })? {
-+             let interp_path =
-+-                CStr::from_bytes_with_nul(&interp_path).map_err(|_| Errno(ENOEXEC))?;
-++                CStr::from_bytes_with_nul(&interp_path).map_err(|_| Errno(ENOEXEC)).map_err(|e| { spawn_dbg(277); e })?;
-+             let interp_path =
-+-                RedoxReference::new_from_c(interp_path.to_cstr()).ok_or(Errno(ENOEXEC))?;
-+-            let interpreter = FdGuard::open(interp_path.as_ref(), syscall::O_RDONLY)?.to_upper()?;
-++                RedoxReference::new_from_c(interp_path.to_cstr()).ok_or(Errno(ENOEXEC)).map_err(|e| { spawn_dbg(279); e })?;
-++            let interpreter = FdGuard::open(interp_path.as_ref(), syscall::O_RDONLY).map_err(|e| { spawn_dbg(1004); e })?.to_upper().map_err(|e| { spawn_dbg(280); e })?;
-+ 
-+             redox_rt::proc::fexec_impl(
-+                 interpreter,
-+@@ -1487,8 +1487,8 @@ impl Pal for Sys {
-+             .unwrap();
-+         }
-+ 
-+-        let start_fd = child.thr_fd.dup_into_upper(b"start")?;
-+-        start_fd.write(&[0])?;
-++        let start_fd = child.thr_fd.dup_into_upper(b"start").map_err(|e| { spawn_dbg(295); e })?;
-++        start_fd.write(&[0]).map_err(|e| { spawn_dbg(296); e })?;
-+ 
-+         Ok(pid_t::try_from(child.pid).unwrap())
-+     }
-+@@ -1860,3 +1860,8 @@ impl Sys {
-+         }
-+     }
-+ }
-++
-++fn spawn_dbg(line: usize) {
-++    let msg = alloc::format!("relibc spawn DEBUG: failed at spawn() body line {}\n", line);
-++    let _ = syscall::write(2, msg.as_bytes());
-++}
 +-- 
 +2.43.0
 +
@@ -3684,6 +4791,130 @@ index 00000000..55db423a
 +-- 
 +2.43.0
 +
+diff --git a/.github/redox/relibc/patches/0004-spawn-table-size.patch b/.github/redox/relibc/patches/0004-spawn-table-size.patch
+new file mode 100644
+index 00000000..82fb750c
+--- /dev/null
++++ b/.github/redox/relibc/patches/0004-spawn-table-size.patch
+@@ -0,0 +1,64 @@
++From 7ecd12ee28b93c8b6bba22c459e274ad07bdc9df Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 08:42:44 +0000
++Subject: [PATCH] redox: posix_spawn: grow the child's upper file table before
++ handing descriptors over
++
++Sys::spawn takes a snapshot of the parent's file table for the child, then keeps
++allocating descriptors in the parent (the filetable handle, the executable, ...) and
++hands some of them to the child with a call that inserts them into the child's table at
++the same index. The child's snapshot has only the size the parent's table had at that
++moment. When the index of a descriptor allocated afterwards lies beyond it -- easy as
++soon as other threads use upper-table slots at the same time, since the lowest free
++index is then higher -- the kernel refuses the insert with EMFILE and the whole spawn
++fails with "Too many open files", leaving a half-built child behind.
++
++Before the handover, resize the child's upper table (FileTableVerb::Resize) to cover the
++highest upper index the parent has in use. EINVAL ("already large enough") is ignored.
++---
++ src/platform/redox/mod.rs | 29 +++++++++++++++++++++++++++++
++ 1 file changed, 29 insertions(+)
++
++diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
++index 7c516bb..7fe9ea9 100644
++--- a/src/platform/redox/mod.rs
+++++ b/src/platform/redox/mod.rs
++@@ -1323,6 +1323,35 @@ impl Pal for Sys {
++         //     cwd.as_str()
++         // );
++ 
+++        // The child's file table is a snapshot taken at the top of this function. Descriptors
+++        // allocated after that (by this function itself, or by other threads) can have upper-table
+++        // indices beyond the snapshot's size, and handing them to the child then fails with EMFILE
+++        // ("Too many open files") although nothing is anywhere near the limit. Grow the child's
+++        // upper table to cover everything this process has in its own; EINVAL just means it is
+++        // large enough already.
+++        {
+++            let upper_len = {
+++                let guard = redox_rt::current_filetable();
+++                guard
+++                    .iter()
+++                    .filter(|(fd, _)| fd & syscall::UPPER_FDTBL_TAG != 0)
+++                    .map(|(fd, _)| (fd & !syscall::UPPER_FDTBL_TAG) + 1)
+++                    .max()
+++                    .unwrap_or(0)
+++            };
+++            if upper_len > 0 {
+++                let _ = new_file_table.call_wo(
+++                    &[],
+++                    syscall::CallFlags::empty(),
+++                    &[
+++                        syscall::FileTableVerb::Resize as u64,
+++                        syscall::UPPER_FDTBL_TAG as u64,
+++                        upper_len as u64,
+++                    ],
+++                );
+++            }
+++        }
+++
++         new_file_table.call_wo(
++             &new_file_table.as_raw_fd().to_ne_bytes(),
++             syscall::CallFlags::FD | syscall::CallFlags::FD_CLONE,
++-- 
++2.43.0
++
+diff --git a/.github/redox/relibc/patches/0006-spawn-clone-lock.patch b/.github/redox/relibc/patches/0006-spawn-clone-lock.patch
+new file mode 100644
+index 00000000..d5801213
+--- /dev/null
++++ b/.github/redox/relibc/patches/0006-spawn-clone-lock.patch
+@@ -0,0 +1,48 @@
++From 56ff81cbea53f36cddf2c3fe7d82d6d6d81c20b9 Mon Sep 17 00:00:00 2001
++From: unxed <ivan.sorokin.tech@gmail.com>
++Date: Sat, 19 Sep 2026 11:24:28 +0000
++Subject: [PATCH] redox: posix_spawn: take CLONE_LOCK like fork does
++
++pthread_create on Redox builds the new thread from a set of handles ("new-thread",
++"current-addrspace", "current-filetable", "start") that are held in the creating
++process's file table. The initial instruction and stack pointers, and the file table, are
++applied by the kernel when the "current-addrspace" / "current-filetable" handle is
++CLOSED, i.e. when the last reference to it is dropped. fork() therefore holds
++CLONE_LOCK for writing (pthread_create holds it for reading) so that its file-table
++snapshot cannot contain those in-flight handles. posix_spawn takes the same kind of
++snapshot for the child but did not take the lock.
++
++If a thread is being created in the parent while another thread spawns, the child's
++snapshot holds a second reference to the "current-addrspace" handle; the parent's close
++then does not apply the registers, and the new thread is started with all registers zero.
++It faults at once ("Page fault: 0000000000000000 US | ID", RIP = 0, RSP = 0); the
++kernel kills that thread but the rest of the process keeps running, typically with its
++main thread blocked in pthread_join forever: the program hangs.
++
++Hold CLONE_LOCK for writing in Sys::spawn, as fork does.
++---
++ src/platform/redox/mod.rs | 8 ++++++++
++ 1 file changed, 8 insertions(+)
++
++diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
++index 7fe9ea9..55a98de 100644
++--- a/src/platform/redox/mod.rs
+++++ b/src/platform/redox/mod.rs
++@@ -1201,6 +1201,14 @@ impl Pal for Sys {
++         envp: Option<NulTerminated<*mut c_char>>,
++     ) -> Result<pid_t> {
++         use crate::header::spawn::Flags;
+++        // Like fork(): keep pthread_create out while the child gets a snapshot of this process's
+++        // file table. A thread being created holds handles that only take effect when the
+++        // last reference to them is closed (the "current-addrspace" handle sets the new thread's
+++        // instruction and stack pointers when it is closed); a reference in the child's snapshot
+++        // keeps that from happening, and the new thread then starts with all registers zero:
+++        // "Page fault: 0000000000000000 US | ID" at RIP 0. The thread's process is left with
+++        // its other threads blocked forever (pthread_join never returns).
+++        let _guard = CLONE_LOCK.write();
++         let child = redox_rt::proc::new_child_process(&redox_rt::proc::ForkArgs::Managed)?;
++         let mut cwd = path::clone_cwd().unwrap_or_default();
++         let mut cwd_fd = FdGuard::open(cwd.as_str(), syscall::O_STAT)?.to_upper()?;
++-- 
++2.43.0
++
 diff --git a/.github/redox/relibc/sigentry-rcx.patch b/.github/redox/relibc/sigentry-rcx.patch
 new file mode 100644
 index 00000000..b5a448b8
@@ -3715,10 +4946,10 @@ index 00000000..b5a448b8
 +     jnc 4f
 diff --git a/.github/redox/relibc_ab_summary.py b/.github/redox/relibc_ab_summary.py
 new file mode 100644
-index 00000000..4a1afdf2
+index 00000000..4ef7ba8f
 --- /dev/null
 +++ b/.github/redox/relibc_ab_summary.py
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,35 @@
 +#!/usr/bin/env python3
 +"""Summarise run_relibc_ab.sh: per repro and variant, how many runs printed OK / FAIL / hung, plus
 +the interesting counters (x27 spawn errors, x33 wrong-thread handler runs)."""
@@ -3729,6 +4960,11 @@ index 00000000..4a1afdf2
 +    name, v, n, out, rc = m.groups()
 +    r = rows.setdefault((name, v), dict(runs=0, ok=0, fail=0, hang=0, extra=0))
 +    r["runs"] += 1
++    if not re.search(r"^(threads=|OK |cat exited|regular file|handler runs|fork\+exec)", out, re.M) and "HANG" not in out:
++        r["fail"] += 0  # (counted below)
++    r.setdefault("real", 0)
++    if re.search(r"^(threads=|handler runs|regular file alone|fork\+exec:)", out, re.M):
++        r["real"] += 1
 +    if "HANG" in out: r["hang"] += 1
 +    elif re.search(r"^OK %s" % name, out, re.M): r["ok"] += 1
 +    else: r["fail"] += 1
@@ -3738,7 +4974,11 @@ index 00000000..4a1afdf2
 +        r["extra"] += sum(int(x) for x in re.findall(r"had SIGUSR1 blocked: (\d+)", out))
 +md = ["| repro | variant | runs | OK | FAIL | HANG | counter (x27: spawn errors, x33: wrong-thread handler runs) |", "|---|---|---|---|---|---|---|"]
 +for (name, v), r in rows.items():
-+    md.append(f"| {name} | {v} | {r['runs']} | {r['ok']} | {r['fail']} | {r['hang']} | {r['extra'] if name in ('x27_spawnpar_c','x33_thread_sigmask_c') else ''} |")
++    md.append(f"| {name} | {v} | {r['runs']} (produced output: {r['real']}) | {r['ok']} | {r['fail']} | {r['hang']} | {r['extra'] if name in ('x27_spawnpar_c','x33_thread_sigmask_c') else ''} |")
++faults = len(re.findall(r"^Invalid opcode fault", log, re.M))
++zero = len(re.findall(r"^Page fault: 0000000000000000 US \| ID", log, re.M))
++md.append(f"zero-register thread faults (Page fault at RIP 0): {zero}")
++md.append(f"\nInvalid opcode faults (a spawned child killed in the loader before main): {faults}; VM froze: {'yes' if 'VM FROZE' in log else 'no'}; kernel panic: {'yes' if 'KERNEL PANIC' in log else 'no'}")
 +if "VM FROZE" in log or "KERNEL PANIC" in log:
 +    md.append("\nVM froze / kernel panic during the run (later runs missing)")
 +text = "\n".join(md) if rows else "no results in the log"
@@ -3790,10 +5030,10 @@ index 00000000..3906b440
 +sys.exit(1 if (bad or not progs) else 0)
 diff --git a/.github/redox/run_common.sh b/.github/redox/run_common.sh
 new file mode 100644
-index 00000000..2b7b247c
+index 00000000..baedde73
 --- /dev/null
 +++ b/.github/redox/run_common.sh
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,64 @@
 +# Sourced by run_ladder.sh / run_exit.sh inside the Redox VM.
 +export GOTRACEBACK=all
 +# Never `wait` on a possibly wedged process (kill -9 does not always free it
@@ -3835,6 +5075,19 @@ index 00000000..2b7b247c
 +      echo "--- SIGQUIT to pid $1"
 +      kill -QUIT $1 2>&1
 +      sleep 3
++    fi
++    # kernel-side view (only kernels built with kernel/debug/000[23]-*ring*.patch have it): the
++    # first 3 hangs of a boot
++    if [ -e /scheme/sys/dbgring ]; then
++      nh=`cat /tmp/nhang 2>/dev/null || echo 0`
++      if [ $nh -lt 3 ]; then
++        echo $((nh+1)) > /tmp/nhang
++        echo "--- /scheme/sys/dbgring (hang #$((nh+1)))"
++        cat /scheme/sys/dbgring 2>&1
++        echo "--- full context table"
++        cat /scheme/sys/context 2>&1
++        echo "--- end dbgring"
++      fi
 +    fi
 +    kill -9 $sp 2>/dev/null
 +    rc=hang
@@ -3914,7 +5167,7 @@ index 00000000..194888b9
 +echo "=== LADDER DONE"
 diff --git a/.github/redox/run_relibc_ab.sh b/.github/redox/run_relibc_ab.sh
 new file mode 100644
-index 00000000..b31b110f
+index 00000000..90eb0795
 --- /dev/null
 +++ b/.github/redox/run_relibc_ab.sh
 @@ -0,0 +1,23 @@
@@ -3933,13 +5186,13 @@ index 00000000..b31b110f
 +  echo "=== END $bin variant=$v run=$n exit=$rc"
 +}
 +v=${1:-patched}
-+if [ "$v" != debug ]; then
++if [ "$v" != debug ] && [ "$v" != lockclose ]; then
 +run $v x26_spawn_cloexec_c 1 30
 +run $v x32_poll_regular_c 1 30
 +n=1; while [ $n -le 3 ]; do run $v x33_thread_sigmask_c $n 60; n=$((n+1)); done
 +fi
 +# last: a wedged/panicked VM ends the boot
-+n=1; while [ $n -le 15 ]; do run $v x27_spawnpar_c $n 60; n=$((n+1)); done
++n=1; while [ $n -le 40 ]; do run $v x27_spawnpar_c $n 30; n=$((n+1)); done
 +echo "=== LADDER DONE"
 diff --git a/.github/redox/run_tests.sh b/.github/redox/run_tests.sh
 new file mode 100644
@@ -4039,10 +5292,10 @@ index 00000000..830e4653
 +    open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("\n### std package tests on Redox (go test -c, -short)\n\n" + text + "\n" + "".join(f"\n<details><summary>failing tests of {n}</summary>\n\n```\n{d}\n```\n</details>\n" for n, d in details))
 diff --git a/.github/redox/upstream/README.md b/.github/redox/upstream/README.md
 new file mode 100644
-index 00000000..ad1b744f
+index 00000000..976481d4
 --- /dev/null
 +++ b/.github/redox/upstream/README.md
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,33 @@
 +# Redox issues found while porting Go
 +
 +Each one was reduced to a small program in `.github/redox/ladder/` (C wherever possible).
@@ -4055,11 +5308,13 @@ index 00000000..ad1b744f
 +| 2 | kernel | Futexes are keyed by physical address; `fork()` makes the parent's pages copy-on-write, the parent's next write moves the page, and threads already asleep on the old frame are never woken (`sem_post` finds nobody). MR !650 (in the base) only covers waiters that start waiting after the fork | `x23_futex_fork_c` | 35428992551 (master: "fork, child alive" 0/4 woke in 8 of 8 runs; patched 4/4 in 8 of 8; exit repro with the ForceKill patch 0/60 and 0/30) | **patch verified**: `../kernel/0002-*.patch`, unxed/sandbox `kernel-futex-cow-wake/` (wake the old frame's waiters when a CoW fault moves a page) |
 +| 3 | kernel + procmgr | CPU exceptions are never delivered to a user signal handler (`excp_handler` in `context/signal.rs` is a TODO): the faulting thread is killed with "UNHANDLED EXCEPTION" and, because procmgr starts the exit only once *all* threads are dead, a multi-threaded process just lingers | `x24_nilpanic` at 35400663199 (before the compiler emitted explicit nil checks) | 35400663199 | worked around in the Go compiler (explicit nil checks); not fixed |
 +| 4 | relibc | `posix_spawn` does not close the parent's close-on-exec descriptors in the child (a `cat` child keeps the write end of its own stdin pipe open and never sees EOF). Cause: the close list is sent to the filetable `Close` verb in one call, the kernel's `bulk_remove_files` is all-or-nothing, and the list names fds the child's table lacks, so it fails with EBADF, ignored | `x26_spawn_cloexec_c` | 35428002403 (unpatched 4/4 FAIL, patched 4/4 OK) | **patch verified**: unxed/sandbox `relibc-spawn-cloexec/` |
-+| 5 | relibc | `posix_spawn` fails with EBADF when other threads close/open descriptors at the same time, and a failed spawn leaves a half-built child process (holding copies of every fd, so pipes never reach EOF; a never-started child that is later killed runs with all registers zero and can wedge the kernel, #9). Narrowed down with a debug build (run 35428330310): 122 of 124 failures are the call in `Sys::spawn` that hands the child's filetable over (`new_file_table.call_wo(<its own fd>, FD \| FD_CLONE)`, base line 1330), the rest a `Close` action; it happens only while other threads close descriptors (`x27_spawnpar_c` rounds "scan=no close=unlocked"). Suspect: the fd number is no longer valid in the caller's table at that moment, i.e. a race between `close()` (kernel close first, userspace `FILETABLE` bookkeeping after) and descriptor allocation | `x27_spawnpar_c` (pure C); not changed by patch #4 | 35428330310 | open: cause narrowed, no fix yet |
++| 5 | relibc | `posix_spawn` fails with EMFILE ("Too many open files") when other threads use descriptors at the same time (a failed spawn also leaves a half-built child behind). Cause (found with a diagnostic build, run 35432404594: `errno=24 ... userspace_has=true kernel_fpath=Ok`): the child's file table is a snapshot taken early in `Sys::spawn`; descriptors allocated afterwards and handed over by index (`FD \| FD_CLONE`) can lie beyond its size, and the kernel refuses the insert. (Earlier notes here called it EBADF: the leftover EBADFs are an application race in `x27`'s explicit close actions.) | `x27_spawnpar_c` | 35432749858 (EMFILE: unpatched 33 and 25, patched 0 and 0) | **patch verified**: unxed/sandbox `relibc-spawn-child-table-size/`. Cleaning up the half-built child of a spawn that still fails (e.g. ENOENT) needs kernel work on never-started contexts (#9), not done |
 +| 6 | relibc | a new thread starts with an empty signal mask and applies the creator's mask a little later (`pthread/mod.rs`); a process-directed signal can hit it before its state exists | `x33_thread_sigmask_c` (unpatched: 1267/1886/1614 handler runs on a thread with the signal blocked; patched 0); Go: "fatal: bad g in signal handler" in `x20_execpar` | 35428002403 | **patch verified**: unxed/sandbox `relibc-pthread-sigmask/` |
 +| 7 | relibc | `sigentry` clobbers RCX of the interrupted code | `x10_sigstorm` | (earlier) | fixed upstream: unxed/relibc `fix-sigentry-rcx-clobber` (8022058e); Go still keeps async preemption off by default until the image has the fix |
 +| 8 | relibc | `poll()` fails the *whole call* (EPERM) when one descriptor is a regular file (epoll_ctl refuses it) | `x32_poll_regular_c` | 35428002403 (unpatched 4/4 FAIL, patched 4/4 OK) | **patch verified**: unxed/sandbox `relibc-poll-regular-files/` |
-+| 9 | kernel | a context that takes an exception (here: a just-spawned child that ran with garbage state, page fault at RIP 0 or #UD) and calls `exit_this_context` can wedge the kernel: `context::switch` returns to the dead context and `unreachable!()` panics at `syscall/process.rs:83`, or the VM silently freezes after "UNHANDLED EXCEPTION". Seen on the stock kernel (freeze, 1/2 runs), master (faults survived) and both patch versions (panic v2 2/2, v3 1/2) - not caused by the ForceKill patch | `x27_spawnpar_c` (40 rounds of 4 concurrent spawns) | 35409694501, 35410254114 | open; needs a look at `select_next_context`/`AllContextsIdle` for a dead current context whose sched context differs (direct switch) |
++| 9 | kernel | `KERNEL PANIC ... entered unreachable code` in `exit_this_context` (`context::switch` returns into a dead context). Mechanism proven with a per-CPU event ring in the kernel (`kernel/debug/0002-dbg-ring.patch`): `try_stop_context` stops a running context by putting a `HardBlocked{NotYetStarted}` marker in its status and afterwards restores the saved status unconditionally; a context that takes an exception meanwhile has set `Dead` over the marker, so the restore resurrects it (`TRYSTOP_END status=Dead saved=Runnable`), it is scheduled again and resumes after its final switch. The same overwrite discards a ForceKill | `x27_spawnpar_c` (statistical) | 35437379734 (ring trace), 35438031754, 35438532706 (unpatched 2 of 5 boots panicked, 2 of 3 in the full script; patched 0 of 5 and 0 of 3, with the two futex patches too) | **patch verified**: `kernel/0003-*.patch`, unxed/sandbox `kernel-try-stop-context-resurrect/` |
++| 11 | relibc | RETRACTED: "spawned children die with #UD in ld.so because MXCSR is zero". The patch (ld.so `_start` FPU init) was "verified" against a build that had failed silently (the A/B ran without the patched libc), and a real A/B (run 35441474216) showed it removes no fault. The observed invalid-opcode faults and zero-register faults are #12. (The Go runtime still initialises MXCSR itself at entry: a Go program spawned this way did crash in `runtime.fastexprand`, and Go's entry bypasses crt0.) | - | - | withdrawn |
++| 12 | relibc | a thread created by `pthread_create` while another thread calls `posix_spawn` starts with all registers zero ("Page fault: 0000000000000000 US \| ID", RIP = 0) or dies with an invalid-opcode fault, and the rest of the process hangs (main thread in `pthread_join`/futex). Cause (kernel ring trace of a hung run: a lone `Blocked futex` context of the program, all its other threads gone): the new thread's registers and file table are applied when the `current-addrspace` / `current-filetable` handle is *closed*, i.e. at the last reference; `posix_spawn`'s snapshot of the file table (`dup_into_upper(b"copy")`) holds a second reference, so the close applies nothing. `fork()` takes `CLONE_LOCK` against exactly this, `posix_spawn` did not. Independent of the kernel (stock image kernel and master both hang) | `x27_spawnpar_c` (statistical) | 35441912130 (unpatched 8/238 runs hung, series without the fix 12/240, with it **0/240**) | **patch verified**: unxed/sandbox `relibc-spawn-clone-lock/` |
 +| 10 | QEMU TCG only | CLOCK_MONOTONIC / CLOCK_REALTIME read on different vCPUs go backwards by up to ~4 ms | `x21_clock_c` | 35392788829 | gone with KVM |
 +
 +Checked and *not* a bug: `poll()` on a pty slave (C `x29_pty_c` and f4-redox's pollprobe both get POLLIN correctly, canonical and raw). The Go port still ticks terminals every 10 ms as a precaution (`netpoll_redox.go`).
@@ -4076,14 +5331,14 @@ index 00000000..ad1b744f
 +(nightly-2026-05-24, `nasm`). Workflow: `.github/workflows/redox-kernel-verify.yml`.
 diff --git a/.github/redox/vm_run.sh b/.github/redox/vm_run.sh
 new file mode 100755
-index 00000000..6794ef57
+index 00000000..35636352
 --- /dev/null
 +++ b/.github/redox/vm_run.sh
 @@ -0,0 +1,54 @@
 +#!/bin/sh
 +# usage: vm_run.sh <script-in-out-dir> <logfile> [kernel-file]
 +#   out dir: $PKGOUT (default /tmp/pkg/out), copied by redoxer into the VM as /root/mnt/
-+#   env: SMP (default 4), VM_TIMEOUT (default 240 s), VM_IDLE (default 45 s of silence => VM considered frozen)
++#   env: SMP (default 4), VM_TIMEOUT (default 240 s), VM_IDLE (default 120 s of silence => VM considered frozen; must exceed every in-guest run watchdog, currently <= 90 s, plus the hang dump time)
 +# One QEMU boot under redoxer. KVM is used when the host has /dev/kvm (see
 +# enable_kvm.sh; redoxer auto-detects it inside the container). With a kernel
 +# file, redoxer's base image (a tar of the installed packages in ~/.redoxer) is
@@ -4126,7 +5381,7 @@ index 00000000..6794ef57
 +  size=$(stat -c %s $log)
 +  if [ "$size" = "$last" ]; then idle=$((idle+3)); else idle=0; last=$size; fi
 +  grep -aq "LADDER DONE" $log && break
-+  if [ $idle -ge ${VM_IDLE:-45} ]; then
++  if [ $idle -ge ${VM_IDLE:-120} ]; then
 +    echo "VM FROZE: no output for ${idle}s; last line: $(tail -c 200 $log | tr -d '\r' | tail -1)" | tee -a $log
 +    docker kill ladder 2>/dev/null
 +    break
@@ -4575,10 +5830,10 @@ index 00000000..c59aca65
 +          if-no-files-found: warn
 diff --git a/.github/workflows/redox-kernel-verify.yml b/.github/workflows/redox-kernel-verify.yml
 new file mode 100644
-index 00000000..0a45b036
+index 00000000..d6ded77a
 --- /dev/null
 +++ b/.github/workflows/redox-kernel-verify.yml
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,130 @@
 +name: redox-kernel-verify
 +
 +# A/B verification of a kernel patch for the "process never exits" hang
@@ -4607,14 +5862,14 @@ index 00000000..0a45b036
 +    strategy:
 +      fail-fast: false
 +      matrix:
-+        variant: [baseline, cow, both]
-+        rep: [1, 2]
++        variant: [r12, a27]
++        rep: [1, 2, 3]
 +    steps:
 +      - uses: actions/checkout@v4
 +
 +      - name: Build the kernel (${{ matrix.variant }})
 +        if: matrix.variant != 'stock'
-+        timeout-minutes: 6
++        timeout-minutes: 8
 +        run: |
 +          sudo apt-get install -y -qq nasm >/dev/null
 +          rustup toolchain install nightly-2026-05-24 --profile minimal -c rust-src 2>&1 | tail -3
@@ -4628,6 +5883,14 @@ index 00000000..0a45b036
 +            patched) git am -3 $K/0001-*.patch ;;
 +            cow)     git am -3 $K/0002-*.patch ;;
 +            both)    git am -3 $K/0001-*.patch $K/0002-*.patch ;;
++            dbg)     git am -3 $K/debug/0001-*.patch ;;
++            ring)    git am -3 $K/debug/0002-*.patch ;;
++            r12)     git am -3 $K/0001-*.patch $K/0002-*.patch $K/0003-*.patch $K/debug/0003-*.patch ;;
++            f27)     git am -3 $K/0003-*.patch ;;
++            b27)     : ;;
++            a27)     git am -3 $K/0001-*.patch $K/0002-*.patch $K/0003-*.patch ;;
++            fix)     git am -3 $K/0003-*.patch ;;
++            all)     git am -3 $K/0001-*.patch $K/0002-*.patch $K/0003-*.patch ;;
 +          esac
 +          git log --oneline -3; git diff --stat 2d2eef7 | tail -3
 +          make ARCH=x86_64 OBJCOPY=objcopy BUILD=/tmp/kbuild all 2>&1 | tail -15
@@ -4646,6 +5909,18 @@ index 00000000..0a45b036
 +          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
 +            -o /tmp/pkg/out/x23_futex_fork_c.bin /tmp/x23.c
 +          sudo chmod +x /tmp/pkg/out/x23_futex_fork_c.bin
++          cp $GITHUB_WORKSPACE/.github/redox/ladder/x37_crash_loop_c/main.c /tmp/x37.c
++          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
++            -o /tmp/pkg/out/x37_crash_loop_c.bin /tmp/x37.c
++          sudo chmod +x /tmp/pkg/out/x37_crash_loop_c.bin
++          cp $GITHUB_WORKSPACE/.github/redox/ladder/x36_heartbeat_c/main.c /tmp/x36.c
++          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 \
++            -o /tmp/pkg/out/x36_heartbeat_c.bin /tmp/x36.c
++          sudo chmod +x /tmp/pkg/out/x36_heartbeat_c.bin
++          cp $GITHUB_WORKSPACE/.github/redox/ladder/x34_spawn_fail_c/main.c /tmp/x34.c
++          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
++            -o /tmp/pkg/out/x34_spawn_fail_c.bin /tmp/x34.c
++          sudo chmod +x /tmp/pkg/out/x34_spawn_fail_c.bin
 +          cp $GITHUB_WORKSPACE/.github/redox/ladder/x27_spawnpar_c/main.c /tmp/x27.c
 +          docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
 +            -o /tmp/pkg/out/x27_spawnpar_c.bin /tmp/x27.c
@@ -4657,12 +5932,12 @@ index 00000000..0a45b036
 +        run: .github/redox/enable_kvm.sh
 +
 +      - name: Boot and run x17 (${{ matrix.variant }})
-+        timeout-minutes: 6
++        timeout-minutes: 10
 +        continue-on-error: true
 +        run: |
 +          k=""
 +          [ "${{ matrix.variant }}" != stock ] && k=/tmp/kbuild/kernel
-+          .github/redox/vm_run.sh run_kernel_ab.sh /tmp/kab.log $k
++          VM_TIMEOUT=500 .github/redox/vm_run.sh "run_kernel_ab.sh ${{ matrix.variant }}" /tmp/kab.log $k
 +
 +      - uses: actions/upload-artifact@v4
 +        if: always()
@@ -4691,10 +5966,10 @@ index 00000000..0a45b036
 +          PY
 diff --git a/.github/workflows/redox-relibc-patches.yml b/.github/workflows/redox-relibc-patches.yml
 new file mode 100644
-index 00000000..9f38fbec
+index 00000000..bb108f69
 --- /dev/null
 +++ b/.github/workflows/redox-relibc-patches.yml
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,146 @@
 +name: redox-relibc-patches
 +
 +# A/B verification of the relibc patches in .github/redox/relibc/patches/ (applied together, they
@@ -4728,7 +6003,7 @@ index 00000000..9f38fbec
 +    strategy:
 +      fail-fast: false
 +      matrix:
-+        variant: [unpatched, patched, debug]
++        variant: [unpatched, no6, patched]
 +    steps:
 +      - uses: actions/checkout@v4
 +      - name: Pull redoxer image
@@ -4749,12 +6024,14 @@ index 00000000..9f38fbec
 +        run: |
 +          cd relibc
 +          git config user.name ci && git config user.email ci@example.com
-+          for p in ../.github/redox/relibc/patches/*.patch; do echo "== $p"; git am "$p"; done
-+          if [ "${{ matrix.variant }}" = debug ]; then git am ../.github/redox/relibc/debug/*.patch; fi
++          for p in ../.github/redox/relibc/patches/*.patch; do case "$p" in *0006*) [ "${{ matrix.variant }}" = no6 ] && continue ;; esac; echo "== $p"; git am "$p"; done
++          if [ "${{ matrix.variant }}" = debug ]; then git am ../.github/redox/relibc/debug/0002-*.patch; fi
++          if [ "${{ matrix.variant }}" = lockclose ]; then git am ../.github/redox/relibc/debug/0001-*.patch; fi
 +          git log --oneline -6; git diff --stat 69bb008 | tail -3
 +      - name: Build relibc inside the redoxer environment
 +        timeout-minutes: 12
 +        run: |
++          set -o pipefail
 +          docker run --rm -v "$PWD/relibc:/src" -v "$PWD/.github/redox/relibc:/scripts:ro" redoxos/redoxer \
 +            sh /scripts/build_relibc.sh 2>&1 | tee build-${{ matrix.variant }}.log
 +      - name: Collect libc.so
@@ -4785,7 +6062,7 @@ index 00000000..9f38fbec
 +        run: |
 +          docker pull redoxos/redoxer >/dev/null
 +          mkdir -p /tmp/w/bins && cp -r .github/redox/ladder/x26_spawn_cloexec_c .github/redox/ladder/x27_spawnpar_c .github/redox/ladder/x32_poll_regular_c .github/redox/ladder/x33_thread_sigmask_c /tmp/w/
-+          for v in unpatched patched debug; do
++          for v in unpatched no6 patched; do
 +            for p in x26_spawn_cloexec_c x27_spawnpar_c x32_poll_regular_c x33_thread_sigmask_c; do
 +              docker run --rm -v /tmp:/tmp -w /tmp/w redoxos/redoxer redoxer cc -O1 -pthread \
 +                -Wl,--dynamic-linker=/root/mnt/$v/ld64.so.1 -o bins/${p}_$v.bin $p/main.c
@@ -4805,8 +6082,8 @@ index 00000000..9f38fbec
 +    strategy:
 +      fail-fast: false
 +      matrix:
-+        variant: [unpatched, patched, debug]
-+        rep: [1, 2]
++        variant: [unpatched, no6, patched]
++        rep: [1, 2, 3, 4, 5, 6]
 +    steps:
 +      - uses: actions/checkout@v4
 +      - uses: actions/download-artifact@v4
@@ -4818,10 +6095,11 @@ index 00000000..9f38fbec
 +        run: |
 +          mkdir -p vm/bins
 +          cp art/repro-bins/* vm/bins/
-+          for v in unpatched patched debug; do
++          for v in unpatched no6 patched; do
 +            d=$(find art/relibc-$v -type d -name $v | head -1)
 +            [ -n "$d" ] && cp -r "$d" vm/$v || echo "no libc for $v"
 +          done
++          for v in unpatched no6 patched; do [ -s vm/$v/libc.so ] || { echo "MISSING libc.so for $v: its build failed"; exit 1; }; done
 +          chmod +x vm/bins/* vm/*/* || true
 +          cp .github/redox/run_relibc_ab.sh vm/
 +      - name: Run in a Redox VM
