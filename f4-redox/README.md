@@ -20,6 +20,17 @@
 |---|---|---|
 | ![start](screens/orbital-start.png) | ![help](screens/orbital-help-f1.png) | ![menu](screens/orbital-menu-f9.png) |
 
+### X11-бэкенд f4 на Redox (по сети)
+
+X-сервера в образе Redox нет (рецепты X есть только в `recipes/wip/x11` cookbook). Поэтому
+f4 (`--gui=x11`, чистый Go, без FFI) в госте Redox подключается по TCP к **Xvfb на хосте CI**
+(`DISPLAY=10.0.2.2:1`), окно f4 рисуется там, ввод — через xdotool. Сценарий:
+[`vmlab/scenarios/f4-redox-x11.txt`](../vmlab/scenarios/f4-redox-x11.txt).
+
+| окно f4 | Help (F1) | меню (F9) |
+|---|---|---|
+| ![x11](screens/x11-start.png) | ![help](screens/x11-help-f1.png) | ![menu](screens/x11-menu-f9.png) |
+
 ## Как это устроено
 
 1. **Тулчейн.** `unxed/go`, ветка `golang-1.26-redox` (порт Go на Redox поверх relibc,
@@ -68,9 +79,8 @@
 
 ## Не сделано / открыто
 
-- x11-бэкенд f4 компилируется под redox (без FFI), но не запускался: X-сервера в образе Redox
-  нет (рецепты `xserver-xorg` есть только в `recipes/wip/x11` cookbook и не собираются в образ).
-  План: Xvfb на раннере CI по TCP и `DISPLAY=10.0.2.2:N` из гостя.
+- x11-бэкенд работает по сети (см. выше); GPU-бэкенд (goffi/gogpu) для Redox исключён тегами.
+  Окно X11 без оконного менеджера: размер 700x390 по умолчанию, ввод проверен клавишами F1/F9/стрелки.
 - Асинхронная вытесняемость отключена в рантайме (баг relibc `sigentry`, патч отправлен на
   GitLab пользователем) — плотный цикл без вызовов может задерживать GC.
 - Редкие зависания при выходе процесса (ядро, патч в `kernel-forcekill-lost-wakeup/`).

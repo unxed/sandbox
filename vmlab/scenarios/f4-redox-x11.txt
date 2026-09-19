@@ -1,0 +1,26 @@
+# f4's X11 GUI backend on Redox, drawing into an Xvfb on the CI host over TCP (Redox has no X server).
+# Recorded from an interactive session.
+#
+#   python3 vmlab/ctl.py start --guest redox-uefi --minutes 30 --loadvm desk-agent --xvfb
+#   python3 vmlab/ctl.py sh 'curl -sL -m 300 -o /tmp/f4n https://github.com/unxed/sandbox/releases/download/f4-redox-latest/f4-redox-amd64; chmod +x /tmp/f4n'
+#   python3 vmlab/ctl.py sh "sh -c 'DISPLAY=10.0.2.2:1 /tmp/f4n --gui=x11 > /tmp/f4x.log 2>&1 &'; echo launched"
+# (the guest reaches the host Xvfb as 10.0.2.2:1 = TCP port 6001; the f4 window has no window manager)
+wait 25
+xsh ss -tan | grep 6001
+xsh xwininfo -root -tree
+xshot x11-start
+xclick 200 150
+wait 2
+xkey F1
+wait 4
+xshot x11-help-f1
+xkey Escape
+wait 2
+xkey Down Down Down
+wait 2
+xshot x11-cursor-down
+xkey F9
+wait 3
+xshot x11-menu-f9
+xkey Escape
+xkey ctrl+c
