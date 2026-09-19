@@ -1,0 +1,11 @@
+click 330 400
+typeln clear; cd /tmp/t; ./f4 --attached --debug
+wait 8
+key down
+wait 1
+key down
+wait 1
+shot down2
+key tab
+wait 1
+shot tab
