@@ -2,9 +2,11 @@
 # by keys (arrows, F3, F4+F2, F5, F6, F8, F9) -> a check script verifies the results on disk and uploads
 # regress.out ("RESULT PASS"/"RESULT FAIL"). Coordinates are for 1280x800 (see haiku-desktop.txt).
 # US-International keymap in the guest: no apostrophes/double quotes/tildes/carets in typeln lines.
-wait 10
+# the boot time varies between runners: wait for the Welcome dialog and for the Deskbar by OCR
+waittext Try\s+Haiku 180
 click 903 582
-wait 15
+waittext Tracker 120
+wait 3
 shot 01-desktop
 click 1213 14
 wait 2

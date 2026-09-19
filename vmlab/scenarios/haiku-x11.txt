@@ -1,9 +1,11 @@
-# f4 --gui=x11 on Haiku against an X server running on the Actions host (Xvfb, TCP :6001, the guest
-# sees the host as 10.0.2.2). The workflow captures the Xvfb root window every few seconds into
-# x11shots/, the guest uploads x11.log. Same bootstrap as haiku-regress.txt.
-wait 10
+# f4 --gui=x11 on Haiku against an X server on the Actions host (VMLAB_XVFB=1: Xvfb :1 on TCP 6001, the
+# guest sees the host as 10.0.2.2, so DISPLAY=10.0.2.2:1). xshot captures that display, the guest uploads
+# x11.log. Same bootstrap as haiku-regress.txt.
+# the boot time varies between runners: wait for the Welcome dialog and for the Deskbar by OCR
+waittext Try\s+Haiku 180
 click 903 582
-wait 15
+waittext Tracker 120
+wait 3
 click 1213 14
 wait 2
 move 1041 226
@@ -24,9 +26,17 @@ wait 2
 typeln curl -sf -o /boot/home/f4 http://10.0.2.2:8000/f4-haiku-amd64 && chmod +x /boot/home/f4 && clear
 wait 40
 typeln DISPLAY=10.0.2.2:1 /boot/home/f4 --gui=x11 --attached /boot/home/t > /tmp/x11.log 2>&1 &
-wait 20
-shot 02-after-start
-typeln sleep 5; curl -s -T /tmp/x11.log http://10.0.2.2:8000/upload/x11.log
+wait 15
+shot 02-guest
+xshot x01-first
+xsh xwininfo -root -tree
+xsh ss -tn
+typeln sleep 2; curl -s -T /tmp/x11.log http://10.0.2.2:8000/upload/x11.log
 waitupload x11.log 60
-wait 20
-shot 03-later
+wait 5
+xshot x02-later
+xclick 400 300
+xkey Down
+xkey Down
+wait 2
+xshot x03-after-input
