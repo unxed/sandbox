@@ -7,32 +7,12 @@ Terminal, ходит по каталогам, создаёт папки (F7), и
 раздел «Запуск в Haiku VM (vmlab)» ниже. Всё собирается и запускается только в
 GitHub Actions этого репозитория, локально ничего не собирается («Правило песочницы»).
 
-## Запуск в Haiku VM (vmlab) — как это устроено и что найдено
+## Запуск в Haiku VM (vmlab) — что найдено
 
-`vmlab/` (QEMU-драйвер, изначально сделан для Redox) адаптирован под Haiku:
-
-- **`vmlab-haiku.yml`** — batch-workflow: KVM на раннере → загрузка Haiku (образ качается и
-  распаковывается за ~20 с, до окна «Welcome» ~10 с) → сценарий `vmlab/scenarios/haiku-*.txt`.
-  Не использует git-шину, поэтому не мешает чужим интерактивным сессиям. Запуск:
-  `gh workflow run vmlab-haiku.yml -f scenario=haiku-smoke`.
-- **Интерактивная сессия на своей шине.** `vmlab-session.yml` получил вход `bus`: шина команд
-  теперь `<bus>-cmd`/`<bus>-out` (по умолчанию `vmlab` — как было). Для Haiku:
-  ```bash
-  export GH_TOKEN=... VMLAB_BUS=vmlab-haiku VMLAB_AGENT_EXT=sh
-  python3 vmlab/ctl.py start --guest haiku --minutes 45 --scenario haiku-desktop
-  python3 vmlab/ctl.py do "shot x" "click 330 400" "typeln ./f4"   # клавиатура/мышь/скриншоты
-  python3 vmlab/ctl.py sh 'uname -a; ls /tmp'                      # команды через гостевого агента
-  python3 vmlab/ctl.py put файл имя                                # положить файл в гостя
-  python3 vmlab/ctl.py stop
-  ```
-  Сценарий `haiku-desktop` сам проходит Welcome → «Try Haiku» → Deskbar → Applications →
-  Terminal и запускает `vmlab/guests/haiku-agent.sh` (аналог `redox-agent.ion`: опрашивает
-  `http://10.0.2.2:8000/job.sh`, исполняет, заливает `job.out`; отклик ~8 с).
-- **Что доставляется в гостя** (каталог payload раздаётся хостом на `10.0.2.2:8000`): свежий
-  бинарник `f4-haiku-amd64` и `ptyrun-haiku` (PTY-харнесс из `vmlab/haiku/ptyrun`, собирается в
-  том же job'е `f4-haiku` тем же тулчейном, артефакт `f4-haiku-tools`).
-- **Инструменты разбора:** `vmlab/haiku/vtdump.py` (эмулятор терминала на stdlib: превращает
-  снапшоты `ptyrun` в текст экрана, `--bg` — карта цветов фона), `sgrtest*.sh` (эксперименты с SGR).
+Как устроен запуск (пакетный `vmlab-haiku.yml`, интерактивная сессия на своей шине, что
+доставляется в гостя, инструменты разбора `vtdump.py`/`sgrtest*.sh`) — в
+[`vmlab/README.md`](../vmlab/README.md#гость-haiku): драйвер `vmlab/` сделан для Redox и
+адаптирован под Haiku, а здесь записано только то, что нашлось при запуске f4 в Haiku.
 
 **Практические грабли Haiku в VM:** Terminal использует раскладку US-International, поэтому
 в `typeln` нельзя `'` `"` `~` `^` `` ` `` (мёртвые клавиши); шаг `stable` не работает (экран
@@ -91,10 +71,10 @@ GitHub Actions этого репозитория, локально ничего 
   `/tmp/job.out`, после чего агент «молчит»). Перед перезаливом: `kill -9` всех `f4 --server` (ядро
   потом показывает окно краша — просто закрыть), либо запускать `f4 --attached`.
 * **`f4 --gui=x11` в Haiku без `DISPLAY` сразу выходит с кодом 0 и ничего не показывает** — но
-  X11-бэкенд f4 (чистый Go, без FFI) **работает по сети**: workflow `vmlab-haiku`, сценарий
-  `haiku-x11`, поднимает на хосте Actions `Xvfb :1` (TCP 6001, `VMLAB_XVFB=1`), гость запускает
-  `DISPLAY=10.0.2.2:1 f4 --gui=x11 --attached /boot/home/t`, окно f4 рисуется в Xvfb (шрифты,
-  панели, key bar), ввод (`xclick`, `xkey Down`) доходит — `xshot` даёт скриншоты в артефакте.
+  X11-бэкенд f4 (чистый Go, без FFI) **работает по сети** против Xvfb на хосте Actions (сценарий
+  `haiku-x11`; схема — в разделе про X11 в [`vmlab/README.md`](../vmlab/README.md)): гость запускает
+  `DISPLAY=10.0.2.2:1 f4 --gui=x11 --attached /boot/home/t`, окно f4 рисуется (шрифты, панели, key
+  bar), ввод (`xclick`, `xkey Down`) доходит, скриншоты — в артефакте.
   Нативного X-сервера в стандартной Haiku нет (есть только Xlibe — клиентская обёртка над
   app_server); нативный app_server-бэкенд остаётся отдельной задачей.
 * `End`/`Home` в самом bash Terminal показывают `OF`/`OH` (bash не знает SS3 Haiku без inputrc) —
@@ -102,12 +82,10 @@ GitHub Actions этого репозитория, локально ничего 
 
 ### Автоматический регресс
 
-`vmlab-haiku` (workflow_run после каждой успешной сборки `f4-haiku`, а также по push в
-`vmlab/scenarios/haiku-*.txt`, `vmlab/haiku/**` и вручную) грузит свежий бинарник в чистую Haiku VM и
-прогоняет сценарий `haiku-regress` (стрелки, F3, F4+F2, F5, F6, F8, F9); `vmlab/haiku/regress-check.sh`
-проверяет результат на диске и job падает при `RESULT FAIL`. Последний прогон: `RESULT PASS`.
-Сценарий `haiku-x11` (вручную, `-f scenario=haiku-x11`) проверяет `--gui=x11` против Xvfb на хосте.
-Загрузка Haiku в Actions плавает по времени — сценарии ждут диалог/Deskbar через OCR (`waittext`).
+`vmlab-haiku` (когда и как запускается — [`vmlab/README.md`](../vmlab/README.md#гость-haiku)) грузит
+свежий бинарник в чистую Haiku VM и прогоняет сценарий `haiku-regress` (стрелки, F3, F4+F2, F5, F6,
+F8, F9); `vmlab/haiku/regress-check.sh` проверяет результат на диске и job падает при `RESULT FAIL`.
+Последний прогон: `RESULT PASS`.
 
 ### Ещё не проверено / следующие шаги
 

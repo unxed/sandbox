@@ -59,16 +59,14 @@ Claude / разработчик                     раннер GitHub Actions 
 | `vmlab/haiku/` | гостевые скрипты и инструменты Haiku: `smoke.sh`, `regress-check.sh`, `ptyrun/` (PTY-харнесс), `vtdump.py`, `sgrtest*.sh` |
 | `.github/workflows/vmlab-session.yml` | интерактивная сессия (workflow_dispatch; входы `guest`, `minutes`, `scenario`, `loadvm`, `bus`, `xvfb`) |
 | `.github/workflows/vmlab-redox-boot.yml` | пакетный замер загрузки (KVM/TCG × BIOS/UEFI) со скриншотами в артефактах |
-| `.github/workflows/vmlab-haiku.yml` | пакетный прогон сценария в Haiku без git-шины (`vmlab.py run`): регресс f4 после каждой успешной сборки `f4-haiku`, по push в `vmlab/scenarios/haiku-*.txt` и `vmlab/haiku/**` и вручную |
+| `.github/workflows/vmlab-haiku.yml` | пакетный прогон сценария в Haiku без git-шины, в том числе регресс f4 после каждой сборки (см. «Гость Haiku») |
 
 ### Язык сценария (по строке на шаг)
 
-`wait SEC`, `shot NAME`, `key CHORD…` (`key ctrl-alt-t`, `key ret`), `type TEXT`,
-`typeln TEXT`, `click X Y [right|double]`, `move`, `drag X1 Y1 X2 Y2`,
-`stable SEC [TIMEOUT]` (экран не менялся SEC секунд), `waittext REGEX [TIMEOUT]` (OCR),
-`save NAME` / `load NAME` (снимок ВМ), `hmp CMD` (монитор QEMU),
-`payload NAME BASE64` (положить файл для гостя), `waitupload NAME [TIMEOUT]`
-(дождаться файла, загруженного гостем).
+Полный список шагов (`wait`, `shot`, `key`, `type`/`typeln`, `click`/`move`/`drag`, `stable`,
+`waittext` по OCR, `save`/`load` снимка ВМ, `hmp`, `payload`/`waitupload`, `x*` для хостового
+X-дисплея) с аргументами описан в docstring в начале `vmlab/vmlab.py`; там он и поддерживается.
+Те же шаги принимает `ctl.py do "шаг" "шаг"…` в интерактивной сессии.
 
 ## Как пользоваться (со стороны разработчика или Claude)
 
@@ -153,16 +151,9 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
 `xgb` подключается по сети). Вход workflow `xvfb: true` (`ctl.py start --xvfb`) ставит
 `xvfb x11-apps xdotool imagemagick x11-utils` и запускает на хосте
 `Xvfb :1 -screen 0 1280x800x24 -listen tcp -ac` (слушает `0.0.0.0:6001`). Гость видит хост
-как `10.0.2.2`, значит: `DISPLAY=10.0.2.2:1`. Шаги сценария (работают на хостовом дисплее):
-
-| Шаг | Что делает |
-|---|---|
-| `xshot NAME` | скриншот корневого окна (`import -window root`) → PNG в каталоге результата |
-| `xkey KEYS` | `xdotool key` (например `xkey ctrl+c Return`) |
-| `xclick X Y [right\|middle\|double]` | подвести указатель и кликнуть |
-| `xtype TEXT` | `xdotool type` |
-| `xrun CMD` | запустить X-клиент на хосте в фоне (например `xrun xclock`) |
-| `xsh CMD` | выполнить команду на хосте с `DISPLAY`, вывод попадает в лог шага (`xwininfo -root -tree`, `ss -ltn`) |
+как `10.0.2.2`, значит: `DISPLAY=10.0.2.2:1`. Шаги сценария `xshot`, `xkey`, `xclick`, `xtype`,
+`xrun`, `xsh` работают на хостовом дисплее (описание — в docstring `vmlab/vmlab.py`; `xsh` удобен
+для `xwininfo -root -tree` и `ss -ltn`).
 
 Проверено: Xvfb стартует, слушает TCP 6001, `xclock`/`xeyes` рисуются, `xclick` двигает
 указатель (зрачки `xeyes` следуют), `xshot` отдаёт PNG. Соединение именно из гостя Redox к
@@ -192,13 +183,7 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
 `image_index`+`image_regex`, `image_kind` = `zip`|`zst`|raw, `machine`, `firmware`
 (`uefi`), `cpu`, `ram`, `smp`, `nic`, `usb`, `qemu_extra`).
 
-* **Haiku** — уже подключена: `vmlab/guests/haiku.json` (nightly `anyboot.zip`, `pc-i440fx`,
-  IDE), агент `vmlab/guests/haiku-agent.sh`, сценарии `vmlab/scenarios/haiku-*.txt`. Интерактивная
-  сессия идёт на своей шине, чтобы не мешать Redox (грабли №4):
-  `export VMLAB_BUS=vmlab-haiku VMLAB_AGENT_EXT=sh`, затем
-  `python3 vmlab/ctl.py start --guest haiku --minutes 45 --scenario haiku-desktop`. Пакетные прогоны —
-  `vmlab-haiku.yml`. Устройство, найденные грабли Haiku в VM и результаты — в
-  [`f4-haiku/README.md`](../f4-haiku/README.md).
+* **Haiku** — уже подключена, см. «Гость Haiku» ниже.
 * **Hurd** — образы Debian GNU/Hurd (qcow2, i386/amd64) грузятся с текстовой консолью:
   скриншот полезен как контроль, а надёжнее читать serial-лог (`-serial file:` уже
   пишется в `/tmp/vmlab/serial.log`) и слать команды на консоль клавишами `typeln`.
@@ -208,6 +193,43 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
   устройства мигрируемы (`savevm` ругается на немигрируемые — тогда без снимка или с
   другим контроллером диска), записать сценарий загрузки, положить гостевой агент
   (у Redox — `.ion`; у POSIX-систем достаточно `sh`-цикла `curl` → `sh job` → `curl -T`).
+
+## Гость Haiku
+
+Гость описан в `vmlab/guests/haiku.json` (nightly `anyboot.zip`, `pc-i440fx`, IDE). Образ
+качается и распаковывается за ~20 с, до окна «Welcome» ~10 с. Что найдено в самой Haiku при
+запуске f4 (грабли VM, исправления порта, результаты проверок) — в
+[`f4-haiku/README.md`](../f4-haiku/README.md); здесь только то, как гость устроен в vmlab.
+
+* **Пакетный прогон** — `vmlab-haiku.yml`: KVM на раннере → загрузка Haiku → сценарий
+  `vmlab/scenarios/haiku-*.txt` (режим `vmlab.py run`). Git-шину не использует, поэтому не мешает
+  интерактивным сессиям. Вручную:
+  `gh workflow run vmlab-haiku.yml -f scenario=haiku-smoke` (по умолчанию `haiku-regress`;
+  `haiku-x11` проверяет `--gui=x11` против Xvfb на хосте). Сам запускается после каждой успешной
+  сборки `f4-haiku` (регресс, итог проверяет `vmlab/haiku/regress-check.sh`, job падает при
+  `RESULT FAIL`) и по push в `vmlab/scenarios/haiku-*.txt`, `vmlab/haiku/**`,
+  `vmlab/guests/haiku.json`. Загрузка Haiku в Actions плавает по времени, поэтому сценарии ждут
+  диалог/Deskbar по OCR (`waittext`), а не `wait`.
+* **Интерактивная сессия на своей шине.** У `vmlab-session.yml` есть вход `bus`: шина команд —
+  ветки `<bus>-cmd`/`<bus>-out` (по умолчанию `vmlab`), у каждого гостя своя (см. грабли №4):
+
+  ```sh
+  export GH_TOKEN=... VMLAB_BUS=vmlab-haiku VMLAB_AGENT_EXT=sh
+  python3 vmlab/ctl.py start --guest haiku --minutes 45 --scenario haiku-desktop
+  python3 vmlab/ctl.py do "shot x" "click 330 400" "typeln ./f4"   # клавиатура/мышь/скриншоты
+  python3 vmlab/ctl.py sh 'uname -a; ls /tmp'                      # команды через гостевого агента
+  python3 vmlab/ctl.py put файл имя                                # положить файл в гостя
+  python3 vmlab/ctl.py stop
+  ```
+
+  Сценарий `haiku-desktop` сам проходит Welcome → «Try Haiku» → Deskbar → Applications → Terminal
+  и запускает `vmlab/guests/haiku-agent.sh` (аналог `redox-agent.ion`: опрашивает
+  `http://10.0.2.2:8000/job.sh`, исполняет, заливает `job.out`; отклик ~8 с).
+* **Что доставляется в гостя** (каталог payload раздаётся хостом на `10.0.2.2:8000`): свежий
+  бинарник `f4-haiku-amd64` и `ptyrun-haiku` (PTY-харнесс из `vmlab/haiku/ptyrun`, собирается в
+  том же job'е `f4-haiku` тем же тулчейном, артефакт `f4-haiku-tools`).
+* **Инструменты разбора:** `vmlab/haiku/vtdump.py` (эмулятор терминала на stdlib: превращает
+  снапшоты `ptyrun` в текст экрана, `--bg` — карта цветов фона), `sgrtest*.sh` (эксперименты с SGR).
 
 ## Второй способ: `redoxer` в docker (`f4-redox/vm/`)
 
