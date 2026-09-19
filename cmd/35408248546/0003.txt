@@ -1,0 +1,5 @@
+typeln curl -s -m 5 -o /dev/null http://10.0.2.2:6001/; echo done-x
+xsh sleep 1; ss -tan | grep -c 6001; ss -tan | grep 6001 | grep -v LISTEN | head
+wait 3
+xsh ss -tan | grep 6001 | grep -v LISTEN | head
+shot g2
