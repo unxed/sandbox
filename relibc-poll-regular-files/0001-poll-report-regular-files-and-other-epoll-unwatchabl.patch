@@ -1,0 +1,68 @@
+From 054e8a3d2d062d5d0ff853e7234a072efffdea0c Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 06:46:47 +0000
+Subject: [PATCH] poll: report regular files (and other epoll-unwatchable fds)
+ as always ready
+
+poll() is built on epoll. epoll_ctl(ADD) fails with EPERM for descriptors that
+cannot be watched, notably regular files and directories, and poll_epoll
+returned -1 for the whole call, so one regular file among the descriptors made
+poll() useless for every other descriptor as well.
+
+POSIX says regular files always poll ready. Report POLLIN/POLLOUT (and the
+RDNORM/WRNORM variants) that the caller asked for as revents for such a
+descriptor, and do not block in epoll_pwait since something is ready already
+(it is still called, with a zero timeout, to collect the other descriptors).
+---
+ src/header/poll/mod.rs | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/src/header/poll/mod.rs b/src/header/poll/mod.rs
+index 517c7e6..cb8a937 100644
+--- a/src/header/poll/mod.rs
++++ b/src/header/poll/mod.rs
+@@ -9,7 +9,7 @@ use crate::{
+     fs::File,
+     header::{
+         bits_sigset_t::sigset_t,
+-        errno::{EBADF, EINTR},
++        errno::{EBADF, EINTR, EPERM},
+         sys_epoll::{
+             EPOLL_CLOEXEC, EPOLL_CTL_ADD, EPOLLERR, EPOLLHUP, EPOLLIN, EPOLLNVAL, EPOLLOUT,
+             EPOLLPRI, EPOLLRDBAND, EPOLLRDNORM, EPOLLWRBAND, EPOLLWRNORM, epoll_data, epoll_event,
+@@ -87,6 +87,9 @@ pub unsafe fn poll_epoll(fds: &mut [pollfd], timeout: c_int, sigmask: *const sig
+     };
+ 
+     let mut closed = 0;
++    // Descriptors epoll cannot watch (regular files, directories: epoll_ctl fails with EPERM)
++    // are always ready for reading and writing, as POSIX requires of regular files.
++    let mut always_ready = 0;
+     for (i, fd) in fds.iter_mut().enumerate() {
+         let pfd = fd;
+ 
+@@ -111,6 +114,12 @@ pub unsafe fn poll_epoll(fds: &mut [pollfd], timeout: c_int, sigmask: *const sig
+                 pfd.revents |= POLLNVAL;
+                 closed += 1;
+             }
++            Err(Errno(EPERM)) => {
++                pfd.revents |= pfd.events & (POLLIN | POLLOUT | POLLRDNORM | POLLWRNORM);
++                if pfd.revents != 0 {
++                    always_ready += 1;
++                }
++            }
+             Err(Errno(err)) => {
+                 ERRNO.set(err);
+                 return -1;
+@@ -125,6 +134,9 @@ pub unsafe fn poll_epoll(fds: &mut [pollfd], timeout: c_int, sigmask: *const sig
+         return i32::try_from(closed).unwrap_or(i32::MAX);
+     }
+ 
++    // Something is ready already: still collect what else is, but do not wait for more.
++    let timeout = if always_ready > 0 { 0 } else { timeout };
++
+     let mut events: [epoll_event; 32] = unsafe { mem::zeroed() };
+     match unsafe {
+         Sys::epoll_pwait(
+-- 
+2.43.0
+

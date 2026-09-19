@@ -1,0 +1,64 @@
+From ca8f25e773dcc3931bb8a18cf8588534a3563126 Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 06:45:57 +0000
+Subject: [PATCH] redox: posix_spawn: close the parent's close-on-exec
+ descriptors one by one
+
+Sys::spawn is supposed to close, in the child's copy of the file table, every
+descriptor that is close-on-exec in the parent. It builds the list from the
+parent's table after the child's copy was made and sends it to the filetable
+"Close" verb in a single call. The kernel validates all handles of a bulk
+remove before removing any (Context::bulk_remove_files: "avoid partial
+results"), so one entry the child's table does not have (a descriptor opened
+by another thread in the meantime, or one opened by spawn itself) made the whole
+call fail with EBADF. The error was ignored, and no close-on-exec descriptor
+was closed in the child.
+
+Visible effect: `cat` spawned with the read end of a pipe on stdin never sees
+EOF, because the child still holds a copy of the pipe's write end that the
+parent closed after writing.
+
+Close the descriptors with one Close call each and ignore the ones that are
+not there.
+---
+ src/platform/redox/mod.rs | 24 ++++++++++++------------
+ 1 file changed, 12 insertions(+), 12 deletions(-)
+
+diff --git a/src/platform/redox/mod.rs b/src/platform/redox/mod.rs
+index 067a922..7c516bb 100644
+--- a/src/platform/redox/mod.rs
++++ b/src/platform/redox/mod.rs
+@@ -1347,18 +1347,18 @@ impl Pal for Sys {
+                 fds
+             };
+ 
+-            let fds_to_close_bytes: &[u8] = unsafe {
+-                core::slice::from_raw_parts(
+-                    fds_to_close.as_ptr() as *mut u8,
+-                    fds_to_close.len() * core::mem::size_of::<usize>(),
+-                )
+-            };
+-
+-            let _ = new_file_table.call_wo(
+-                fds_to_close_bytes,
+-                syscall::CallFlags::empty(),
+-                &[syscall::FileTableVerb::Close as u64],
+-            );
++            // Close them one at a time: the Close verb is all-or-nothing, and this list
++            // is computed from the parent's table *after* the child's copy of it was made,
++            // so it can name descriptors the child's table does not have (opened by other
++            // threads, or by this very function). One such entry used to make the whole
++            // batch fail, silently leaving every close-on-exec descriptor open in the child.
++            for fd in fds_to_close {
++                let _ = new_file_table.call_wo(
++                    &fd.to_ne_bytes(),
++                    syscall::CallFlags::empty(),
++                    &[syscall::FileTableVerb::Close as u64],
++                );
++            }
+         }
+ 
+         new_file_table.call_wo(
+-- 
+2.43.0
+

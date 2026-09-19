@@ -1,0 +1,100 @@
+From 1a2be4d92ddf45ed5369d50a7927052083a548aa Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 06:47:12 +0000
+Subject: [PATCH] pthread: enable signal delivery in a new thread with the
+ creator's mask
+
+A new thread inherits its creator's signal mask (POSIX). relibc passes that
+mask to the thread through the start-up mutex, but new_thread_shim called
+setup_sighandler first, which enables signal delivery with an EMPTY mask, and
+applied the inherited mask only after copy_masters(), the tid store and the
+unlock of the creator. In that window a process-directed signal (for example
+SIGCHLD of a child that just exited) can be delivered to the new thread even
+though the creator blocked it, while the thread's TLS state is still being
+set up. A runtime that keeps per-thread state in TLS and blocks all signals
+around pthread_create for exactly this reason (Go does) then receives the
+signal on a thread that is not ready for it and aborts ("bad g in signal
+handler").
+
+Let setup_sighandler take the initial mask (setup_sighandler_with_mask) and
+pass the creator's mask, so the thread never runs with a wider mask than it
+inherited.
+---
+ redox-rt/src/signal.rs | 10 +++++++++-
+ src/pthread/mod.rs     | 17 +++++++----------
+ 2 files changed, 16 insertions(+), 11 deletions(-)
+
+diff --git a/redox-rt/src/signal.rs b/redox-rt/src/signal.rs
+index cd2584c..c0a77b0 100644
+--- a/redox-rt/src/signal.rs
++++ b/redox-rt/src/signal.rs
+@@ -659,6 +659,14 @@ const fn sig_bit(sig: u32) -> u64 {
+ }
+ 
+ pub fn setup_sighandler(tcb: &RtTcb, first_thread: bool) {
++    setup_sighandler_with_mask(tcb, first_thread, 0)
++}
++
++/// Like [`setup_sighandler`], but the thread's signal mask is `initial_mask` from the moment
++/// signal delivery is enabled, instead of empty. A new thread must pass its creator's mask
++/// here: applying it later leaves a window in which a process-directed signal can be
++/// delivered to a thread that, according to POSIX, has it blocked.
++pub fn setup_sighandler_with_mask(tcb: &RtTcb, first_thread: bool, initial_mask: u64) {
+     if first_thread {
+         let _guard = SIGACTIONS_LOCK.lock();
+         for (sig_idx, action) in PROC_CONTROL_STRUCT.actions.iter().enumerate() {
+@@ -714,7 +722,7 @@ pub fn setup_sighandler(tcb: &RtTcb, first_thread: bool) {
+ 
+     // TODO: Inherited set of ignored signals
+     // TODO: handle error
+-    let _ = set_sigmask(Some(0), None);
++    let _ = set_sigmask(Some(initial_mask), None);
+ }
+ pub type RtSigarea = RtTcb; // TODO
+ pub fn current_setsighandler_struct() -> SetSighandlerData {
+diff --git a/src/pthread/mod.rs b/src/pthread/mod.rs
+index 0064911..5006b6a 100644
+--- a/src/pthread/mod.rs
++++ b/src/pthread/mod.rs
+@@ -228,6 +228,9 @@ unsafe extern "C" fn new_thread_shim(
+     {
+         unsafe { tcb.activate() };
+     }
++    #[cfg(target_os = "redox")]
++    let procmask = unsafe { (&*synchronization_mutex).as_ptr().read() };
++
+     #[cfg(target_os = "redox")]
+     {
+         // `thr_fd` in `tcb` is set by [`Sys::rlct_clone`] *before* jumping to
+@@ -235,24 +238,18 @@ unsafe extern "C" fn new_thread_shim(
+         unsafe {
+             tcb.activate(None);
+         }
+-        redox_rt::signal::setup_sighandler(&tcb.os_specific, false);
++        // Enable signal delivery with the creator's mask already in place (POSIX: the new
++        // thread inherits it). Applying it after the setup below left a window in which a
++        // process-directed signal could be delivered to the still half-initialised thread.
++        redox_rt::signal::setup_sighandler_with_mask(&tcb.os_specific, false, procmask);
+     }
+ 
+-    #[cfg(target_os = "redox")]
+-    let procmask = unsafe { (&*synchronization_mutex).as_ptr().read() };
+-
+     unsafe { tcb.copy_masters() }.unwrap();
+ 
+     unsafe { tcb.pthread.os_tid.get().write(Sys::current_os_tid()) };
+ 
+     unsafe { (&*synchronization_mutex).manual_unlock() };
+ 
+-    #[cfg(target_os = "redox")]
+-    {
+-        redox_rt::signal::set_sigmask(Some(procmask), None)
+-            .expect("failed to set procmask in child thread");
+-    }
+-
+     let retval = unsafe { entry_point(arg) };
+ 
+     unsafe { exit_current_thread(Retval(retval)) }
+-- 
+2.43.0
+
