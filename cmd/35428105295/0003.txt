@@ -1,0 +1,7 @@
+typeln cd /boot/home && ./f4
+wait 4
+key down
+key down
+key down
+wait 1
+shot arrows1
