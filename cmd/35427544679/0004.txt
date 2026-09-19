@@ -1,0 +1,10 @@
+click 330 400
+typeln clear; cd /tmp/t; ./f4 --attached
+wait 8
+shot fix-1
+key f7
+wait 2
+shot fix-dlg
+typeln newdirC
+wait 3
+shot fix-done
