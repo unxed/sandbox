@@ -21,6 +21,7 @@ Scenario language: one step per line, '#' starts a comment.
   waitupload NAME [TIMEOUT]   wait for a file the guest PUT to the host server
   xshot NAME                  screenshot of the host X display (VMLAB_XVFB=1 -> Xvfb :1, guest DISPLAY=10.0.2.2:1)
   xkey KEYS / xclick X Y [right|middle|double] / xtype TEXT / xrun CMD   xdotool input on that display
+  xsh CMD                     run a command on the host with DISPLAY set, output goes to the log (e.g. xwininfo, ss)
 """
 import argparse
 import base64
@@ -381,6 +382,11 @@ class Lab:
         subprocess.Popen(rest, shell=True, env=dict(os.environ, DISPLAY=XDISPLAY),
                          stdout=open(WORK / "xrun.log", "a"), stderr=subprocess.STDOUT, start_new_session=True)
         time.sleep(1)
+
+    def do_xsh(self, rest):
+        """xsh CMD...: run a shell command on the host (DISPLAY set) and show its output in the step log."""
+        r = self._x(["sh", "-c", rest])
+        return ("rc=%d\n%s%s" % (r.returncode, r.stdout, r.stderr))[:3000]
 
     def do_hmp(self, rest):
         return self.q.hmp(rest).strip()
