@@ -1,0 +1,2 @@
+07:10:51 ok   payload job.sh IyAxNzg5ODAxODQ4NjI4CnRhaWwgLTMwIC9ib290L2hvbWUvY29uZmlnL3NldHRpb -> job.sh 70 bytes  [0.0s]
+07:10:52 ok   waitupload job.out 120 -> job.out 111 bytes  [1.0s]

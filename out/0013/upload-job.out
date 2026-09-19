@@ -1,0 +1,2 @@
+tail: cannot open '/boot/home/config/settings/f4/logs/debug.log' for reading: No such file or directory
+exit=1
