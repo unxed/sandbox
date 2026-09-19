@@ -1,0 +1,88 @@
+From f845b17eed272ca543bdd4458485a3e72297a42c Mon Sep 17 00:00:00 2001
+From: unxed <ivan.sorokin.tech@gmail.com>
+Date: Sat, 19 Sep 2026 00:41:57 +0000
+Subject: [PATCH] futex: don't sleep on an untimed wait when the context was
+ force-killed
+
+procmgr terminates a process by writing ContextVerb::ForceKill to every
+thread's status handle. For a thread that is not the caller this sets
+status = Runnable, being_sigkilled = true and queues a wakeup, all under the
+context's write lock. That is only sufficient if the target is really asleep
+at that moment.
+
+futex(FUTEX_WAIT) checks for pending signals and then calls Context::block()
+under the same lock, but never looked at being_sigkilled: if ForceKill ran
+between the target's futex value check and its lock acquisition, block()
+overwrote Runnable with Blocked. The wakeup had already been consumed, the
+kill flag is never looked at again because the context never runs, and the
+thread stays Blocked forever. The process never finishes exiting: procmgr
+keeps waiting for that thread and the parent's waitpid never returns, so a
+program "prints its result and never exits". A pthread program that
+ping-pongs on semaphores (untimed futex waits) and calls exit(0) from main
+hangs in a few percent to about 30% of runs, depending on CPU count and
+virtualization.
+
+Fix, in two parts:
+
+* FUTEX_WAIT returns EINTR without blocking when being_sigkilled is set, checked
+  under the same context lock as the pending-signal check and block(). The
+  syscall exit path decides from a per-CPU copy of being_sigkilled, refreshed
+  only by switch_to(), so update it right there.
+* switch_inner() returns early, without switch_to(), when the scheduler picks the
+  context that is already current; refresh the per-CPU copy on that path too.
+---
+ src/context/switch.rs |  8 ++++++++
+ src/syscall/futex.rs  | 18 ++++++++++++++++++
+ 2 files changed, 26 insertions(+)
+
+diff --git a/src/context/switch.rs b/src/context/switch.rs
+index e4f6cac..7b09e9d 100644
+--- a/src/context/switch.rs
++++ b/src/context/switch.rs
+@@ -225,6 +225,14 @@ fn switch_inner(
+     ) {
+         // We had already switched the current context to the one now picked by the scheduler, so
+         // no switch needs to be done.
++        //
++        // The per-CPU copy of `being_sigkilled` is only refreshed by switch_to, so refresh it
++        // here too: this context may have been force-killed (by another CPU) while it was on its
++        // way to sleep, and the syscall exit path consults the copy.
++        percpu
++            .switch_internals
++            .being_sigkilled
++            .set(next_sched_guard.being_sigkilled);
+         return SwitchResult::Switched;
+     }
+     let current_context_guard = if Arc::ptr_eq(
+diff --git a/src/syscall/futex.rs b/src/syscall/futex.rs
+index b3d4c3d..58e78d5 100644
+--- a/src/syscall/futex.rs
++++ b/src/syscall/futex.rs
+@@ -181,6 +181,24 @@ pub fn futex(
+                         return Err(Error::new(EINTR));
+                     }
+ 
++                    // procmgr terminates a process by writing ForceKill to every thread.
++                    // ForceKill makes the target Runnable and sets being_sigkilled under this
++                    // same context lock. If it landed after the pending-signal check above, the
++                    // block() below would overwrite Runnable with Blocked, and the wakeup would be
++                    // lost for good (an untimed futex wait, nobody left to wake it): the process
++                    // would never finish exiting. Check the flag here, in the same critical
++                    // section as block(), and return without sleeping.
++                    if context.being_sigkilled {
++                        // The syscall exit path reads a per-CPU copy of the flag that is only
++                        // refreshed on a context switch; we are the running context and are not
++                        // going to switch, so update it here.
++                        crate::percpu::PercpuBlock::current()
++                            .switch_internals
++                            .being_sigkilled
++                            .set(true);
++                        return Err(Error::new(EINTR));
++                    }
++
+                     context.block("futex");
+                 }
+ 
+-- 
+2.43.0
+
