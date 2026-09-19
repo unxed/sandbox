@@ -1,0 +1,28 @@
+ Total Blocks:  650.0 MiB (332800 blocks)
+  Used Blocks:  618.9 MiB (316890 blocks)
+  Free Blocks:   31.1 MiB (15910 blocks)
+      Usage %:   95.2 %
+total 98
+drwxrwxrwx 1 user root 2048 Sep 19 07:17 .
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 ..
+-rw-r--r-- 1 user root  684 Sep 19 07:01 agent.sh
+drwx------ 1 user root 2048 Sep 19 07:14 f4-sessions-0
+-rw-r--r-- 1 user root  149 Sep 19 07:17 job.out
+-rw-r--r-- 1 user root  196 Sep 19 07:17 job.sh
+drwxr-xr-x 1 user root 2048 Sep 19 07:01 tracker
+-rw-r--r-- 1 user root   74 Sep 19 07:00 usb_hid_report_descriptor_0627_0001_0.bin
+-rw-r--r-- 1 user root    0 Sep 19 07:17 x11.out
+1012	/boot/home/config
+24	/boot/home/t
+6	/boot/home/t2
+/boot/home/Desktop:
+total 10
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 .
+drwxr-xr-x 1 user root 2048 Sep 19 07:17 ..
+lrwxrwxrwx 1 user root   10 Sep 18 06:36 Home -> /boot/home
+
+/boot/trash:
+total 8
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 .
+drwxr-xr-x 1 user root 2048 Sep 18 06:36 ..
+exit=0
