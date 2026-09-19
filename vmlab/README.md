@@ -1,8 +1,14 @@
-# Рецепт: тесты на разных ОС (в том числе с графикой) и разработка прямо в CI GitHub
+# vmlab: тесты на разных ОС (в том числе с графикой) и разработка прямо в CI GitHub
 
 Проверено 2026-09-18 на гостевой ОС Redox (образ desktop, ядро `2d2eef7`) в репозитории
-`unxed/sandbox`. Инструмент — `vmlab/` (Python, только stdlib). Ничего не собирается и не
-запускается локально: локально нужен только `GH_TOKEN` и HTTPS.
+`unxed/sandbox`. Инструмент — этот каталог (Python, только stdlib). Ничего не собирается и не
+запускается локально: локально нужен только `GH_TOKEN` и HTTPS. Все команды ниже выполняются из
+корня репозитория. Раньше этот текст лежал в `vm-ci/RECIPE.md`; каталог `vm-ci/` убран, чтобы
+код и инструкция к нему не жили в двух местах.
+
+Гости, на которых это уже работало: **Redox** (рабочий стол Orbital, интерактивно и пакетно) и
+**Haiku** (пакетный регресс f4 после каждой сборки, интерактивная сессия). Про Haiku подробнее —
+в [`f4-haiku/README.md`](../f4-haiku/README.md), про Redox — в [`f4-redox/README.md`](../f4-redox/README.md).
 
 ## Идея
 
@@ -48,9 +54,12 @@ Claude / разработчик                     раннер GitHub Actions 
 | `vmlab/ctl.py` | клиент: `start`, `do`, `sh`, `put`, `stop` (только HTTPS + `GH_TOKEN`) |
 | `vmlab/guests/<имя>.json` | описание гостя: образ, машина, прошивка, CPU, USB, сеть |
 | `vmlab/guests/redox-agent.ion` | гостевой агент (Redox): забирает `job.ion`, выполняет, загружает вывод |
-| `vmlab/scenarios/*.txt` | записанные сценарии |
-| `.github/workflows/vmlab-session.yml` | интерактивная сессия (workflow_dispatch; входы `guest`, `minutes`, `scenario`, `loadvm`) |
+| `vmlab/guests/haiku-agent.sh` | гостевой агент (Haiku): то же самое для `job.sh` |
+| `vmlab/scenarios/*.txt` | записанные сценарии (`redox-*`, `f4-redox-*`, `haiku-*`) |
+| `vmlab/haiku/` | гостевые скрипты и инструменты Haiku: `smoke.sh`, `regress-check.sh`, `ptyrun/` (PTY-харнесс), `vtdump.py`, `sgrtest*.sh` |
+| `.github/workflows/vmlab-session.yml` | интерактивная сессия (workflow_dispatch; входы `guest`, `minutes`, `scenario`, `loadvm`, `bus`, `xvfb`) |
 | `.github/workflows/vmlab-redox-boot.yml` | пакетный замер загрузки (KVM/TCG × BIOS/UEFI) со скриншотами в артефактах |
+| `.github/workflows/vmlab-haiku.yml` | пакетный прогон сценария в Haiku без git-шины (`vmlab.py run`): регресс f4 после каждой успешной сборки `f4-haiku`, по push в `vmlab/scenarios/haiku-*.txt` и `vmlab/haiku/**` и вручную |
 
 ### Язык сценария (по строке на шаг)
 
@@ -97,7 +106,7 @@ python3 vmlab/ctl.py stop
 | восстановление кэша + `-loadvm` | 5 с + 3 с |
 | **dispatch → первая команда с текстовым ответом (тёплый старт)** | **≈ 36 с** |
 | команда в уже идущей сессии: скриншот / `sh` | 4–8 с / ≈ 11 с |
-| старый способ (`redoxer exec` в docker на TCG) | ≈ 1 мин на каждую загрузку |
+| второй способ (`redoxer exec` в docker, см. «Второй способ» ниже) | ≈ 1 мин на каждую загрузку |
 
 Вывод: Redox грузится быстро даже без KVM; «минута на запуск» была накладными расходами
 docker/сборки образа. KVM нужен для тяжёлых нагрузок внутри гостя (компиляция, GC-нагрузка,
@@ -183,9 +192,13 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
 `image_index`+`image_regex`, `image_kind` = `zip`|`zst`|raw, `machine`, `firmware`
 (`uefi`), `cpu`, `ram`, `smp`, `nic`, `usb`, `qemu_extra`).
 
-* **Haiku** — уже есть `vmlab/guests/haiku.json` (nightly `anyboot.zip`, `pc-i440fx`, IDE).
-  Сценарии и горячие клавиши записываются так же; вывод команд — через терминал Haiku и
-  `curl -T` на `10.0.2.2:8000`, если в образе есть `curl`.
+* **Haiku** — уже подключена: `vmlab/guests/haiku.json` (nightly `anyboot.zip`, `pc-i440fx`,
+  IDE), агент `vmlab/guests/haiku-agent.sh`, сценарии `vmlab/scenarios/haiku-*.txt`. Интерактивная
+  сессия идёт на своей шине, чтобы не мешать Redox (грабли №4):
+  `export VMLAB_BUS=vmlab-haiku VMLAB_AGENT_EXT=sh`, затем
+  `python3 vmlab/ctl.py start --guest haiku --minutes 45 --scenario haiku-desktop`. Пакетные прогоны —
+  `vmlab-haiku.yml`. Устройство, найденные грабли Haiku в VM и результаты — в
+  [`f4-haiku/README.md`](../f4-haiku/README.md).
 * **Hurd** — образы Debian GNU/Hurd (qcow2, i386/amd64) грузятся с текстовой консолью:
   скриншот полезен как контроль, а надёжнее читать serial-лог (`-serial file:` уже
   пишется в `/tmp/vmlab/serial.log`) и слать команды на консоль клавишами `typeln`.
@@ -195,6 +208,22 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
   устройства мигрируемы (`savevm` ругается на немигрируемые — тогда без снимка или с
   другим контроллером диска), записать сценарий загрузки, положить гостевой агент
   (у Redox — `.ion`; у POSIX-систем достаточно `sh`-цикла `curl` → `sh job` → `curl -T`).
+
+## Второй способ: `redoxer` в docker (`f4-redox/vm/`)
+
+В репозитории есть и другой способ запускать Redox в CI, он **не заменён** vmlab и не дублирует его:
+
+| | vmlab (этот каталог) | `f4-redox/vm/vm_run.sh` |
+|---|---|---|
+| Как запускается гость | собственный QEMU на раннере, образ Redox desktop / Haiku | образ `redoxos/redoxer` в docker, гость поднимает `redoxer exec` |
+| Управление | живая сессия: мышь, клавиатура, скриншоты, OCR, снимки ВМ; либо сценарий | один пакетный прогон скрипта (`smoke.sh`), вывод в лог, без графики |
+| Ядро | то, что в образе | можно подменить `/boot/kernel` в базовом образе `redoxer` своим (так `f4-redox.yml` проверяет патченое ядро) |
+| Гость | Redox, Haiku, что угодно, что грузится в QEMU | только Redox |
+| Цикл | ≈ 36 с до первой команды из снимка, потом секунды | ≈ 1 мин на каждую загрузку |
+
+Когда что брать: нужна графика, интерактивная отладка или другая ОС — vmlab; нужно прогнать
+скрипт на Redox с собственным ядром — `f4-redox/vm/`. Сюда `f4-redox/vm/` не переносится: он
+тесно связан с `f4-redox.yml` (кэши, собранное там ядро, watchdog на зависание гостя).
 
 ## Что дальше можно улучшить
 

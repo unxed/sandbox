@@ -6,6 +6,7 @@ on:
   push:
     paths:
       - 'vmlab/**'
+      - '!vmlab/README.md'
       - '.github/workflows/vmlab-redox-boot.yml'
 
 permissions:
