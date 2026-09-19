@@ -1,0 +1,25 @@
+key esc
+wait 1
+key down
+key down
+key down
+key down
+key down
+key down
+key f8
+wait 2
+shot del1
+key enter
+wait 2
+shot del2
+key f6
+wait 2
+shot ren1
+key esc
+wait 1
+hmp sendkey shift-down
+hmp sendkey shift-down
+wait 1
+hmp sendkey ctrl-r
+wait 1
+shot shift
