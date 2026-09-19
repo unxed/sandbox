@@ -1,6 +1,6 @@
 diff --git a/.github/redox/README.md b/.github/redox/README.md
 new file mode 100644
-index 00000000000000..fc8f61f9f4491e
+index 00000000..fc8f61f9
 --- /dev/null
 +++ b/.github/redox/README.md
 @@ -0,0 +1,37 @@
@@ -43,7 +43,7 @@ index 00000000000000..fc8f61f9f4491e
 +* Processes hang / a zero-context thread faults at *exit* in the signal stress test (x10).
 diff --git a/.github/redox/defs_crosscheck.py b/.github/redox/defs_crosscheck.py
 new file mode 100644
-index 00000000000000..d90fac669447d2
+index 00000000..d90fac66
 --- /dev/null
 +++ b/.github/redox/defs_crosscheck.py
 @@ -0,0 +1,229 @@
@@ -278,7 +278,7 @@ index 00000000000000..d90fac669447d2
 +    sys.exit(main())
 diff --git a/.github/redox/enable_kvm.sh b/.github/redox/enable_kvm.sh
 new file mode 100755
-index 00000000000000..c05e1c75f8df10
+index 00000000..c05e1c75
 --- /dev/null
 +++ b/.github/redox/enable_kvm.sh
 @@ -0,0 +1,7 @@
@@ -291,7 +291,7 @@ index 00000000000000..c05e1c75f8df10
 +nproc
 diff --git a/.github/redox/gen_syscall.py b/.github/redox/gen_syscall.py
 new file mode 100644
-index 00000000000000..e98ab784a1f349
+index 00000000..e98ab784
 --- /dev/null
 +++ b/.github/redox/gen_syscall.py
 @@ -0,0 +1,175 @@
@@ -472,7 +472,7 @@ index 00000000000000..e98ab784a1f349
 +    main()
 diff --git a/.github/redox/kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch b/.github/redox/kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch
 new file mode 100644
-index 00000000000000..82e0be4bf18b68
+index 00000000..82e0be4b
 --- /dev/null
 +++ b/.github/redox/kernel/0001-futex-don-t-sleep-on-an-untimed-wait-when-the-contex.patch
 @@ -0,0 +1,88 @@
@@ -566,7 +566,7 @@ index 00000000000000..82e0be4bf18b68
 +
 diff --git a/.github/redox/kernel/ISSUE.md b/.github/redox/kernel/ISSUE.md
 new file mode 100644
-index 00000000000000..3832739eb8c13a
+index 00000000..3832739e
 --- /dev/null
 +++ b/.github/redox/kernel/ISSUE.md
 @@ -0,0 +1,52 @@
@@ -624,7 +624,7 @@ index 00000000000000..3832739eb8c13a
 +context is dying, so it is harmless, but a `FUTEX_WAKE` may count it as woken.
 diff --git a/.github/redox/kernel/VERIFICATION.md b/.github/redox/kernel/VERIFICATION.md
 new file mode 100644
-index 00000000000000..034d3546785417
+index 00000000..034d3546
 --- /dev/null
 +++ b/.github/redox/kernel/VERIFICATION.md
 @@ -0,0 +1,26 @@
@@ -656,7 +656,7 @@ index 00000000000000..034d3546785417
 +master 0/4). v3 is futex-only; see the table below once run for v3 completes.
 diff --git a/.github/redox/kernel/run_kernel_ab.sh b/.github/redox/kernel/run_kernel_ab.sh
 new file mode 100755
-index 00000000000000..cc05dc74e17427
+index 00000000..cc05dc74
 --- /dev/null
 +++ b/.github/redox/kernel/run_kernel_ab.sh
 @@ -0,0 +1,7 @@
@@ -669,7 +669,7 @@ index 00000000000000..cc05dc74e17427
 +echo "=== LADDER DONE"
 diff --git a/.github/redox/ladder/p01_println/main.go b/.github/redox/ladder/p01_println/main.go
 new file mode 100644
-index 00000000000000..9bf4c2932c705c
+index 00000000..9bf4c293
 --- /dev/null
 +++ b/.github/redox/ladder/p01_println/main.go
 @@ -0,0 +1,6 @@
@@ -681,7 +681,7 @@ index 00000000000000..9bf4c2932c705c
 +}
 diff --git a/.github/redox/ladder/p02_fmt/main.go b/.github/redox/ladder/p02_fmt/main.go
 new file mode 100644
-index 00000000000000..256857f24cc4ac
+index 00000000..256857f2
 --- /dev/null
 +++ b/.github/redox/ladder/p02_fmt/main.go
 @@ -0,0 +1,9 @@
@@ -696,7 +696,7 @@ index 00000000000000..256857f24cc4ac
 +}
 diff --git a/.github/redox/ladder/p03_goroutines/main.go b/.github/redox/ladder/p03_goroutines/main.go
 new file mode 100644
-index 00000000000000..70e48e2f7ebe59
+index 00000000..70e48e2f
 --- /dev/null
 +++ b/.github/redox/ladder/p03_goroutines/main.go
 @@ -0,0 +1,47 @@
@@ -749,7 +749,7 @@ index 00000000000000..70e48e2f7ebe59
 +}
 diff --git a/.github/redox/ladder/p04_gc/main.go b/.github/redox/ladder/p04_gc/main.go
 new file mode 100644
-index 00000000000000..e42ef8c19891bf
+index 00000000..e42ef8c1
 --- /dev/null
 +++ b/.github/redox/ladder/p04_gc/main.go
 @@ -0,0 +1,37 @@
@@ -792,7 +792,7 @@ index 00000000000000..e42ef8c19891bf
 +}
 diff --git a/.github/redox/ladder/p05_timer/main.go b/.github/redox/ladder/p05_timer/main.go
 new file mode 100644
-index 00000000000000..1e206c5ffd92a5
+index 00000000..1e206c5f
 --- /dev/null
 +++ b/.github/redox/ladder/p05_timer/main.go
 @@ -0,0 +1,35 @@
@@ -833,7 +833,7 @@ index 00000000000000..1e206c5ffd92a5
 +}
 diff --git a/.github/redox/ladder/p06_fileio/main.go b/.github/redox/ladder/p06_fileio/main.go
 new file mode 100644
-index 00000000000000..c0d98af610a7ad
+index 00000000..c0d98af6
 --- /dev/null
 +++ b/.github/redox/ladder/p06_fileio/main.go
 @@ -0,0 +1,63 @@
@@ -902,7 +902,7 @@ index 00000000000000..c0d98af610a7ad
 +}
 diff --git a/.github/redox/ladder/p07_openat_diag/main.go b/.github/redox/ladder/p07_openat_diag/main.go
 new file mode 100644
-index 00000000000000..4d1c36cbfcb021
+index 00000000..4d1c36cb
 --- /dev/null
 +++ b/.github/redox/ladder/p07_openat_diag/main.go
 @@ -0,0 +1,135 @@
@@ -1043,7 +1043,7 @@ index 00000000000000..4d1c36cbfcb021
 +}
 diff --git a/.github/redox/ladder/p08_memzero/main.go b/.github/redox/ladder/p08_memzero/main.go
 new file mode 100644
-index 00000000000000..6deff9ea9d39e9
+index 00000000..6deff9ea
 --- /dev/null
 +++ b/.github/redox/ladder/p08_memzero/main.go
 @@ -0,0 +1,51 @@
@@ -1100,7 +1100,7 @@ index 00000000000000..6deff9ea9d39e9
 +}
 diff --git a/.github/redox/ladder/p09_stack/main.go b/.github/redox/ladder/p09_stack/main.go
 new file mode 100644
-index 00000000000000..814bc58e0c45c3
+index 00000000..814bc58e
 --- /dev/null
 +++ b/.github/redox/ladder/p09_stack/main.go
 @@ -0,0 +1,38 @@
@@ -1144,7 +1144,7 @@ index 00000000000000..814bc58e0c45c3
 +}
 diff --git a/.github/redox/ladder/p10_stdlib/main.go b/.github/redox/ladder/p10_stdlib/main.go
 new file mode 100644
-index 00000000000000..f73e4a89713c89
+index 00000000..f73e4a89
 --- /dev/null
 +++ b/.github/redox/ladder/p10_stdlib/main.go
 @@ -0,0 +1,118 @@
@@ -1268,7 +1268,7 @@ index 00000000000000..f73e4a89713c89
 +}
 diff --git a/.github/redox/ladder/p11_time_rand/main.go b/.github/redox/ladder/p11_time_rand/main.go
 new file mode 100644
-index 00000000000000..e1c7e595222701
+index 00000000..e1c7e595
 --- /dev/null
 +++ b/.github/redox/ladder/p11_time_rand/main.go
 @@ -0,0 +1,73 @@
@@ -1347,7 +1347,7 @@ index 00000000000000..e1c7e595222701
 +}
 diff --git a/.github/redox/ladder/p12_stdin/main.go b/.github/redox/ladder/p12_stdin/main.go
 new file mode 100644
-index 00000000000000..b8f0598ae4c845
+index 00000000..b8f0598a
 --- /dev/null
 +++ b/.github/redox/ladder/p12_stdin/main.go
 @@ -0,0 +1,32 @@
@@ -1385,7 +1385,7 @@ index 00000000000000..b8f0598ae4c845
 +}
 diff --git a/.github/redox/ladder/p13_signal/main.go b/.github/redox/ladder/p13_signal/main.go
 new file mode 100644
-index 00000000000000..2050e3ec3ec977
+index 00000000..2050e3ec
 --- /dev/null
 +++ b/.github/redox/ladder/p13_signal/main.go
 @@ -0,0 +1,44 @@
@@ -1435,7 +1435,7 @@ index 00000000000000..2050e3ec3ec977
 +}
 diff --git a/.github/redox/ladder/p14_exec/main.go b/.github/redox/ladder/p14_exec/main.go
 new file mode 100644
-index 00000000000000..f3f39acbdb8b7d
+index 00000000..f3f39acb
 --- /dev/null
 +++ b/.github/redox/ladder/p14_exec/main.go
 @@ -0,0 +1,77 @@
@@ -1518,7 +1518,7 @@ index 00000000000000..f3f39acbdb8b7d
 +}
 diff --git a/.github/redox/ladder/x10_sigstorm/main.go b/.github/redox/ladder/x10_sigstorm/main.go
 new file mode 100644
-index 00000000000000..c53be2ac4320e7
+index 00000000..c53be2ac
 --- /dev/null
 +++ b/.github/redox/ladder/x10_sigstorm/main.go
 @@ -0,0 +1,80 @@
@@ -1604,7 +1604,7 @@ index 00000000000000..c53be2ac4320e7
 +}
 diff --git a/.github/redox/ladder/x11_exitloop/main.go b/.github/redox/ladder/x11_exitloop/main.go
 new file mode 100644
-index 00000000000000..1b2c3d42d28f63
+index 00000000..1b2c3d42
 --- /dev/null
 +++ b/.github/redox/ladder/x11_exitloop/main.go
 @@ -0,0 +1,29 @@
@@ -1639,7 +1639,7 @@ index 00000000000000..1b2c3d42d28f63
 +}
 diff --git a/.github/redox/ladder/x15_net/main.go b/.github/redox/ladder/x15_net/main.go
 new file mode 100644
-index 00000000000000..229ee88300ce46
+index 00000000..229ee883
 --- /dev/null
 +++ b/.github/redox/ladder/x15_net/main.go
 @@ -0,0 +1,82 @@
@@ -1727,7 +1727,7 @@ index 00000000000000..229ee88300ce46
 +}
 diff --git a/.github/redox/ladder/x16_exitstress/main.go b/.github/redox/ladder/x16_exitstress/main.go
 new file mode 100644
-index 00000000000000..d6ccb6da867c62
+index 00000000..d6ccb6da
 --- /dev/null
 +++ b/.github/redox/ladder/x16_exitstress/main.go
 @@ -0,0 +1,36 @@
@@ -1769,7 +1769,7 @@ index 00000000000000..d6ccb6da867c62
 +}
 diff --git a/.github/redox/ladder/x17_exit_c/main.c b/.github/redox/ladder/x17_exit_c/main.c
 new file mode 100644
-index 00000000000000..5babdd4f256faa
+index 00000000..5babdd4f
 --- /dev/null
 +++ b/.github/redox/ladder/x17_exit_c/main.c
 @@ -0,0 +1,46 @@
@@ -1821,7 +1821,7 @@ index 00000000000000..5babdd4f256faa
 +}
 diff --git a/.github/redox/ladder/x18_fork_c/main.c b/.github/redox/ladder/x18_fork_c/main.c
 new file mode 100644
-index 00000000000000..6528202340a285
+index 00000000..65282023
 --- /dev/null
 +++ b/.github/redox/ladder/x18_fork_c/main.c
 @@ -0,0 +1,64 @@
@@ -1891,7 +1891,7 @@ index 00000000000000..6528202340a285
 +}
 diff --git a/.github/redox/ladder/x19_clock/main.go b/.github/redox/ladder/x19_clock/main.go
 new file mode 100644
-index 00000000000000..53c89545828c83
+index 00000000..53c89545
 --- /dev/null
 +++ b/.github/redox/ladder/x19_clock/main.go
 @@ -0,0 +1,73 @@
@@ -1970,7 +1970,7 @@ index 00000000000000..53c89545828c83
 +}
 diff --git a/.github/redox/ladder/x20_execpar/main.go b/.github/redox/ladder/x20_execpar/main.go
 new file mode 100644
-index 00000000000000..788303cab4a8f6
+index 00000000..788303ca
 --- /dev/null
 +++ b/.github/redox/ladder/x20_execpar/main.go
 @@ -0,0 +1,49 @@
@@ -2025,7 +2025,7 @@ index 00000000000000..788303cab4a8f6
 +}
 diff --git a/.github/redox/ladder/x21_clock_c/main.c b/.github/redox/ladder/x21_clock_c/main.c
 new file mode 100644
-index 00000000000000..99f133dd336b4c
+index 00000000..99f133dd
 --- /dev/null
 +++ b/.github/redox/ladder/x21_clock_c/main.c
 @@ -0,0 +1,60 @@
@@ -2091,7 +2091,7 @@ index 00000000000000..99f133dd336b4c
 +}
 diff --git a/.github/redox/ladder/x22_forkpar_c/main.c b/.github/redox/ladder/x22_forkpar_c/main.c
 new file mode 100644
-index 00000000000000..054b1388083446
+index 00000000..054b1388
 --- /dev/null
 +++ b/.github/redox/ladder/x22_forkpar_c/main.c
 @@ -0,0 +1,58 @@
@@ -2155,7 +2155,7 @@ index 00000000000000..054b1388083446
 +}
 diff --git a/.github/redox/ladder/x23_futex_fork_c/main.c b/.github/redox/ladder/x23_futex_fork_c/main.c
 new file mode 100644
-index 00000000000000..76f7f535acbc5e
+index 00000000..76f7f535
 --- /dev/null
 +++ b/.github/redox/ladder/x23_futex_fork_c/main.c
 @@ -0,0 +1,91 @@
@@ -2252,7 +2252,7 @@ index 00000000000000..76f7f535acbc5e
 +}
 diff --git a/.github/redox/ladder/x24_nilpanic/main.go b/.github/redox/ladder/x24_nilpanic/main.go
 new file mode 100644
-index 00000000000000..4383b65f59c8f8
+index 00000000..4383b65f
 --- /dev/null
 +++ b/.github/redox/ladder/x24_nilpanic/main.go
 @@ -0,0 +1,64 @@
@@ -2322,7 +2322,7 @@ index 00000000000000..4383b65f59c8f8
 +}
 diff --git a/.github/redox/ladder/x26_spawn_cloexec_c/main.c b/.github/redox/ladder/x26_spawn_cloexec_c/main.c
 new file mode 100644
-index 00000000000000..7c3f0512d05c89
+index 00000000..7c3f0512
 --- /dev/null
 +++ b/.github/redox/ladder/x26_spawn_cloexec_c/main.c
 @@ -0,0 +1,55 @@
@@ -2383,7 +2383,7 @@ index 00000000000000..7c3f0512d05c89
 +}
 diff --git a/.github/redox/ladder/x27_spawnpar_c/main.c b/.github/redox/ladder/x27_spawnpar_c/main.c
 new file mode 100644
-index 00000000000000..51346862846e48
+index 00000000..51346862
 --- /dev/null
 +++ b/.github/redox/ladder/x27_spawnpar_c/main.c
 @@ -0,0 +1,76 @@
@@ -2465,10 +2465,10 @@ index 00000000000000..51346862846e48
 +}
 diff --git a/.github/redox/ladder/x28_cgo/NEEDS_CGO b/.github/redox/ladder/x28_cgo/NEEDS_CGO
 new file mode 100644
-index 00000000000000..e69de29bb2d1d6
+index 00000000..e69de29b
 diff --git a/.github/redox/ladder/x28_cgo/main.go b/.github/redox/ladder/x28_cgo/main.go
 new file mode 100644
-index 00000000000000..c509232ed7806f
+index 00000000..c509232e
 --- /dev/null
 +++ b/.github/redox/ladder/x28_cgo/main.go
 @@ -0,0 +1,52 @@
@@ -2526,7 +2526,7 @@ index 00000000000000..c509232ed7806f
 +}
 diff --git a/.github/redox/ladder/x29_pty_c/main.c b/.github/redox/ladder/x29_pty_c/main.c
 new file mode 100644
-index 00000000000000..6cc1872a031613
+index 00000000..6cc1872a
 --- /dev/null
 +++ b/.github/redox/ladder/x29_pty_c/main.c
 @@ -0,0 +1,69 @@
@@ -2601,7 +2601,7 @@ index 00000000000000..6cc1872a031613
 +}
 diff --git a/.github/redox/ladder/x30_pty/main.go b/.github/redox/ladder/x30_pty/main.go
 new file mode 100644
-index 00000000000000..be305d0be753ac
+index 00000000..be305d0b
 --- /dev/null
 +++ b/.github/redox/ladder/x30_pty/main.go
 @@ -0,0 +1,95 @@
@@ -2702,7 +2702,7 @@ index 00000000000000..be305d0be753ac
 +}
 diff --git a/.github/redox/ladder/x31_spawn_actions_c/main.c b/.github/redox/ladder/x31_spawn_actions_c/main.c
 new file mode 100644
-index 00000000000000..26b48bde24b7f4
+index 00000000..26b48bde
 --- /dev/null
 +++ b/.github/redox/ladder/x31_spawn_actions_c/main.c
 @@ -0,0 +1,50 @@
@@ -2758,7 +2758,7 @@ index 00000000000000..26b48bde24b7f4
 +}
 diff --git a/.github/redox/ladder_summary.py b/.github/redox/ladder_summary.py
 new file mode 100644
-index 00000000000000..e9b13d0f7cd093
+index 00000000..e9b13d0f
 --- /dev/null
 +++ b/.github/redox/ladder_summary.py
 @@ -0,0 +1,98 @@
@@ -2862,7 +2862,7 @@ index 00000000000000..e9b13d0f7cd093
 +sys.exit(1 if failed else 0)
 diff --git a/.github/redox/relibc/ISSUE.md b/.github/redox/relibc/ISSUE.md
 new file mode 100644
-index 00000000000000..8f62d572e01da4
+index 00000000..8f62d572
 --- /dev/null
 +++ b/.github/redox/relibc/ISSUE.md
 @@ -0,0 +1,30 @@
@@ -2898,7 +2898,7 @@ index 00000000000000..8f62d572e01da4
 +The same code is on `master` (checked 2026-09-18, commit 69bb008af1).
 diff --git a/.github/redox/relibc/VERIFICATION.md b/.github/redox/relibc/VERIFICATION.md
 new file mode 100644
-index 00000000000000..aed0d630833689
+index 00000000..aed0d630
 --- /dev/null
 +++ b/.github/redox/relibc/VERIFICATION.md
 @@ -0,0 +1,34 @@
@@ -2938,7 +2938,7 @@ index 00000000000000..aed0d630833689
 +remains (~10% of runs in a multi-threaded process); not investigated further.
 diff --git a/.github/redox/relibc/build_relibc.sh b/.github/redox/relibc/build_relibc.sh
 new file mode 100755
-index 00000000000000..44e9f05f6539d9
+index 00000000..44e9f05f
 --- /dev/null
 +++ b/.github/redox/relibc/build_relibc.sh
 @@ -0,0 +1,34 @@
@@ -2978,7 +2978,7 @@ index 00000000000000..44e9f05f6539d9
 +ls -la /src/target/x86_64-unknown-redox/release/
 diff --git a/.github/redox/relibc/sigentry-rcx.patch b/.github/redox/relibc/sigentry-rcx.patch
 new file mode 100644
-index 00000000000000..b5a448b82aa475
+index 00000000..b5a448b8
 --- /dev/null
 +++ b/.github/redox/relibc/sigentry-rcx.patch
 @@ -0,0 +1,23 @@
@@ -3007,7 +3007,7 @@ index 00000000000000..b5a448b82aa475
 +     jnc 4f
 diff --git a/.github/redox/relibc_verify_summary.py b/.github/redox/relibc_verify_summary.py
 new file mode 100644
-index 00000000000000..3906b440308e54
+index 00000000..3906b440
 --- /dev/null
 +++ b/.github/redox/relibc_verify_summary.py
 @@ -0,0 +1,37 @@
@@ -3050,7 +3050,7 @@ index 00000000000000..3906b440308e54
 +sys.exit(1 if (bad or not progs) else 0)
 diff --git a/.github/redox/run_common.sh b/.github/redox/run_common.sh
 new file mode 100644
-index 00000000000000..2b7b247c514187
+index 00000000..2b7b247c
 --- /dev/null
 +++ b/.github/redox/run_common.sh
 @@ -0,0 +1,51 @@
@@ -3107,7 +3107,7 @@ index 00000000000000..2b7b247c514187
 +}
 diff --git a/.github/redox/run_exit.sh b/.github/redox/run_exit.sh
 new file mode 100644
-index 00000000000000..b23c88aba0efc4
+index 00000000..b23c88ab
 --- /dev/null
 +++ b/.github/redox/run_exit.sh
 @@ -0,0 +1,13 @@
@@ -3126,7 +3126,7 @@ index 00000000000000..b23c88aba0efc4
 +echo "=== LADDER DONE"
 diff --git a/.github/redox/run_ladder.sh b/.github/redox/run_ladder.sh
 new file mode 100644
-index 00000000000000..194888b9daee76
+index 00000000..194888b9
 --- /dev/null
 +++ b/.github/redox/run_ladder.sh
 @@ -0,0 +1,42 @@
@@ -3174,7 +3174,7 @@ index 00000000000000..194888b9daee76
 +echo "=== LADDER DONE"
 diff --git a/.github/redox/run_tests.sh b/.github/redox/run_tests.sh
 new file mode 100644
-index 00000000000000..0dc983b557c88d
+index 00000000..0dc983b5
 --- /dev/null
 +++ b/.github/redox/run_tests.sh
 @@ -0,0 +1,51 @@
@@ -3231,7 +3231,7 @@ index 00000000000000..0dc983b557c88d
 +echo "=== LADDER DONE"
 diff --git a/.github/redox/test_summary.py b/.github/redox/test_summary.py
 new file mode 100644
-index 00000000000000..830e4653119c04
+index 00000000..830e4653
 --- /dev/null
 +++ b/.github/redox/test_summary.py
 @@ -0,0 +1,33 @@
@@ -3270,7 +3270,7 @@ index 00000000000000..830e4653119c04
 +    open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("\n### std package tests on Redox (go test -c, -short)\n\n" + text + "\n" + "".join(f"\n<details><summary>failing tests of {n}</summary>\n\n```\n{d}\n```\n</details>\n" for n, d in details))
 diff --git a/.github/redox/upstream/README.md b/.github/redox/upstream/README.md
 new file mode 100644
-index 00000000000000..ff461e449e3055
+index 00000000..ff461e44
 --- /dev/null
 +++ b/.github/redox/upstream/README.md
 @@ -0,0 +1,31 @@
@@ -3307,7 +3307,7 @@ index 00000000000000..ff461e449e3055
 +(nightly-2026-05-24, `nasm`). Workflow: `.github/workflows/redox-kernel-verify.yml`.
 diff --git a/.github/redox/vm_run.sh b/.github/redox/vm_run.sh
 new file mode 100755
-index 00000000000000..6794ef57b171f4
+index 00000000..6794ef57
 --- /dev/null
 +++ b/.github/redox/vm_run.sh
 @@ -0,0 +1,54 @@
@@ -3367,7 +3367,7 @@ index 00000000000000..6794ef57b171f4
 +tail -5 $log
 diff --git a/.github/workflows/redox-cross-build.yml b/.github/workflows/redox-cross-build.yml
 new file mode 100644
-index 00000000000000..adafe26fdc1df6
+index 00000000..adafe26f
 --- /dev/null
 +++ b/.github/workflows/redox-cross-build.yml
 @@ -0,0 +1,365 @@
@@ -3738,7 +3738,7 @@ index 00000000000000..adafe26fdc1df6
 +        run: python3 .github/redox/test_summary.py /tmp/redoxer-tests.log
 diff --git a/.github/workflows/redox-defs-crosscheck.yml b/.github/workflows/redox-defs-crosscheck.yml
 new file mode 100644
-index 00000000000000..c59aca65c68285
+index 00000000..c59aca65
 --- /dev/null
 +++ b/.github/workflows/redox-defs-crosscheck.yml
 @@ -0,0 +1,62 @@
@@ -3806,7 +3806,7 @@ index 00000000000000..c59aca65c68285
 +          if-no-files-found: warn
 diff --git a/.github/workflows/redox-kernel-verify.yml b/.github/workflows/redox-kernel-verify.yml
 new file mode 100644
-index 00000000000000..cdb18c933f3f4e
+index 00000000..cdb18c93
 --- /dev/null
 +++ b/.github/workflows/redox-kernel-verify.yml
 @@ -0,0 +1,102 @@
@@ -3914,7 +3914,7 @@ index 00000000000000..cdb18c933f3f4e
 +          PY
 diff --git a/.github/workflows/redox-relibc-verify.yml b/.github/workflows/redox-relibc-verify.yml
 new file mode 100644
-index 00000000000000..ddaf4a48207fa1
+index 00000000..ddaf4a48
 --- /dev/null
 +++ b/.github/workflows/redox-relibc-verify.yml
 @@ -0,0 +1,179 @@
@@ -4098,7 +4098,7 @@ index 00000000000000..ddaf4a48207fa1
 +        if: always()
 +        run: python3 .github/redox/relibc_verify_summary.py
 diff --git a/src/archive/tar/stat_actime1.go b/src/archive/tar/stat_actime1.go
-index 27a517bc85d856..a1ec91092b030e 100644
+index 27a517bc..a1ec9109 100644
 --- a/src/archive/tar/stat_actime1.go
 +++ b/src/archive/tar/stat_actime1.go
 @@ -2,7 +2,7 @@
@@ -4111,7 +4111,7 @@ index 27a517bc85d856..a1ec91092b030e 100644
  package tar
  
 diff --git a/src/cmd/compile/internal/ssagen/ssa.go b/src/cmd/compile/internal/ssagen/ssa.go
-index 3da43e715e7df6..f409fd4576aba3 100644
+index 3da43e71..f409fd45 100644
 --- a/src/cmd/compile/internal/ssagen/ssa.go
 +++ b/src/cmd/compile/internal/ssagen/ssa.go
 @@ -5425,6 +5425,17 @@ func (s *state) nilCheck(ptr *ssa.Value) *ssa.Value {
@@ -4133,7 +4133,7 @@ index 3da43e715e7df6..f409fd4576aba3 100644
  }
  
 diff --git a/src/cmd/dist/build.go b/src/cmd/dist/build.go
-index e4c5636db8cc44..5415a87ba9b8c5 100644
+index e4c5636d..5415a87b 100644
 --- a/src/cmd/dist/build.go
 +++ b/src/cmd/dist/build.go
 @@ -98,6 +98,7 @@ var okgoos = []string{
@@ -4161,7 +4161,7 @@ index e4c5636db8cc44..5415a87ba9b8c5 100644
  	"linux/386":       true,
  	"linux/amd64":     true,
 diff --git a/src/cmd/go/internal/work/exec.go b/src/cmd/go/internal/work/exec.go
-index a171bde71105f5..0bb6fd4bb8d575 100644
+index a171bde7..0bb6fd4b 100644
 --- a/src/cmd/go/internal/work/exec.go
 +++ b/src/cmd/go/internal/work/exec.go
 @@ -990,7 +990,7 @@ func (b *Builder) build(ctx context.Context, a *Action) (err error) {
@@ -4183,7 +4183,7 @@ index a171bde71105f5..0bb6fd4bb8d575 100644
  		default:
  			a = append(a, "-pthread")
 diff --git a/src/cmd/go/internal/work/init.go b/src/cmd/go/internal/work/init.go
-index ecb1c09f3d4a62..550851c208878a 100644
+index ecb1c09f..550851c2 100644
 --- a/src/cmd/go/internal/work/init.go
 +++ b/src/cmd/go/internal/work/init.go
 @@ -235,7 +235,7 @@ func buildModeInit() {
@@ -4196,7 +4196,7 @@ index ecb1c09f3d4a62..550851c208878a 100644
  				// suitable for inclusion in a PIE or
  				// shared library.
 diff --git a/src/cmd/internal/obj/x86/asm6.go b/src/cmd/internal/obj/x86/asm6.go
-index 8d884391382b6c..270c9497d527c7 100644
+index 8d884391..270c9497 100644
 --- a/src/cmd/internal/obj/x86/asm6.go
 +++ b/src/cmd/internal/obj/x86/asm6.go
 @@ -1803,7 +1803,7 @@ var opindex [(ALAST + 1) & obj.AMask]*Optab
@@ -4217,7 +4217,7 @@ index 8d884391382b6c..270c9497d527c7 100644
  				return 0x64 // FS
  
 diff --git a/src/cmd/internal/objabi/head.go b/src/cmd/internal/objabi/head.go
-index 0924595e6b4f9c..8ecb76db701013 100644
+index 0924595e..8ecb76db 100644
 --- a/src/cmd/internal/objabi/head.go
 +++ b/src/cmd/internal/objabi/head.go
 @@ -46,6 +46,7 @@ const (
@@ -4247,7 +4247,7 @@ index 0924595e6b4f9c..8ecb76db701013 100644
  		return "solaris"
  	case Hwasip1:
 diff --git a/src/cmd/link/internal/amd64/asm.go b/src/cmd/link/internal/amd64/asm.go
-index 73f0af6951d727..e737219a918899 100644
+index 73f0af69..e737219a 100644
 --- a/src/cmd/link/internal/amd64/asm.go
 +++ b/src/cmd/link/internal/amd64/asm.go
 @@ -317,7 +317,11 @@ func adddynrel(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loade
@@ -4264,7 +4264,7 @@ index 73f0af6951d727..e737219a918899 100644
  				su.SetRelocSym(rIdx, syms.PLT)
  				su.SetRelocAdd(rIdx, r.Add()+int64(ldr.SymPlt(targ)))
 diff --git a/src/cmd/link/internal/amd64/obj.go b/src/cmd/link/internal/amd64/obj.go
-index 9b862821b61eb7..49093a99fdaf9a 100644
+index 9b862821..49093a99 100644
 --- a/src/cmd/link/internal/amd64/obj.go
 +++ b/src/cmd/link/internal/amd64/obj.go
 @@ -66,6 +66,7 @@ func Init() (*sys.Arch, ld.Arch) {
@@ -4284,7 +4284,7 @@ index 9b862821b61eb7..49093a99fdaf9a 100644
  		objabi.Hnetbsd,    /* netbsd */
  		objabi.Hopenbsd,   /* openbsd */
 diff --git a/src/cmd/link/internal/ld/asmb.go b/src/cmd/link/internal/ld/asmb.go
-index 22c3ce16be6f74..d3ac187d117ea1 100644
+index 22c3ce16..d3ac187d 100644
 --- a/src/cmd/link/internal/ld/asmb.go
 +++ b/src/cmd/link/internal/ld/asmb.go
 @@ -112,6 +112,7 @@ func asmb2(ctxt *Link) {
@@ -4296,7 +4296,7 @@ index 22c3ce16be6f74..d3ac187d117ea1 100644
  		asmbElf(ctxt)
  	}
 diff --git a/src/cmd/link/internal/ld/data.go b/src/cmd/link/internal/ld/data.go
-index be6a5878c611e3..3de0f5d0d04f9f 100644
+index be6a5878..3de0f5d0 100644
 --- a/src/cmd/link/internal/ld/data.go
 +++ b/src/cmd/link/internal/ld/data.go
 @@ -252,7 +252,7 @@ func (st *relocSymState) relocsym(s loader.Sym, P []byte) {
@@ -4309,7 +4309,7 @@ index be6a5878c611e3..3de0f5d0d04f9f 100644
  				st.err.Errorf(s, "unhandled relocation for %s (type %d (%s) rtype %d (%s))", ldr.SymName(rs), rst, rst, rt, sym.RelocName(target.Arch, rt))
  			}
 diff --git a/src/cmd/link/internal/ld/elf.go b/src/cmd/link/internal/ld/elf.go
-index b73e22db3d9b48..3dfd83cf136f20 100644
+index b73e22db..3dfd83cf 100644
 --- a/src/cmd/link/internal/ld/elf.go
 +++ b/src/cmd/link/internal/ld/elf.go
 @@ -149,6 +149,7 @@ type ELFArch struct {
@@ -4331,7 +4331,7 @@ index b73e22db3d9b48..3dfd83cf136f20 100644
  				interpreter = thearch.ELF.Netbsddynld
  
 diff --git a/src/cmd/link/internal/ld/lib.go b/src/cmd/link/internal/ld/lib.go
-index 73cf29f4d455a5..7f5860a9b051b3 100644
+index 73cf29f4..7f5860a9 100644
 --- a/src/cmd/link/internal/ld/lib.go
 +++ b/src/cmd/link/internal/ld/lib.go
 @@ -839,7 +839,7 @@ func (ctxt *Link) linksetup() {
@@ -4344,7 +4344,7 @@ index 73cf29f4d455a5..7f5860a9b051b3 100644
  		}
  	}
 diff --git a/src/cmd/link/internal/ld/sym.go b/src/cmd/link/internal/ld/sym.go
-index 62963bef3b2c52..fe487a9273f54e 100644
+index 62963bef..fe487a92 100644
 --- a/src/cmd/link/internal/ld/sym.go
 +++ b/src/cmd/link/internal/ld/sym.go
 @@ -83,6 +83,7 @@ func (ctxt *Link) computeTLSOffset() {
@@ -4356,7 +4356,7 @@ index 62963bef3b2c52..fe487a9273f54e 100644
  		/*
  		 * ELF uses TLS offset negative from FS.
 diff --git a/src/cmd/link/internal/ld/target.go b/src/cmd/link/internal/ld/target.go
-index 62a8a221bfb3ef..ed19b321d4bfe6 100644
+index 62a8a221..ed19b321 100644
 --- a/src/cmd/link/internal/ld/target.go
 +++ b/src/cmd/link/internal/ld/target.go
 @@ -186,6 +186,11 @@ func (t *Target) IsHaiku() bool {
@@ -4381,7 +4381,7 @@ index 62a8a221bfb3ef..ed19b321d4bfe6 100644
  		return true
  	}
 diff --git a/src/crypto/internal/sysrand/rand_getrandom.go b/src/crypto/internal/sysrand/rand_getrandom.go
-index 7d6c422985ce59..d159978dc2879f 100644
+index 7d6c4229..d159978d 100644
 --- a/src/crypto/internal/sysrand/rand_getrandom.go
 +++ b/src/crypto/internal/sysrand/rand_getrandom.go
 @@ -2,7 +2,7 @@
@@ -4395,7 +4395,7 @@ index 7d6c422985ce59..d159978dc2879f 100644
  
 diff --git a/src/crypto/x509/root_redox.go b/src/crypto/x509/root_redox.go
 new file mode 100644
-index 00000000000000..811feac6cc2528
+index 00000000..811feac6
 --- /dev/null
 +++ b/src/crypto/x509/root_redox.go
 @@ -0,0 +1,15 @@
@@ -4415,7 +4415,7 @@ index 00000000000000..811feac6cc2528
 +	"/etc/ssl/certs",
 +}
 diff --git a/src/crypto/x509/root_unix.go b/src/crypto/x509/root_unix.go
-index 1d6e2ff34ab7e9..fcd6a60220f1a4 100644
+index 1d6e2ff3..fcd6a602 100644
 --- a/src/crypto/x509/root_unix.go
 +++ b/src/crypto/x509/root_unix.go
 @@ -2,7 +2,7 @@
@@ -4429,7 +4429,7 @@ index 1d6e2ff34ab7e9..fcd6a60220f1a4 100644
  
 diff --git a/src/internal/goos/zgoos_redox.go b/src/internal/goos/zgoos_redox.go
 new file mode 100644
-index 00000000000000..3787365d43991d
+index 00000000..3787365d
 --- /dev/null
 +++ b/src/internal/goos/zgoos_redox.go
 @@ -0,0 +1,28 @@
@@ -4462,7 +4462,7 @@ index 00000000000000..3787365d43991d
 +const IsWindows = 0
 +const IsZos = 0
 diff --git a/src/internal/platform/zosarch.go b/src/internal/platform/zosarch.go
-index 465ccc7cc3f107..71600bbcc7942c 100644
+index 465ccc7c..71600bbc 100644
 --- a/src/internal/platform/zosarch.go
 +++ b/src/internal/platform/zosarch.go
 @@ -22,6 +22,7 @@ var List = []OSArch{
@@ -4482,7 +4482,7 @@ index 465ccc7cc3f107..71600bbcc7942c 100644
  	{"ios", "amd64"}:       {CgoSupported: true},
  	{"ios", "arm64"}:       {CgoSupported: true},
 diff --git a/src/internal/poll/fd_fsync_posix.go b/src/internal/poll/fd_fsync_posix.go
-index 14b453a4b12d4d..8740e5be44dc26 100644
+index 14b453a4..8740e5be 100644
 --- a/src/internal/poll/fd_fsync_posix.go
 +++ b/src/internal/poll/fd_fsync_posix.go
 @@ -2,7 +2,7 @@
@@ -4496,7 +4496,7 @@ index 14b453a4b12d4d..8740e5be44dc26 100644
  
 diff --git a/src/internal/poll/fd_opendir_redox.go b/src/internal/poll/fd_opendir_redox.go
 new file mode 100644
-index 00000000000000..49e5c6da087a51
+index 00000000..49e5c6da
 --- /dev/null
 +++ b/src/internal/poll/fd_opendir_redox.go
 @@ -0,0 +1,38 @@
@@ -4540,7 +4540,7 @@ index 00000000000000..49e5c6da087a51
 +func Fdopendir(fd int) (dir uintptr, err error)
 diff --git a/src/internal/poll/fd_redox.go b/src/internal/poll/fd_redox.go
 new file mode 100644
-index 00000000000000..fc0ec2809cf242
+index 00000000..fc0ec280
 --- /dev/null
 +++ b/src/internal/poll/fd_redox.go
 @@ -0,0 +1,22 @@
@@ -4567,7 +4567,7 @@ index 00000000000000..fc0ec2809cf242
 +	}
 +}
 diff --git a/src/internal/poll/fd_writev_libc.go b/src/internal/poll/fd_writev_libc.go
-index 9dea8c058e6d34..0a43e0fae77c33 100644
+index 9dea8c05..0a43e0fa 100644
 --- a/src/internal/poll/fd_writev_libc.go
 +++ b/src/internal/poll/fd_writev_libc.go
 @@ -2,7 +2,7 @@
@@ -4580,7 +4580,7 @@ index 9dea8c058e6d34..0a43e0fae77c33 100644
  package poll
  
 diff --git a/src/internal/poll/iovec_unix.go b/src/internal/poll/iovec_unix.go
-index a41d5034269a1f..2a22f78f89fd6f 100644
+index a41d5034..2a22f78f 100644
 --- a/src/internal/poll/iovec_unix.go
 +++ b/src/internal/poll/iovec_unix.go
 @@ -2,7 +2,7 @@
@@ -4593,7 +4593,7 @@ index a41d5034269a1f..2a22f78f89fd6f 100644
  package poll
  
 diff --git a/src/internal/poll/sys_cloexec.go b/src/internal/poll/sys_cloexec.go
-index 07dffd00510a2c..d2804fd77256d2 100644
+index 07dffd00..d2804fd7 100644
 --- a/src/internal/poll/sys_cloexec.go
 +++ b/src/internal/poll/sys_cloexec.go
 @@ -5,7 +5,7 @@
@@ -4607,7 +4607,7 @@ index 07dffd00510a2c..d2804fd77256d2 100644
  
 diff --git a/src/internal/syscall/unix/asm_redox.s b/src/internal/syscall/unix/asm_redox.s
 new file mode 100644
-index 00000000000000..1a57a98640ec6d
+index 00000000..1a57a986
 --- /dev/null
 +++ b/src/internal/syscall/unix/asm_redox.s
 @@ -0,0 +1,10 @@
@@ -4622,7 +4622,7 @@ index 00000000000000..1a57a98640ec6d
 +TEXT ·syscall6(SB),NOSPLIT,$0-88
 +	JMP	syscall·sysvicall6(SB)
 diff --git a/src/internal/syscall/unix/at_libc.go b/src/internal/syscall/unix/at_libc.go
-index 09fc8ac9ecca85..4ade71689420ba 100644
+index 09fc8ac9..4ade7168 100644
 --- a/src/internal/syscall/unix/at_libc.go
 +++ b/src/internal/syscall/unix/at_libc.go
 @@ -2,7 +2,7 @@
@@ -4636,7 +4636,7 @@ index 09fc8ac9ecca85..4ade71689420ba 100644
  
 diff --git a/src/internal/syscall/unix/at_redox.go b/src/internal/syscall/unix/at_redox.go
 new file mode 100644
-index 00000000000000..0287702555fc94
+index 00000000..02877025
 --- /dev/null
 +++ b/src/internal/syscall/unix/at_redox.go
 @@ -0,0 +1,33 @@
@@ -4675,7 +4675,7 @@ index 00000000000000..0287702555fc94
 +)
 diff --git a/src/internal/syscall/unix/faccessat_redox.go b/src/internal/syscall/unix/faccessat_redox.go
 new file mode 100644
-index 00000000000000..47e05fb2c09b6f
+index 00000000..47e05fb2
 --- /dev/null
 +++ b/src/internal/syscall/unix/faccessat_redox.go
 @@ -0,0 +1,28 @@
@@ -4709,7 +4709,7 @@ index 00000000000000..47e05fb2c09b6f
 +}
 diff --git a/src/internal/syscall/unix/getrandom_redox.go b/src/internal/syscall/unix/getrandom_redox.go
 new file mode 100644
-index 00000000000000..21fb86fbe5ccf4
+index 00000000..21fb86fb
 --- /dev/null
 +++ b/src/internal/syscall/unix/getrandom_redox.go
 @@ -0,0 +1,39 @@
@@ -4753,7 +4753,7 @@ index 00000000000000..21fb86fbe5ccf4
 +	return int(r1), nil
 +}
 diff --git a/src/internal/syslist/syslist.go b/src/internal/syslist/syslist.go
-index 5533594eb2e5e2..345e7a5848b1d6 100644
+index 5533594e..345e7a58 100644
 --- a/src/internal/syslist/syslist.go
 +++ b/src/internal/syslist/syslist.go
 @@ -30,6 +30,7 @@ var KnownOS = map[string]bool{
@@ -4773,7 +4773,7 @@ index 5533594eb2e5e2..345e7a5848b1d6 100644
  }
  
 diff --git a/src/net/interface_stub.go b/src/net/interface_stub.go
-index 2f36fbdacb2f65..f129db00fd0ffb 100644
+index 2f36fbda..f129db00 100644
 --- a/src/net/interface_stub.go
 +++ b/src/net/interface_stub.go
 @@ -2,7 +2,7 @@
@@ -4786,7 +4786,7 @@ index 2f36fbdacb2f65..f129db00fd0ffb 100644
  package net
  
 diff --git a/src/net/sock_cloexec.go b/src/net/sock_cloexec.go
-index 9641ac3434bbba..68bccd4f02f69a 100644
+index 9641ac34..68bccd4f 100644
 --- a/src/net/sock_cloexec.go
 +++ b/src/net/sock_cloexec.go
 @@ -5,7 +5,7 @@
@@ -4799,7 +4799,7 @@ index 9641ac3434bbba..68bccd4f02f69a 100644
  package net
  
 diff --git a/src/net/sock_stub.go b/src/net/sock_stub.go
-index d8a330cb66daac..4e1343e406db24 100644
+index d8a330cb..4e1343e4 100644
 --- a/src/net/sock_stub.go
 +++ b/src/net/sock_stub.go
 @@ -2,7 +2,7 @@
@@ -4813,7 +4813,7 @@ index d8a330cb66daac..4e1343e406db24 100644
  
 diff --git a/src/net/sockopt_redox.go b/src/net/sockopt_redox.go
 new file mode 100644
-index 00000000000000..99f71faba60c06
+index 00000000..99f71fab
 --- /dev/null
 +++ b/src/net/sockopt_redox.go
 @@ -0,0 +1,35 @@
@@ -4853,7 +4853,7 @@ index 00000000000000..99f71faba60c06
 +	return os.NewSyscallError("setsockopt", syscall.SetsockoptInt(s, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1))
 +}
 diff --git a/src/net/sockoptip4_bsdvar.go b/src/net/sockoptip4_bsdvar.go
-index 8bbed0a1e587c5..3e0c4fe04dc886 100644
+index 8bbed0a1..3e0c4fe0 100644
 --- a/src/net/sockoptip4_bsdvar.go
 +++ b/src/net/sockoptip4_bsdvar.go
 @@ -2,7 +2,7 @@
@@ -4866,7 +4866,7 @@ index 8bbed0a1e587c5..3e0c4fe04dc886 100644
  package net
  
 diff --git a/src/net/tcpsockopt_posix.go b/src/net/tcpsockopt_posix.go
-index 5e2eea3982e027..8c355246c70968 100644
+index 5e2eea39..8c355246 100644
 --- a/src/net/tcpsockopt_posix.go
 +++ b/src/net/tcpsockopt_posix.go
 @@ -2,7 +2,7 @@
@@ -4879,7 +4879,7 @@ index 5e2eea3982e027..8c355246c70968 100644
  package net
  
 diff --git a/src/net/tcpsockopt_stub.go b/src/net/tcpsockopt_stub.go
-index d8bbefed7378b1..774cf8df402bbc 100644
+index d8bbefed..774cf8df 100644
 --- a/src/net/tcpsockopt_stub.go
 +++ b/src/net/tcpsockopt_stub.go
 @@ -2,7 +2,7 @@
@@ -4892,7 +4892,7 @@ index d8bbefed7378b1..774cf8df402bbc 100644
  package net
  
 diff --git a/src/net/unixsock_readmsg_cmsg_cloexec.go b/src/net/unixsock_readmsg_cmsg_cloexec.go
-index d5ba90b983f897..0486bd7026256a 100644
+index d5ba90b9..0486bd70 100644
 --- a/src/net/unixsock_readmsg_cmsg_cloexec.go
 +++ b/src/net/unixsock_readmsg_cmsg_cloexec.go
 @@ -2,7 +2,7 @@
@@ -4906,7 +4906,7 @@ index d5ba90b983f897..0486bd7026256a 100644
  
 diff --git a/src/os/dir_redox.go b/src/os/dir_redox.go
 new file mode 100644
-index 00000000000000..9fe5af420d2df1
+index 00000000..9fe5af42
 --- /dev/null
 +++ b/src/os/dir_redox.go
 @@ -0,0 +1,121 @@
@@ -5032,7 +5032,7 @@ index 00000000000000..9fe5af420d2df1
 +//go:linkname sysReaddir syscall.Readdir
 +func sysReaddir(dir uintptr) (*syscall.Dirent, error)
 diff --git a/src/os/eloop_other.go b/src/os/eloop_other.go
-index 9efbd7e8ef0ed3..796188701f5f5e 100644
+index 9efbd7e8..79618870 100644
 --- a/src/os/eloop_other.go
 +++ b/src/os/eloop_other.go
 @@ -2,7 +2,7 @@
@@ -5045,7 +5045,7 @@ index 9efbd7e8ef0ed3..796188701f5f5e 100644
  package os
  
 diff --git a/src/os/executable_path.go b/src/os/executable_path.go
-index 50cd7a295dbe3d..475e1d3161ae0f 100644
+index 50cd7a29..475e1d31 100644
 --- a/src/os/executable_path.go
 +++ b/src/os/executable_path.go
 @@ -2,7 +2,7 @@
@@ -5058,7 +5058,7 @@ index 50cd7a295dbe3d..475e1d3161ae0f 100644
  package os
  
 diff --git a/src/os/file_unix.go b/src/os/file_unix.go
-index 6f9cab788b5560..641895997e78ca 100644
+index 6f9cab78..64189599 100644
 --- a/src/os/file_unix.go
 +++ b/src/os/file_unix.go
 @@ -164,13 +164,15 @@ func newFile(fd int, name string, kind newFileKind, nonBlocking bool) *File {
@@ -5079,7 +5079,7 @@ index 6f9cab788b5560..641895997e78ca 100644
  			// reported as ready for writing.
  			// On Dragonfly, NetBSD and OpenBSD the fd is signaled
 diff --git a/src/os/pipe_unix.go b/src/os/pipe_unix.go
-index d765d62d7aa04a..b96b2d44a322f2 100644
+index d765d62d..b96b2d44 100644
 --- a/src/os/pipe_unix.go
 +++ b/src/os/pipe_unix.go
 @@ -2,7 +2,7 @@
@@ -5092,7 +5092,7 @@ index d765d62d7aa04a..b96b2d44a322f2 100644
  package os
  
 diff --git a/src/os/removeall_at.go b/src/os/removeall_at.go
-index 9a7cea613bd066..4012e2a30cf2c8 100644
+index 9a7cea61..4012e2a3 100644
 --- a/src/os/removeall_at.go
 +++ b/src/os/removeall_at.go
 @@ -179,3 +179,4 @@ func openDirAt(dirfd sysfdType, name string) (*File, error) {
@@ -5101,7 +5101,7 @@ index 9a7cea613bd066..4012e2a30cf2c8 100644
  }
 +
 diff --git a/src/os/root_unix.go b/src/os/root_unix.go
-index e88058715387b3..043b94d3492df2 100644
+index e8805871..043b94d3 100644
 --- a/src/os/root_unix.go
 +++ b/src/os/root_unix.go
 @@ -64,7 +64,7 @@ func newRoot(fd int, name string) (*Root, error) {
@@ -5124,7 +5124,7 @@ index e88058715387b3..043b94d3492df2 100644
  		} else if err == syscall.ENOTSUP || err == syscall.EOPNOTSUPP {
 diff --git a/src/os/stat_redox.go b/src/os/stat_redox.go
 new file mode 100644
-index 00000000000000..a5d6e8a0bd03dd
+index 00000000..a5d6e8a0
 --- /dev/null
 +++ b/src/os/stat_redox.go
 @@ -0,0 +1,52 @@
@@ -5181,7 +5181,7 @@ index 00000000000000..a5d6e8a0bd03dd
 +	return timespecToTime(fi.Sys().(*syscall.Stat_t).Atim)
 +}
 diff --git a/src/os/statat_unix.go b/src/os/statat_unix.go
-index fc58b972cae4ce..044a164830d0b8 100644
+index fc58b972..044a1648 100644
 --- a/src/os/statat_unix.go
 +++ b/src/os/statat_unix.go
 @@ -2,7 +2,7 @@
@@ -5195,7 +5195,7 @@ index fc58b972cae4ce..044a164830d0b8 100644
  
 diff --git a/src/os/sys_redox.go b/src/os/sys_redox.go
 new file mode 100644
-index 00000000000000..f224f0dc128219
+index 00000000..f224f0dc
 --- /dev/null
 +++ b/src/os/sys_redox.go
 @@ -0,0 +1,11 @@
@@ -5211,7 +5211,7 @@ index 00000000000000..f224f0dc128219
 +	return syscall.Gethostname()
 +}
 diff --git a/src/os/wait_unimp.go b/src/os/wait_unimp.go
-index 6b072a57642738..78e086f4f96071 100644
+index 6b072a57..78e086f4 100644
 --- a/src/os/wait_unimp.go
 +++ b/src/os/wait_unimp.go
 @@ -5,7 +5,7 @@
@@ -5224,7 +5224,7 @@ index 6b072a57642738..78e086f4f96071 100644
  package os
  
 diff --git a/src/runtime/asm_amd64.s b/src/runtime/asm_amd64.s
-index f5131cce7dc688..e0c417b5b60430 100644
+index f5131cce..e0c417b5 100644
 --- a/src/runtime/asm_amd64.s
 +++ b/src/runtime/asm_amd64.s
 @@ -21,6 +21,10 @@ TEXT _rt0_amd64(SB),NOSPLIT,$-8
@@ -5253,7 +5253,7 @@ index f5131cce7dc688..e0c417b5b60430 100644
  	// skip TLS setup on OpenBSD
  	JMP ok
 diff --git a/src/runtime/cgo/gcc_fatalf.c b/src/runtime/cgo/gcc_fatalf.c
-index fcfa49231b5dc8..525adbc6efab53 100644
+index fcfa4923..525adbc6 100644
 --- a/src/runtime/cgo/gcc_fatalf.c
 +++ b/src/runtime/cgo/gcc_fatalf.c
 @@ -2,7 +2,7 @@
@@ -5267,7 +5267,7 @@ index fcfa49231b5dc8..525adbc6efab53 100644
  #include <stdio.h>
 diff --git a/src/runtime/cgo/gcc_redox_amd64.c b/src/runtime/cgo/gcc_redox_amd64.c
 new file mode 100644
-index 00000000000000..b6678464b4bf6b
+index 00000000..b6678464
 --- /dev/null
 +++ b/src/runtime/cgo/gcc_redox_amd64.c
 @@ -0,0 +1,74 @@
@@ -5347,7 +5347,7 @@ index 00000000000000..b6678464b4bf6b
 +}
 diff --git a/src/runtime/defs_redox.go b/src/runtime/defs_redox.go
 new file mode 100644
-index 00000000000000..475a73a7f670f0
+index 00000000..475a73a7
 --- /dev/null
 +++ b/src/runtime/defs_redox.go
 @@ -0,0 +1,163 @@
@@ -5516,7 +5516,7 @@ index 00000000000000..475a73a7f670f0
 +type PthreadAttr C.pthread_attr_t
 diff --git a/src/runtime/defs_redox_amd64.go b/src/runtime/defs_redox_amd64.go
 new file mode 100644
-index 00000000000000..232f5913452d42
+index 00000000..232f5913
 --- /dev/null
 +++ b/src/runtime/defs_redox_amd64.go
 @@ -0,0 +1,260 @@
@@ -5782,7 +5782,7 @@ index 00000000000000..232f5913452d42
 +}
 diff --git a/src/runtime/envp_other.go b/src/runtime/envp_other.go
 new file mode 100644
-index 00000000000000..8b28ad0617e023
+index 00000000..8b28ad06
 --- /dev/null
 +++ b/src/runtime/envp_other.go
 @@ -0,0 +1,13 @@
@@ -5801,7 +5801,7 @@ index 00000000000000..8b28ad0617e023
 +}
 diff --git a/src/runtime/envp_redox.go b/src/runtime/envp_redox.go
 new file mode 100644
-index 00000000000000..922ed5a9ae7ab3
+index 00000000..922ed5a9
 --- /dev/null
 +++ b/src/runtime/envp_redox.go
 @@ -0,0 +1,26 @@
@@ -5832,7 +5832,7 @@ index 00000000000000..922ed5a9ae7ab3
 +	return argv_index(argv, argc+1+i)
 +}
 diff --git a/src/runtime/fds_unix.go b/src/runtime/fds_unix.go
-index 425d2eabaa8497..39b29df3e693ad 100644
+index 425d2eab..39b29df3 100644
 --- a/src/runtime/fds_unix.go
 +++ b/src/runtime/fds_unix.go
 @@ -27,6 +27,12 @@ func checkfds() {
@@ -5849,7 +5849,7 @@ index 425d2eabaa8497..39b29df3e693ad 100644
  	for i := 0; i < 3; i++ {
  		ret, errno := fcntl(int32(i), F_GETFD, 0)
 diff --git a/src/runtime/lock_sema.go b/src/runtime/lock_sema.go
-index fdba7e2d4b6e2c..ac993402fd8dd5 100644
+index fdba7e2d..ac993402 100644
 --- a/src/runtime/lock_sema.go
 +++ b/src/runtime/lock_sema.go
 @@ -2,7 +2,7 @@
@@ -5862,7 +5862,7 @@ index fdba7e2d4b6e2c..ac993402fd8dd5 100644
  package runtime
  
 diff --git a/src/runtime/mem_bsd.go b/src/runtime/mem_bsd.go
-index 34fc286567ff15..06070b48b6087e 100644
+index 34fc2865..06070b48 100644
 --- a/src/runtime/mem_bsd.go
 +++ b/src/runtime/mem_bsd.go
 @@ -2,7 +2,7 @@
@@ -5875,7 +5875,7 @@ index 34fc286567ff15..06070b48b6087e 100644
  package runtime
  
 diff --git a/src/runtime/mmap.go b/src/runtime/mmap.go
-index 7245cdc7bee3a9..2d4c9a7a771b78 100644
+index 7245cdc7..2d4c9a7a 100644
 --- a/src/runtime/mmap.go
 +++ b/src/runtime/mmap.go
 @@ -2,7 +2,7 @@
@@ -5888,7 +5888,7 @@ index 7245cdc7bee3a9..2d4c9a7a771b78 100644
  package runtime
  
 diff --git a/src/runtime/nbpipe_pipe.go b/src/runtime/nbpipe_pipe.go
-index 59eafde73eeeff..9fed1175d1be49 100644
+index 59eafde7..9fed1175 100644
 --- a/src/runtime/nbpipe_pipe.go
 +++ b/src/runtime/nbpipe_pipe.go
 @@ -2,7 +2,7 @@
@@ -5901,7 +5901,7 @@ index 59eafde73eeeff..9fed1175d1be49 100644
  package runtime
  
 diff --git a/src/runtime/netpoll.go b/src/runtime/netpoll.go
-index 7d37ad2d9ae9c2..3a8e10f513d127 100644
+index 7d37ad2d..3a8e10f5 100644
 --- a/src/runtime/netpoll.go
 +++ b/src/runtime/netpoll.go
 @@ -345,7 +345,7 @@ func poll_runtime_pollWait(pd *pollDesc, mode int) int {
@@ -5915,7 +5915,7 @@ index 7d37ad2d9ae9c2..3a8e10f513d127 100644
  	for !netpollblock(pd, int32(mode), false) {
 diff --git a/src/runtime/netpoll_redox.go b/src/runtime/netpoll_redox.go
 new file mode 100644
-index 00000000000000..b4da1c992fbd06
+index 00000000..b4da1c99
 --- /dev/null
 +++ b/src/runtime/netpoll_redox.go
 @@ -0,0 +1,294 @@
@@ -6215,7 +6215,7 @@ index 00000000000000..b4da1c992fbd06
 +}
 diff --git a/src/runtime/os2_redox.go b/src/runtime/os2_redox.go
 new file mode 100644
-index 00000000000000..07a837650761ae
+index 00000000..07a83765
 --- /dev/null
 +++ b/src/runtime/os2_redox.go
 @@ -0,0 +1,681 @@
@@ -6902,7 +6902,7 @@ index 00000000000000..07a837650761ae
 +}
 diff --git a/src/runtime/os_redox.go b/src/runtime/os_redox.go
 new file mode 100644
-index 00000000000000..209e315707d8e7
+index 00000000..209e3157
 --- /dev/null
 +++ b/src/runtime/os_redox.go
 @@ -0,0 +1,282 @@
@@ -7189,7 +7189,7 @@ index 00000000000000..209e315707d8e7
 +	return libcall.r1
 +}
 diff --git a/src/runtime/os_unix.go b/src/runtime/os_unix.go
-index 6ce24f246af740..dd15a51f0e3718 100644
+index 6ce24f24..dd15a51f 100644
 --- a/src/runtime/os_unix.go
 +++ b/src/runtime/os_unix.go
 @@ -2,7 +2,7 @@
@@ -7202,7 +7202,7 @@ index 6ce24f246af740..dd15a51f0e3718 100644
  package runtime
  
 diff --git a/src/runtime/proc.go b/src/runtime/proc.go
-index d1b1c2b6b6959a..b4b77c54464c16 100644
+index d1b1c2b6..b4b77c54 100644
 --- a/src/runtime/proc.go
 +++ b/src/runtime/proc.go
 @@ -794,17 +794,17 @@ func getGodebugEarly() (string, bool) {
@@ -7255,7 +7255,7 @@ index d1b1c2b6b6959a..b4b77c54464c16 100644
  	return false
 diff --git a/src/runtime/rt0_redox_amd64.s b/src/runtime/rt0_redox_amd64.s
 new file mode 100644
-index 00000000000000..229fa74c304992
+index 00000000..229fa74c
 --- /dev/null
 +++ b/src/runtime/rt0_redox_amd64.s
 @@ -0,0 +1,31 @@
@@ -7291,7 +7291,7 @@ index 00000000000000..229fa74c304992
 +TEXT _rt0_amd64_redox_lib(SB),NOSPLIT,$0
 +	JMP	_rt0_amd64_lib(SB)
 diff --git a/src/runtime/runtime1.go b/src/runtime/runtime1.go
-index 965ff8ab5167d5..2116cc7aaf3e2e 100644
+index 965ff8ab..2116cc7a 100644
 --- a/src/runtime/runtime1.go
 +++ b/src/runtime/runtime1.go
 @@ -85,13 +85,13 @@ func goenvs_unix() {
@@ -7335,7 +7335,7 @@ index 965ff8ab5167d5..2116cc7aaf3e2e 100644
  
 diff --git a/src/runtime/security_redox.go b/src/runtime/security_redox.go
 new file mode 100644
-index 00000000000000..31f176414e3088
+index 00000000..31f17641
 --- /dev/null
 +++ b/src/runtime/security_redox.go
 @@ -0,0 +1,21 @@
@@ -7361,7 +7361,7 @@ index 00000000000000..31f176414e3088
 +	return secureMode
 +}
 diff --git a/src/runtime/signal_amd64.go b/src/runtime/signal_amd64.go
-index 64b0c9d15a6d9a..2a4e45475d5050 100644
+index 64b0c9d1..2a4e4547 100644
 --- a/src/runtime/signal_amd64.go
 +++ b/src/runtime/signal_amd64.go
 @@ -2,7 +2,7 @@
@@ -7375,7 +7375,7 @@ index 64b0c9d15a6d9a..2a4e45475d5050 100644
  
 diff --git a/src/runtime/signal_redox.go b/src/runtime/signal_redox.go
 new file mode 100644
-index 00000000000000..7350df8c1c1147
+index 00000000..7350df8c
 --- /dev/null
 +++ b/src/runtime/signal_redox.go
 @@ -0,0 +1,46 @@
@@ -7427,7 +7427,7 @@ index 00000000000000..7350df8c1c1147
 +}
 diff --git a/src/runtime/signal_redox_amd64.go b/src/runtime/signal_redox_amd64.go
 new file mode 100644
-index 00000000000000..b93f684c13c9a5
+index 00000000..b93f684c
 --- /dev/null
 +++ b/src/runtime/signal_redox_amd64.go
 @@ -0,0 +1,60 @@
@@ -7492,7 +7492,7 @@ index 00000000000000..b93f684c13c9a5
 +func (c *sigctxt) set_sigcode(x uint64) { c.info.si_code = int32(x) }
 +func (c *sigctxt) set_sigaddr(x uint64) { c.info.si_addr = uintptr(x) }
 diff --git a/src/runtime/signal_unix.go b/src/runtime/signal_unix.go
-index f352cb3c024471..8c7e614a978cb6 100644
+index f352cb3c..8c7e614a 100644
 --- a/src/runtime/signal_unix.go
 +++ b/src/runtime/signal_unix.go
 @@ -1138,6 +1138,17 @@ func signalDuringFork(sig uint32) {
@@ -7514,7 +7514,7 @@ index f352cb3c024471..8c7e614a978cb6 100644
  		// There is no extra M. needm will not be able to grab
  		// an M. Instead of hanging, just crash.
 diff --git a/src/runtime/stubs2.go b/src/runtime/stubs2.go
-index 4f1983ddc7b367..f4524e0d4c0c71 100644
+index 4f1983dd..f4524e0d 100644
 --- a/src/runtime/stubs2.go
 +++ b/src/runtime/stubs2.go
 @@ -2,7 +2,7 @@
@@ -7527,7 +7527,7 @@ index 4f1983ddc7b367..f4524e0d4c0c71 100644
  package runtime
  
 diff --git a/src/runtime/stubs3.go b/src/runtime/stubs3.go
-index 903415bfc2c4d4..4a87ab0f2b1181 100644
+index 903415bf..4a87ab0f 100644
 --- a/src/runtime/stubs3.go
 +++ b/src/runtime/stubs3.go
 @@ -2,7 +2,7 @@
@@ -7541,7 +7541,7 @@ index 903415bfc2c4d4..4a87ab0f2b1181 100644
  
 diff --git a/src/runtime/sys_redox_amd64.s b/src/runtime/sys_redox_amd64.s
 new file mode 100644
-index 00000000000000..db55c0315dc248
+index 00000000..db55c031
 --- /dev/null
 +++ b/src/runtime/sys_redox_amd64.s
 @@ -0,0 +1,304 @@
@@ -7851,7 +7851,7 @@ index 00000000000000..db55c0315dc248
 +	RET
 diff --git a/src/runtime/syscall2_redox.go b/src/runtime/syscall2_redox.go
 new file mode 100644
-index 00000000000000..34d970b0404dc6
+index 00000000..34d970b0
 --- /dev/null
 +++ b/src/runtime/syscall2_redox.go
 @@ -0,0 +1,41 @@
@@ -7898,7 +7898,7 @@ index 00000000000000..34d970b0404dc6
 +//go:linkname libc_waitpid libc_waitpid
 diff --git a/src/runtime/syscall_redox.go b/src/runtime/syscall_redox.go
 new file mode 100644
-index 00000000000000..9220468ccb9ea9
+index 00000000..9220468c
 --- /dev/null
 +++ b/src/runtime/syscall_redox.go
 @@ -0,0 +1,332 @@
@@ -8235,7 +8235,7 @@ index 00000000000000..9220468ccb9ea9
 +	return call.r1, call.err
 +}
 diff --git a/src/runtime/timestub2.go b/src/runtime/timestub2.go
-index 5fdb5dd0926738..d1005ed7728043 100644
+index 5fdb5dd0..d1005ed7 100644
 --- a/src/runtime/timestub2.go
 +++ b/src/runtime/timestub2.go
 @@ -2,7 +2,7 @@
@@ -8249,7 +8249,7 @@ index 5fdb5dd0926738..d1005ed7728043 100644
  
 diff --git a/src/syscall/asm_redox_amd64.s b/src/syscall/asm_redox_amd64.s
 new file mode 100644
-index 00000000000000..eaaeebdc991672
+index 00000000..eaaeebdc
 --- /dev/null
 +++ b/src/syscall/asm_redox_amd64.s
 @@ -0,0 +1,81 @@
@@ -8335,7 +8335,7 @@ index 00000000000000..eaaeebdc991672
 +TEXT ·write1(SB),NOSPLIT,$0
 +	JMP	runtime·syscall_write(SB)
 diff --git a/src/syscall/exec_libc.go b/src/syscall/exec_libc.go
-index 5bd6efb57d6c5a..ad54101107c19c 100644
+index 5bd6efb5..ad541011 100644
 --- a/src/syscall/exec_libc.go
 +++ b/src/syscall/exec_libc.go
 @@ -2,7 +2,7 @@
@@ -8360,7 +8360,7 @@ index 5bd6efb57d6c5a..ad54101107c19c 100644
  	// guard against side effects of shuffling fds below.
 diff --git a/src/syscall/exec_libc_nospawn.go b/src/syscall/exec_libc_nospawn.go
 new file mode 100644
-index 00000000000000..8d85fb8e5fc624
+index 00000000..8d85fb8e
 --- /dev/null
 +++ b/src/syscall/exec_libc_nospawn.go
 @@ -0,0 +1,12 @@
@@ -8378,7 +8378,7 @@ index 00000000000000..8d85fb8e5fc624
 +}
 diff --git a/src/syscall/exec_redox_spawn.go b/src/syscall/exec_redox_spawn.go
 new file mode 100644
-index 00000000000000..ab0c58aeaade06
+index 00000000..ab0c58ae
 --- /dev/null
 +++ b/src/syscall/exec_redox_spawn.go
 @@ -0,0 +1,183 @@
@@ -8566,7 +8566,7 @@ index 00000000000000..ab0c58aeaade06
 +	return int(cpid), 0, true
 +}
 diff --git a/src/syscall/exec_unix.go b/src/syscall/exec_unix.go
-index 465c196860ccae..d55079bdd07feb 100644
+index 465c1968..d55079bd 100644
 --- a/src/syscall/exec_unix.go
 +++ b/src/syscall/exec_unix.go
 @@ -212,6 +212,19 @@ func forkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error)
@@ -8610,7 +8610,7 @@ index 465c196860ccae..d55079bdd07feb 100644
  		err1 = execveLibc(argv0p, &argvp[0], &envvp[0])
  
 diff --git a/src/syscall/forkpipe.go b/src/syscall/forkpipe.go
-index a3b75ec38c8995..673347c737eae4 100644
+index a3b75ec3..673347c7 100644
 --- a/src/syscall/forkpipe.go
 +++ b/src/syscall/forkpipe.go
 @@ -2,7 +2,7 @@
@@ -8623,7 +8623,7 @@ index a3b75ec38c8995..673347c737eae4 100644
  package syscall
  
 diff --git a/src/syscall/linkname_libc.go b/src/syscall/linkname_libc.go
-index 9a33bcc1414052..3fd4127eb95ded 100644
+index 9a33bcc1..3fd4127e 100644
 --- a/src/syscall/linkname_libc.go
 +++ b/src/syscall/linkname_libc.go
 @@ -2,7 +2,7 @@
@@ -8637,7 +8637,7 @@ index 9a33bcc1414052..3fd4127eb95ded 100644
  
 diff --git a/src/syscall/linkname_redox.go b/src/syscall/linkname_redox.go
 new file mode 100644
-index 00000000000000..748b74d578c3cf
+index 00000000..748b74d5
 --- /dev/null
 +++ b/src/syscall/linkname_redox.go
 @@ -0,0 +1,14 @@
@@ -8656,7 +8656,7 @@ index 00000000000000..748b74d578c3cf
 +// used by internal/poll
 +//go:linkname Fdopendir
 diff --git a/src/syscall/mkall.sh b/src/syscall/mkall.sh
-index 05c596d47bbb6b..d4d03b376cdafb 100755
+index 05c596d4..d4d03b37 100755
 --- a/src/syscall/mkall.sh
 +++ b/src/syscall/mkall.sh
 @@ -179,6 +179,15 @@ haiku_amd64)
@@ -8677,7 +8677,7 @@ index 05c596d47bbb6b..d4d03b376cdafb 100755
  	mksyscall="./mksyscall.pl -l32"
 diff --git a/src/syscall/mksyscall_redox.pl b/src/syscall/mksyscall_redox.pl
 new file mode 100644
-index 00000000000000..d5a172daefc756
+index 00000000..d5a172da
 --- /dev/null
 +++ b/src/syscall/mksyscall_redox.pl
 @@ -0,0 +1,290 @@
@@ -8972,7 +8972,7 @@ index 00000000000000..d5a172daefc756
 +print $_;
 +exit 0;
 diff --git a/src/syscall/sockcmsg_unix_other.go b/src/syscall/sockcmsg_unix_other.go
-index c7597601173c00..1b23a9cb49de92 100644
+index c7597601..1b23a9cb 100644
 --- a/src/syscall/sockcmsg_unix_other.go
 +++ b/src/syscall/sockcmsg_unix_other.go
 @@ -2,7 +2,7 @@
@@ -8986,7 +8986,7 @@ index c7597601173c00..1b23a9cb49de92 100644
  
 diff --git a/src/syscall/syscall_redox.go b/src/syscall/syscall_redox.go
 new file mode 100644
-index 00000000000000..fbfa188ddc3011
+index 00000000..fbfa188d
 --- /dev/null
 +++ b/src/syscall/syscall_redox.go
 @@ -0,0 +1,563 @@
@@ -9555,7 +9555,7 @@ index 00000000000000..fbfa188ddc3011
 +const SizeofICMPv6Filter = 0x20
 diff --git a/src/syscall/syscall_redox_amd64.go b/src/syscall/syscall_redox_amd64.go
 new file mode 100644
-index 00000000000000..37fc2c6d170060
+index 00000000..37fc2c6d
 --- /dev/null
 +++ b/src/syscall/syscall_redox_amd64.go
 @@ -0,0 +1,30 @@
@@ -9591,7 +9591,7 @@ index 00000000000000..37fc2c6d170060
 +const SYS_EXECVE = 59
 diff --git a/src/syscall/types_redox.go b/src/syscall/types_redox.go
 new file mode 100644
-index 00000000000000..b5378a946539f3
+index 00000000..b5378a94
 --- /dev/null
 +++ b/src/syscall/types_redox.go
 @@ -0,0 +1,154 @@
@@ -9751,7 +9751,7 @@ index 00000000000000..b5378a946539f3
 +type Termios C.struct_termios
 diff --git a/src/syscall/zerrors_redox_amd64.go b/src/syscall/zerrors_redox_amd64.go
 new file mode 100644
-index 00000000000000..135538b8cfc7bb
+index 00000000..135538b8
 --- /dev/null
 +++ b/src/syscall/zerrors_redox_amd64.go
 @@ -0,0 +1,597 @@
@@ -10354,7 +10354,7 @@ index 00000000000000..135538b8cfc7bb
 +}
 diff --git a/src/syscall/zsyscall_redox_amd64.go b/src/syscall/zsyscall_redox_amd64.go
 new file mode 100644
-index 00000000000000..ffe3972ffa440a
+index 00000000..ffe3972f
 --- /dev/null
 +++ b/src/syscall/zsyscall_redox_amd64.go
 @@ -0,0 +1,1133 @@
@@ -11493,7 +11493,7 @@ index 00000000000000..ffe3972ffa440a
 +}
 diff --git a/src/syscall/ztypes_redox_amd64.go b/src/syscall/ztypes_redox_amd64.go
 new file mode 100644
-index 00000000000000..a4aa4d31538861
+index 00000000..a4aa4d31
 --- /dev/null
 +++ b/src/syscall/ztypes_redox_amd64.go
 @@ -0,0 +1,191 @@
