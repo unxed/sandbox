@@ -36,7 +36,14 @@ jobs:
         run: |
           cp f4-su-conpty/su_probe_windows_test.go f4/internal/app/
           python f4-su-conpty/modeprobe.py f4
-      - name: Run the probe
+      - name: Session facts (UAC, integrity level)
+        shell: pwsh
+        run: |
+          reg query HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System /v EnableLUA
+          reg query HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System /v ConsentPromptBehaviorAdmin
+          whoami /groups | Select-String -Pattern "Mandatory|Administrators"
+          whoami /priv | Select-String -Pattern "SeDebug|SeImpersonate" 
+      - name: Run the probe at the runner's own integrity level
         shell: pwsh
         working-directory: f4
         env:
@@ -45,15 +52,46 @@ jobs:
         run: |
           go test ./internal/app -run TestSuConPTYProbe -v -count=1 -timeout 15m *>&1 | Tee-Object -FilePath ../probe.log
           exit 0
+      - name: Run the probe as a Basic User (Medium integrity), su elevating for real if it can
+        shell: pwsh
+        env:
+          CGO_ENABLED: '0'
+        run: |
+          # Build the test binary first, at the runner's level, so the Medium
+          # process only has to run it.
+          Push-Location f4
+          go test -c -o ..\appprobe.test.exe ./internal/app
+          Pop-Location
+          $ws = "${{ github.workspace }}"
+          @"
+          `$env:SU_EXE = '$ws\sudo\su.exe'
+          `$env:CGO_ENABLED = '0'
+          Set-Location '$ws\f4\internal\app'
+          whoami /groups | Select-String -Pattern 'Mandatory' | Out-File '$ws\medium-who.txt'
+          & '$ws\appprobe.test.exe' -test.run TestSuConPTYProbe -test.v -test.timeout 15m *>&1 | Out-File -Encoding utf8 '$ws\probe-medium.log'
+          "@ | Set-Content -Encoding utf8 medium-run.ps1
+          # /trustlevel 0x20000 = Basic User. runas needs no password for it.
+          runas /trustlevel:0x20000 "powershell -NoProfile -ExecutionPolicy Bypass -File $ws\medium-run.ps1"
+          $deadline = (Get-Date).AddMinutes(8)
+          while (-not (Test-Path probe-medium.log) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+          # let the run finish: wait until the log stops growing
+          $last = -1
+          while ($true) { Start-Sleep 6; if (-not (Test-Path probe-medium.log)) { break }; $n = (Get-Item probe-medium.log).Length; if ($n -eq $last) { break }; $last = $n; if ((Get-Date) -gt $deadline) { break } }
+          if (Test-Path medium-who.txt) { Get-Content medium-who.txt }
+          if (Test-Path probe-medium.log) { Get-Content probe-medium.log }
+          exit 0
       - name: Summary
         if: always()
         shell: bash
         run: |
           grep -E "RESULT|STATE|MODEPROBE|=== " probe.log | tee summary.txt || true
+          echo "--- medium ---"; grep -E "Mandatory|RESULT|STATE|MODEPROBE|=== " probe-medium.log medium-who.txt 2>/dev/null | tee -a summary.txt || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: probe-log
           path: |
             probe.log
+            probe-medium.log
+            medium-who.txt
             summary.txt
