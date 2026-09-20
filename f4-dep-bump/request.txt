@@ -1,3 +1,3 @@
 # One directive per line. The workflow resolves them in a scratch module with
 # the Go tool and prints the go.mod / go.sum lines to paste into f4.
-REQUIRE github.com/unxed/vtui v0.1.357-0.20260920175639-dd8c3d2822d3
+REQUIRE github.com/unxed/zip v0.1.140-0.20260920190318-b7873eeac05b
