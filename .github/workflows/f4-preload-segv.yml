@@ -1,0 +1,76 @@
+name: f4-preload-segv
+
+# Reproduces unxed/f4#1213 after the goffi fallback landed: on the reporter's
+# machine f4 prints "continuing without FFI" and then dies with SIGSEGV at
+# PC=0 in the Go runtime. Builds f4 the way build.yml does (goffi_universal,
+# interpreter stripped) and starts it with a library preloaded that aborts in
+# the re-executed process, on the runner and on a glibc 2.31 userland.
+
+on:
+  push:
+    branches: [ "preload-segv", "preload-segv-*" ]
+    paths: [ "f4-preload-segv/**", ".github/workflows/f4-preload-segv.yml" ]
+  workflow_dispatch:
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: unxed/f4
+          ref: main
+          path: f4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: false
+      - name: Build f4 the way build.yml does
+        working-directory: f4
+        run: |
+          set -euo pipefail
+          CGO_ENABLED=0 go build -tags goffi_universal -trimpath -ldflags="-s -w" -o build/f4 ./cmd/f4
+          go run github.com/go-webgpu/goffi/cmd/goffi-strip-interp build/f4
+          go run github.com/go-webgpu/goffi/cmd/goffi-audit build/f4
+          go list -m github.com/go-webgpu/goffi
+      - name: Sanity, nothing preloaded
+        working-directory: f4
+        run: |
+          ./build/f4 --version; echo "exit=$?"
+      - name: The abort library
+        run: |
+          sudo gcc -shared -fPIC -o /usr/local/lib/libabort.so f4-preload-segv/abort.c
+      - name: LD_PRELOAD abort, on the runner
+        working-directory: f4
+        continue-on-error: true
+        run: |
+          set +e
+          GOTRACEBACK=crash LD_PRELOAD=/usr/local/lib/libabort.so ./build/f4 --version 2>err.txt
+          echo "exit=$?"; head -c 3000 err.txt
+      - name: ld.so.preload abort, on the runner
+        working-directory: f4
+        continue-on-error: true
+        run: |
+          set +e
+          echo /usr/local/lib/libabort.so | sudo tee /etc/ld.so.preload
+          GOTRACEBACK=crash ./build/f4 --version 2>err2.txt
+          echo "exit=$?"; head -c 3000 err2.txt
+          sudo rm -f /etc/ld.so.preload
+      - name: LD_PRELOAD abort, glibc 2.31 userland (debian bullseye)
+        working-directory: f4
+        continue-on-error: true
+        run: |
+          set +e
+          docker run --rm -v "$PWD/..:/w" debian:bullseye bash -c '
+            apt-get update -qq >/dev/null && apt-get install -y -qq gcc >/dev/null
+            ldd --version | head -1
+            gcc -shared -fPIC -o /usr/local/lib/libabort.so /w/f4-preload-segv/abort.c
+            cd /w/f4
+            GOTRACEBACK=crash LD_PRELOAD=/usr/local/lib/libabort.so ./build/f4 --version 2>err3.txt
+            echo "exit=$?"; head -c 3000 err3.txt
+            echo /usr/local/lib/libabort.so > /etc/ld.so.preload
+            GOTRACEBACK=crash ./build/f4 --version 2>err4.txt
+            echo "exit(ld.so.preload)=$?"; head -c 3000 err4.txt
+          '
