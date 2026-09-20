@@ -52,33 +52,33 @@ jobs:
         run: |
           go test ./internal/app -run TestSuConPTYProbe -v -count=1 -timeout 15m *>&1 | Tee-Object -FilePath ../probe.log
           exit 0
-      - name: Run the probe as a Basic User (Medium integrity), su elevating for real if it can
+      - name: Run the probe at Medium integrity (limited scheduled task), su elevating for real
         shell: pwsh
         env:
           CGO_ENABLED: '0'
         run: |
-          # Build the test binary first, at the runner's level, so the Medium
-          # process only has to run it.
+          # Build the test binary first, at the runner's level, so the
+          # Medium process only has to run it.
           Push-Location f4
           go test -c -o ..\appprobe.test.exe ./internal/app
           Pop-Location
           $ws = "${{ github.workspace }}"
           @"
           `$env:SU_EXE = '$ws\sudo\su.exe'
-          `$env:CGO_ENABLED = '0'
           Set-Location '$ws\f4\internal\app'
-          whoami /groups | Select-String -Pattern 'Mandatory' | Out-File '$ws\medium-who.txt'
+          whoami /groups | Select-String -Pattern 'Mandatory Label' | Out-File -Encoding utf8 '$ws\medium-who.txt'
           & '$ws\appprobe.test.exe' -test.run TestSuConPTYProbe -test.v -test.timeout 15m *>&1 | Out-File -Encoding utf8 '$ws\probe-medium.log'
-          "@ | Set-Content -Encoding utf8 medium-run.ps1
-          # /trustlevel 0x20000 = Basic User. runas needs no password for it.
-          runas /trustlevel:0x20000 "powershell -NoProfile -ExecutionPolicy Bypass -File $ws\medium-run.ps1"
+          'done' | Out-File '$ws\medium-done.txt'
+          "@ | Set-Content -Encoding utf8 "$ws\medium-run.ps1"
+          # /RL LIMITED runs the task with the user's filtered (Medium) token;
+          # /IT = interactive session, so no password is needed.
+          schtasks /Create /TN f4probe /TR "powershell -NoProfile -ExecutionPolicy Bypass -File $ws\medium-run.ps1" /SC ONCE /ST 23:59 /RL LIMITED /IT /F
+          schtasks /Run /TN f4probe
           $deadline = (Get-Date).AddMinutes(8)
-          while (-not (Test-Path probe-medium.log) -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
-          # let the run finish: wait until the log stops growing
-          $last = -1
-          while ($true) { Start-Sleep 6; if (-not (Test-Path probe-medium.log)) { break }; $n = (Get-Item probe-medium.log).Length; if ($n -eq $last) { break }; $last = $n; if ((Get-Date) -gt $deadline) { break } }
-          if (Test-Path medium-who.txt) { Get-Content medium-who.txt }
-          if (Test-Path probe-medium.log) { Get-Content probe-medium.log }
+          while (-not (Test-Path "$ws\medium-done.txt") -and (Get-Date) -lt $deadline) { Start-Sleep 3 }
+          schtasks /Delete /TN f4probe /F
+          if (Test-Path "$ws\medium-who.txt") { Get-Content "$ws\medium-who.txt" }
+          if (Test-Path "$ws\probe-medium.log") { Get-Content "$ws\probe-medium.log" } else { "no probe-medium.log" }
           exit 0
       - name: Summary
         if: always()
