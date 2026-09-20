@@ -1,0 +1,4 @@
+# One directive per line. The workflow resolves them in a scratch module with
+# the Go tool and prints the go.mod / go.sum lines to paste into f4.
+REQUIRE github.com/go-webgpu/goffi v0.6.3
+REPLACE github.com/go-webgpu/goffi github.com/unxed/goffi v0.1.9-0.20260920144017-3dab79554729

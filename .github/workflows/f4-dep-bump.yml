@@ -1,0 +1,38 @@
+name: f4-dep-bump
+
+# Prints the exact go.mod / go.sum lines for a pseudo-version bump of one of
+# f4's forked dependencies, computed by the Go tool in CI. Edit
+# f4-dep-bump/request.txt on a dep-bump* branch and push.
+
+on:
+  push:
+    branches: [ "dep-bump", "dep-bump-*" ]
+    paths: [ "f4-dep-bump/**", ".github/workflows/f4-dep-bump.yml" ]
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache: false
+      - name: Resolve
+        run: |
+          set -euo pipefail
+          mkdir scratch && cd scratch && go mod init scratch >/dev/null 2>&1
+          mods=()
+          while read -r verb a b c; do
+            case "$verb" in
+              REQUIRE) go mod edit -require "$a@$b"; mods+=("$a") ;;
+              REPLACE) go mod edit -replace "$a=$b@$c" ;;
+              ""|\#*) ;;
+            esac
+          done < ../f4-dep-bump/request.txt
+          for m in "${mods[@]}"; do GOFLAGS=-mod=mod go mod download "$m"; done
+          echo "----- go.mod lines"
+          grep -E "require|replace|=>|unxed|go-webgpu" go.mod
+          echo "----- go.sum lines"
+          grep -E "unxed|go-webgpu" go.sum || cat go.sum
