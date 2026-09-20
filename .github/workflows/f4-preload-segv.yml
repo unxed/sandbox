@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: unxed/f4
-          ref: main
+          ref: chore/bump-goffi-1213-setenv
           path: f4
       - uses: actions/setup-go@v5
         with:
