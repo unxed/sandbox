@@ -1,0 +1,42 @@
+name: zip-1243
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'zip-1243/**'
+      - '.github/workflows/zip-1243.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: unxed/zip
+          ref: v0.1.139
+          path: zip
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: zip/go.mod
+      - name: Add the reproducing test only (expected to FAIL)
+        working-directory: zip
+        run: |
+          git config user.name ci && git config user.email ci@example.invalid
+          git am ../zip-1243/patches/0001-*.patch
+          set +e
+          go test -run 'TestArchiver_DefaultLevelKeepsLZ77ForText' -v ./ 2>&1 | tail -20
+          echo "before-fix exit: ${PIPESTATUS[0]}"
+      - name: Apply the fix (expected to PASS)
+        working-directory: zip
+        run: |
+          git am ../zip-1243/patches/0002-*.patch
+          go test -run 'TestArchiver_DefaultLevelKeepsLZ77ForText' -v ./
+      - name: Heuristic and TorrentZip tests still pass
+        working-directory: zip
+        run: go test -run 'TestArchiver_' -count=1 ./

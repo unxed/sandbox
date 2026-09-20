@@ -1,0 +1,34 @@
+From c4e465edd5b745c536f7f184cc6f2d354b75c27a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 20 Sep 2026 00:36:03 +0000
+Subject: [PATCH 2/2] zip: keep LZ77 for text unless BestSpeed was asked for
+
+compressFile's byte-histogram heuristic switched to HuffmanOnly for any block
+with <=136 distinct bytes (every text) at every level. Restrict it to level 1,
+the case it was written for. Fixes unxed/f4#1243.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ archiver.go | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/archiver.go b/archiver.go
+index 9ba7d54..d4fc166 100644
+--- a/archiver.go
++++ b/archiver.go
+@@ -942,7 +942,11 @@ func (a *Archiver) compressFile(ctx context.Context, r io.ReadSeeker, fi os.File
+ 			store, huffmanOnly := analyzeBlock(peekBuf[:n])
+ 			if store {
+ 				hdr.Method = Store
+-			} else if huffmanOnly {
++			} else if huffmanOnly && a.options.level == 1 {
++				// The shortcut was written for BestSpeed, where LZ77 costs more
++				// than it saves on short text. At the default and higher levels
++				// it threw away the matches a text is made of: 120 KB of prose
++				// came out at ~72% instead of ~25% (f4 #1243).
+ 				hdr.Level = -2 // flate.HuffmanOnly
+ 			}
+ 		}
+-- 
+2.43.0
+
