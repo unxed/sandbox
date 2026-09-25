@@ -1,0 +1,68 @@
+name: f4-selfcommand
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: f4 ref to test
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+run-name: f4-selfcommand (${{ inputs.ref }})
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: unxed/f4
+          ref: ${{ inputs.ref }}
+          path: f4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: f4/go.mod
+          cache-dependency-path: f4/go.sum
+      - name: Build the probe the way f4's release builds cmd/f4
+        working-directory: f4
+        run: |
+          set -euo pipefail
+          git log --oneline -1
+          grep -n 'goffi =>' go.mod
+          mkdir -p cmd/selfcommand-probe
+          cp ../f4-selfcommand/main.go.txt cmd/selfcommand-probe/main.go
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags goffi_universal -trimpath \
+            -ldflags="-s -w" -o ../selfcommand-probe ./cmd/selfcommand-probe
+          go run github.com/go-webgpu/goffi/cmd/goffi-strip-interp ../selfcommand-probe
+          go run github.com/go-webgpu/goffi/cmd/goffi-audit ../selfcommand-probe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: selfcommand-probe
+          path: selfcommand-probe
+
+  run:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ "debian:11", "ubuntu:20.04", "debian:bookworm-slim", "ubuntu:24.04", "alpine:3.22" ]
+    container:
+      image: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: selfcommand-probe
+      - name: Start copies through update.SelfCommand
+        shell: sh
+        run: |
+          set -eu
+          chmod +x selfcommand-probe
+          ./selfcommand-probe | tee out.txt
+          grep -q SELFCOMMAND-PROBE-OK out.txt

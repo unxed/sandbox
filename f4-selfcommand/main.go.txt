@@ -1,0 +1,74 @@
+// Command selfcommand-probe starts copies of itself the two ways f4 does,
+// through update.SelfCommand, and checks each copy came up with FFI.
+//
+//   - SelfCommand(os.Args[0], ...)          internal/terminal/session_unix.go
+//   - SelfCommand(update.Executable(), ...) internal/app/bootstrap_detach_unix.go
+//
+// The sandbox workflow copies this file into f4's tree as
+// cmd/selfcommand-probe/main.go, so it can import f4's internal packages, and
+// builds it the way f4's release builds cmd/f4 (goffi_universal, interpreter
+// stripped).
+package main
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/go-webgpu/goffi/ffi"
+	"github.com/unxed/f4/internal/update"
+)
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "child" {
+		exe, err := update.Executable()
+		fmt.Printf("child pid=%d os.Args[0]=%s ffi.Available=%v update.Executable=%q err=%v\n",
+			os.Getpid(), os.Args[0], ffi.Available(), exe, err)
+		if !ffi.Available() {
+			os.Exit(1)
+		}
+		h, err := ffi.LoadLibrary(ffi.HostLibC())
+		if err != nil {
+			fmt.Printf("child LoadLibrary: %v\n", err)
+			os.Exit(1)
+		}
+		if _, err := ffi.GetSymbol(h, "getpid"); err != nil {
+			fmt.Printf("child GetSymbol: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("CHILD-OK")
+		return
+	}
+
+	exe, err := update.Executable()
+	fmt.Printf("parent pid=%d os.Args[0]=%s ffi.Available=%v update.Executable=%q err=%v\n",
+		os.Getpid(), os.Args[0], ffi.Available(), exe, err)
+	if err != nil {
+		fmt.Println("SELFCOMMAND-PROBE-FAILED")
+		os.Exit(1)
+	}
+
+	failed := false
+	for _, c := range []struct{ name, self string }{
+		{"SelfCommand(os.Args[0])", os.Args[0]},
+		{"SelfCommand(update.Executable())", exe},
+	} {
+		cmd := update.SelfCommand(c.self, "child")
+		out, err := cmd.CombinedOutput()
+		ok := err == nil && strings.Contains(string(out), "CHILD-OK")
+		status := "ok  "
+		if !ok {
+			status = "FAIL"
+			failed = true
+		}
+		fmt.Printf("%s %s: argv=%q err=%v\n", status, c.name, cmd.Args, err)
+		for _, l := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			fmt.Printf("       | %s\n", l)
+		}
+	}
+	if failed {
+		fmt.Println("SELFCOMMAND-PROBE-FAILED")
+		os.Exit(1)
+	}
+	fmt.Println("SELFCOMMAND-PROBE-OK")
+}
