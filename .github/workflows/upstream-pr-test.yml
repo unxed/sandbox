@@ -16,6 +16,10 @@ on:
       go_version:
         description: Go version (empty = from go.mod)
         default: ""
+      vet:
+        description: run go vet
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -50,6 +54,7 @@ jobs:
           out=$(gofmt -l .)
           if [ -n "$out" ]; then echo "::warning::gofmt -l: $out"; fi
       - name: go vet
+        if: inputs.vet
         shell: bash
         run: go vet ./...
       - name: go test
