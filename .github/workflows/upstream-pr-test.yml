@@ -1,0 +1,56 @@
+name: upstream-pr-test
+run-name: "upstream-pr-test ${{ inputs.repo }}@${{ inputs.ref }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: repository to check out (owner/name)
+        required: true
+      ref:
+        description: branch, tag or commit
+        required: true
+      test_args:
+        description: arguments for go test
+        default: "-race ./..."
+      go_version:
+        description: Go version (empty = from go.mod)
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        if: inputs.go_version == ''
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-go@v5
+        if: inputs.go_version != ''
+        with:
+          go-version: ${{ inputs.go_version }}
+      - name: gofmt
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then echo "$out"; exit 1; fi
+      - name: go vet
+        shell: bash
+        run: go vet ./...
+      - name: go test
+        shell: bash
+        run: go test ${{ inputs.test_args }}
