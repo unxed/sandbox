@@ -8,5 +8,7 @@ wait 5
 shot loading1
 wait 15
 shot loading2
-waittext Windows Setup 90
+# The window title text OCRs unreliably ("Microsoft Server Operating System
+# Setup"); "Language to install" on the same screen is unique and legible.
+waittext Language to install 90
 shot setup
