@@ -1,0 +1,79 @@
+name: vmlab-windows-boot
+
+# Feasibility probe (unxed/f4#1494 and related): can a Windows-family guest
+# boot under vmlab's QEMU/KVM at all, and does the runner expose nested
+# virtualization (SVM/VMX) to that guest at the CPU level (a precondition for
+# Hyper-V/WSL2 inside such a guest)?
+#
+# This only boots the Windows Server 2022 evaluation ISO (WinPE-based Setup)
+# from a cold start with no hard disk attached: it proves the guest boots and
+# renders video, it does NOT install Windows or test WSL2 itself (that needs
+# a full unattended install, a separate, bigger follow-up).
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'vmlab/guests/windows-setup.json'
+      - 'vmlab/scenarios/windows-boot.txt'
+      - '.github/workflows/vmlab-windows-boot.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: KVM and tools
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm || echo "NO /dev/kvm (TCG fallback, slow)"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils tesseract-ocr
+          qemu-system-x86_64 --version | head -1
+
+      - name: Nested virtualization diagnostics (host CPU, kvm module, what -cpu host exposes to L2)
+        run: |
+          echo "--- lscpu ---"
+          lscpu | grep -iE 'model name|virtualization'
+          echo "--- /proc/cpuinfo flags ---"
+          grep -m1 -oE '\b(vmx|svm)\b' /proc/cpuinfo || echo "(no vmx/svm flag found on host)"
+          echo "--- kvm module 'nested' parameter (as loaded) ---"
+          for f in /sys/module/kvm_intel/parameters/nested /sys/module/kvm_amd/parameters/nested; do
+            [ -f "$f" ] && echo "$f = $(cat "$f")"
+          done
+          echo "--- attempt to force nested=1 if it wasn't already ---"
+          for mod in kvm_amd kvm_intel; do
+            f="/sys/module/$mod/parameters/nested"
+            if [ -f "$f" ] && ! grep -qE '^[1Yy]' "$f"; then
+              echo "reloading $mod with nested=1"
+              sudo modprobe -r "$mod" && sudo modprobe "$mod" nested=1
+              cat "$f"
+            fi
+          done
+          echo "--- what -cpu host would expose to an L2 guest (QMP query-cpu-model-expansion) ---"
+          python3 vmlab/nested_check.py
+
+      - name: Scenario (boot the Windows Server 2022 eval ISO, no disk, screenshots along the way)
+        run: cp vmlab/scenarios/windows-boot.txt /tmp/scenario.txt
+
+      - name: Boot and capture
+        run: |
+          date -u +%T
+          python3 vmlab/vmlab.py run --guest vmlab/guests/windows-setup.json --scenario /tmp/scenario.txt
+          date -u +%T
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlab-windows-boot-${{ github.run_id }}
+          path: |
+            /tmp/vmlab/shots
+            /tmp/vmlab/qemu.log
+            /tmp/vmlab/serial.log
+          if-no-files-found: ignore

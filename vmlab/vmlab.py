@@ -152,18 +152,24 @@ def fetch_image(guest, work):
 
 def start_qemu(guest, work, loadvm=None):
     base = fetch_image(guest, work)
-    overlay = work / "overlay.qcow2"
-    if not overlay.exists():
-        subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", "-F", "raw",
-                        "-b", str(base), str(overlay)], check=True)
     kvm = os.access("/dev/kvm", os.R_OK | os.W_OK) and os.environ.get("VMLAB_ACCEL") != "tcg"
     log("KVM used:", kvm)
     args = ["qemu-system-x86_64",
             "-machine", guest.get("machine", "pc-i440fx-8.2") + ",accel=" + ("kvm" if kvm else "tcg"),
             "-cpu", guest.get("cpu", "host" if kvm else "max"),
             "-m", str(guest.get("ram", 2048)), "-smp", str(guest.get("smp", 2)),
-            "-display", "none", "-vga", "std",
-            "-drive", "file=%s,format=qcow2,if=ide,index=0" % overlay]
+            "-display", "none", "-vga", "std"]
+    if guest.get("boot") == "cdrom":
+        # Boot media only (installer/live ISO), no persistent disk, no snapshot support:
+        # attach the downloaded image read-only as a CD-ROM instead of the usual
+        # qcow2-overlay-over-raw-backing-file hard disk.
+        args += ["-drive", "file=%s,media=cdrom,if=ide,index=0,readonly=on" % base]
+    else:
+        overlay = work / "overlay.qcow2"
+        if not overlay.exists():
+            subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", "-F", "raw",
+                            "-b", str(base), str(overlay)], check=True)
+        args += ["-drive", "file=%s,format=qcow2,if=ide,index=0" % overlay]
     if guest.get("firmware") == "uefi":  # Debian/Ubuntu ovmf package
         vars_fd = work / "OVMF_VARS.qcow2"  # qcow2, not raw: savevm refuses writable raw pflash
         if not vars_fd.exists():

@@ -60,6 +60,8 @@ Claude / разработчик                     раннер GitHub Actions 
 | `.github/workflows/vmlab-session.yml` | интерактивная сессия (workflow_dispatch; входы `guest`, `minutes`, `scenario`, `loadvm`, `bus`, `xvfb`) |
 | `.github/workflows/vmlab-redox-boot.yml` | пакетный замер загрузки (KVM/TCG × BIOS/UEFI) со скриншотами в артефактах |
 | `.github/workflows/vmlab-haiku.yml` | пакетный прогон сценария в Haiku без git-шины, в том числе регресс f4 после каждой сборки (см. «Гость Haiku») |
+| `vmlab/nested_check.py` | разовая диагностика: что `-cpu host` под KVM реально отдаёт L2-гостю (QMP `query-cpu-model-expansion`), без запуска какой-либо гостевой ОС |
+| `.github/workflows/vmlab-windows-boot.yml` | пакетная проба загрузки Windows (см. «Гость Windows») + диагностика вложенной виртуализации |
 
 ### Язык сценария (по строке на шаг)
 
@@ -184,6 +186,10 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
 (`uefi`), `cpu`, `ram`, `smp`, `nic`, `usb`, `qemu_extra`).
 
 * **Haiku** — уже подключена, см. «Гость Haiku» ниже.
+* **Windows** — пока только пробный загрузочный образ, см. «Гость Windows» ниже; ключ
+  `"boot": "cdrom"` в JSON гостя подключает `image_url`/`image_index` как read-only CD-ROM
+  (El Torito) вместо обычного qcow2-оверлея на raw-бэкенде — годится для установочных/live ISO
+  без установки на диск.
 * **Hurd** — образы Debian GNU/Hurd (qcow2, i386/amd64) грузятся с текстовой консолью:
   скриншот полезен как контроль, а надёжнее читать serial-лог (`-serial file:` уже
   пишется в `/tmp/vmlab/serial.log`) и слать команды на консоль клавишами `typeln`.
@@ -230,6 +236,37 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
   том же job'е `f4-haiku` тем же тулчейном, артефакт `f4-haiku-tools`).
 * **Инструменты разбора:** `vmlab/haiku/vtdump.py` (эмулятор терминала на stdlib: превращает
   снапшоты `ptyrun` в текст экрана, `--bg` — карта цветов фона), `sgrtest*.sh` (эксперименты с SGR).
+
+## Гость Windows (проба: загрузка есть, WSL2 внутри ещё не проверялся)
+
+Мотивация — часть багов/фич f4 на Windows (ConPTY-specific поведение, `\\wsl.localhost\` vs
+`wsl.exe`, см. f4#1494) можно проверить только на реальной Windows, а раннеры GitHub Windows
+не дают ни выбора ConPTY, ни рабочего WSL2. Разово проверено (2026-09-26, AMD EPYC 9V74):
+
+* **Грузится.** `vmlab/guests/windows-setup.json` указывает на оценочный ISO Windows Server
+  2022 (`software-download.microsoft.com/.../SERVER_EVAL_x64FRE_en-us.iso`, анонимно доступен
+  без регистрации на портале Evaluation Center — тот же URL годами используют шаблоны Packer).
+  `"boot": "cdrom"`, диска нет: сценарий `vmlab/scenarios/windows-boot.txt`
+  (`vmlab-windows-boot.yml`, KVM) за раз доходит до графического экрана Windows Setup
+  («Microsoft Server Operating System Setup», выбор языка) — реальный скриншот с раннера,
+  без TCG. Только загрузка/рендер; установка Windows не делалась (это отдельная, большая
+  задача: автоматическая установка по ISO нужна была бы через `autounattend.xml`).
+  Скачивание ISO (~5.2 ГБ, `software-download.microsoft.com`) заняло на пробе ~11 минут —
+  дольше самой загрузки гостя; для повторных прогонов стоит кэшировать образ как это уже
+  делает Haiku/Redox для снимков.
+* **Вложенная виртуализация видна гостю.** `vmlab/nested_check.py` — разовая диагностика без
+  установки Windows: поднимает пустой QEMU (`-cpu host`, `-S`, без диска/дисплея) и спрашивает
+  через QMP `query-cpu-model-expansion`, что модель `host` реально отдаст L2-гостю. На раннере:
+  `kvm_amd` собран с `nested=1` **по умолчанию** (перезагружать модуль не пришлось), и
+  `-cpu host` отдаёт гостю `svm=True`, `npt=True` (AMD, поэтому `vmx=False` — на Intel-раннере
+  ожидается обратное). Это необходимое условие для Hyper-V (и через него WSL2) внутри
+  Windows-гостя, но не достаточное: реально поднять Hyper-V/WSL2 в L2-Windows и получить из
+  него L3-гостя WSL2 не проверялось — для этого нужна полностью установленная Windows.
+* **Чего не хватает для f4#1494.** Нужна установленная Windows (см. выше — не сделано в этой
+  пробе), включённый Hyper-V/WSL2 внутри неё, и проверка, что L3-гость WSL2 реально стартует
+  через два уровня вложенной виртуализации (раннер → KVM → наш QEMU/Windows → Hyper-V/WSL2).
+  Само по себе `svm=True, npt=True` только снимает самый вероятный блокер (отсутствие
+  аппаратной вложенной виртуализации), не доказывает работоспособность.
 
 ## Второй способ: `redoxer` в docker (`f4-redox/vm/`)
 

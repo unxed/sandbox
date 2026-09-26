@@ -1,0 +1,17 @@
+# Boot the Windows Server 2022 evaluation ISO (WinPE-based Setup) from a cold
+# start, no hard disk attached: this only proves the guest boots and renders
+# video under QEMU/KVM, it does not install anything.
+wait 8
+shot bios
+key ret
+wait 5
+shot loading1
+wait 15
+shot loading2
+# OCR of this screen is unreliable (small font in a small centered dialog on
+# a 1024x768 desktop -- tesseract mangles "Microsoft Server Operating System
+# Setup" / "Language to install" into noise even though the screen is
+# correct, confirmed by eye against the screenshot); wait for the screen to
+# stop changing instead of matching text.
+stable 5 90
+shot setup
