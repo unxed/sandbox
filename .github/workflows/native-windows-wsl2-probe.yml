@@ -1,0 +1,133 @@
+name: native-windows-wsl2-probe
+
+# Feasibility probe (unxed/f4#1494): can WSL2 actually be enabled and used on
+# a plain, native GitHub-hosted `windows-latest` runner - no QEMU, no nested
+# Linux/KVM layer, just this Windows VM trying to run its own Hyper-V-lite
+# virtualization layer for WSL2? GitHub's hosted Windows runners document
+# WSL1 as "enabled, no distro" and say nothing about WSL2, which specifically
+# needs the guest OS to start its own hypervisor - something that requires
+# the underlying Azure host to expose nested virtualization to the guest.
+# Many multi-tenant cloud SKUs deliberately disable that. This workflow finds
+# out empirically, and if it works, runs the WSL2-vs-UNC-path benchmark that
+# unxed/f4#1494 actually needs.
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - '.github/workflows/native-windows-wsl2-probe.yml'
+      - 'vmlab/wsl-distro-probe.ps1'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: OS, Hyper-V requirements and existing wsl.exe state
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Write-Host '== OS =='
+          [System.Environment]::OSVersion.VersionString
+          Get-ComputerInfo -Property WindowsProductName,OsHardwareAbstractionLayer,WindowsVersion,OsBuildNumber,OsServerLevel | Format-List
+          Write-Host '== systeminfo: Hyper-V / virtualization lines =='
+          systeminfo | Select-String -Pattern 'Hyper-V|Virtualization|VM Monitor|Second Level|Data Execution'
+          Write-Host '== bcdedit hypervisorlaunchtype (BEFORE any change) =='
+          bcdedit /enum '{current}' | Select-String -Pattern 'hypervisorlaunchtype'
+          Write-Host '== wsl.exe present already? =='
+          Get-Command wsl.exe -ErrorAction SilentlyContinue
+          wsl --status 2>&1
+          wsl --version 2>&1
+          Write-Host '== optional features BEFORE =='
+          Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux,VirtualMachinePlatform | Format-Table -AutoSize
+
+      - name: Enable WSL2 prerequisite features (DISM, no restart yet)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $r1 = Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux -All -NoRestart
+          $r1 | Format-List
+          $r2 = Enable-WindowsOptionalFeature -Online -FeatureName VirtualMachinePlatform -All -NoRestart
+          $r2 | Format-List
+          Write-Host "RestartNeeded: subsystem-linux=$($r1.RestartNeeded) vm-platform=$($r2.RestartNeeded)"
+          Write-Host '== bcdedit hypervisorlaunchtype (AFTER enabling features, BEFORE any reboot) =='
+          bcdedit /enum '{current}' | Select-String -Pattern 'hypervisorlaunchtype'
+
+      - name: Fast-path attempt - wsl --install without any manual reboot
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Write-Host '== wsl --update =='
+          wsl --update 2>&1
+          Write-Host "exit: $LASTEXITCODE"
+          Write-Host '== wsl --set-default-version 2 =='
+          wsl --set-default-version 2 2>&1
+          Write-Host "exit: $LASTEXITCODE"
+          Write-Host '== wsl --install -d Ubuntu --no-launch =='
+          wsl --install -d Ubuntu --no-launch 2>&1
+          Write-Host "exit: $LASTEXITCODE"
+          Write-Host '== wsl --status =='
+          wsl --status 2>&1
+          Write-Host '== wsl -l -v =='
+          wsl -l -v 2>&1
+
+      - name: Try to actually start the distro (this is where a missing hypervisor would show up)
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Write-Host '== wsl -d Ubuntu -- echo ok =='
+          wsl -d Ubuntu -- echo ok 2>&1
+          Write-Host "exit: $LASTEXITCODE"
+          Write-Host '== wsl -l -v (after start attempt) =='
+          wsl -l -v 2>&1
+
+      - name: If a reboot looks required, take ONE empirical shot at reboot-and-resume
+        if: always()
+        shell: pwsh
+        continue-on-error: true
+        timeout-minutes: 6
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $v = wsl -l -v 2>&1 | Out-String
+          if ($v -match 'Ubuntu' -and $v -match 'Running|Stopped') {
+            Write-Host 'Distro already usable, no reboot experiment needed.'
+          } else {
+            Write-Host 'Distro not usable yet - checking whether hypervisorlaunchtype needs a reboot to take effect, then testing a self-reboot to see if this hosted runner job can survive/resume it (expected: it cannot, GitHub-hosted runners are single-use ephemeral VMs with no persistent runner service to reconnect a live job after a restart).'
+          bcdedit /enum '{current}' | Select-String -Pattern 'hypervisorlaunchtype'
+            Write-Host 'Scheduling a restart in 5s and then trying one more wsl call, to see whether this step (and the job) even survives it.'
+            shutdown /r /t 5
+            Start-Sleep -Seconds 15
+            Write-Host 'If you can read this line, the step process survived 15s past scheduling a restart (unexpected on a hosted runner).'
+            wsl -l -v 2>&1
+          }
+
+      - name: Final state (only meaningful if the previous steps did not already end the job)
+        if: always()
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Continue'
+          wsl --status 2>&1
+          wsl -l -v 2>&1
+          wsl -d Ubuntu -- echo ok 2>&1
+          Write-Host "exit: $LASTEXITCODE"
+
+      - name: Run the WSL2-vs-UNC-path probe (only if a distro is actually running)
+        if: always()
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $v = wsl -l -v 2>&1 | Out-String
+          if ($v -match 'Running' -or (wsl -d Ubuntu -- echo ok 2>&1 | Out-String) -match 'ok') {
+            Write-Host 'Distro appears usable - running wsl-distro-probe.ps1'
+            pwsh -File vmlab/wsl-distro-probe.ps1 -Distro Ubuntu
+          } else {
+            Write-Host 'No usable WSL2 distro - skipping the benchmark (this is the expected negative-result path if nested virtualization is unavailable).'
+          }
