@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+vmlab Windows guest: unattended-install answer file for the Windows Server
+2022 evaluation ISO (vmlab/guests/windows-install.json). Read from a floppy
+(A:\autounattend.xml) that Windows Setup auto-detects at boot with no UI;
+A:\ also carries bootstrap.ps1 / windows-agent.ps1 / vmlab-agent.cmd, which
+FirstLogonCommands below copies onto the installed disk so the PowerShell
+guest agent (vmlab/guests/windows-agent.ps1) is running before we touch
+anything else (WSL2, reboot, etc). See vmlab/README.md, "Гость Windows".
+
+Single BIOS/MBR disk (DiskID 0, matches the sole -drive if=ide attached as
+the persistent disk in windows-install.json), edition selected by /IMAGE/NAME
+(SERVERSTANDARD = Standard, Desktop Experience) so no product key is needed
+for the eval channel. Administrator account only (Server ships it enabled).
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+    <settings pass="windowsPE">
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <SetupUILanguage>
+                <UILanguage>en-US</UILanguage>
+            </SetupUILanguage>
+            <InputLocale>en-US</InputLocale>
+            <SystemLocale>en-US</SystemLocale>
+            <UILanguage>en-US</UILanguage>
+            <UserLocale>en-US</UserLocale>
+        </component>
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <DiskConfiguration>
+                <Disk wcm:action="add">
+                    <DiskID>0</DiskID>
+                    <WillWipeDisk>true</WillWipeDisk>
+                    <CreatePartitions>
+                        <CreatePartition wcm:action="add">
+                            <Order>1</Order>
+                            <Type>Primary</Type>
+                            <Size>350</Size>
+                        </CreatePartition>
+                        <CreatePartition wcm:action="add">
+                            <Order>2</Order>
+                            <Type>Primary</Type>
+                            <Extend>true</Extend>
+                        </CreatePartition>
+                    </CreatePartitions>
+                    <ModifyPartitions>
+                        <ModifyPartition wcm:action="add">
+                            <Order>1</Order>
+                            <PartitionID>1</PartitionID>
+                            <Format>NTFS</Format>
+                            <Label>boot</Label>
+                            <Active>true</Active>
+                        </ModifyPartition>
+                        <ModifyPartition wcm:action="add">
+                            <Order>2</Order>
+                            <PartitionID>2</PartitionID>
+                            <Format>NTFS</Format>
+                            <Label>vmlab</Label>
+                            <Letter>C</Letter>
+                        </ModifyPartition>
+                    </ModifyPartitions>
+                </Disk>
+                <WillShowUI>OnError</WillShowUI>
+            </DiskConfiguration>
+            <ImageInstall>
+                <OSImage>
+                    <InstallFrom>
+                        <MetaData wcm:action="add">
+                            <Key>/IMAGE/NAME</Key>
+                            <Value>Windows Server 2022 SERVERSTANDARD</Value>
+                        </MetaData>
+                    </InstallFrom>
+                    <InstallTo>
+                        <DiskID>0</DiskID>
+                        <PartitionID>2</PartitionID>
+                    </InstallTo>
+                    <WillShowUI>OnError</WillShowUI>
+                </OSImage>
+                <UserData>
+                    <ProductKey>
+                        <WillShowUI>OnError</WillShowUI>
+                    </ProductKey>
+                    <AcceptEula>true</AcceptEula>
+                </UserData>
+            </ImageInstall>
+        </component>
+    </settings>
+    <settings pass="offlineServicing">
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-LUA-Settings" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <EnableLUA>false</EnableLUA>
+        </component>
+    </settings>
+    <settings pass="generalize">
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-Security-SPP" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <SkipRearm>1</SkipRearm>
+        </component>
+    </settings>
+    <settings pass="specialize">
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <ComputerName>VMLAB-WIN</ComputerName>
+            <TimeZone>UTC</TimeZone>
+        </component>
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-ServerManager-SvrMgrNc" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <DoNotOpenServerManagerAtLogon>true</DoNotOpenServerManagerAtLogon>
+        </component>
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-TerminalServices-LocalSessionManager" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <fDenyTSConnections>false</fDenyTSConnections>
+        </component>
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-TerminalServices-RDP-WinStationExtensions" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <UserAuthentication>0</UserAuthentication>
+        </component>
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Networking-MPSSVC-Svc" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <FirewallGroups>
+                <FirewallGroup wcm:action="add" wcm:keyValue="RemoteDesktop">
+                    <Active>true</Active>
+                    <Group>Remote Desktop</Group>
+                    <Profile>all</Profile>
+                </FirewallGroup>
+            </FirewallGroups>
+        </component>
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-Security-SPP-UX" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <SkipAutoActivation>true</SkipAutoActivation>
+        </component>
+    </settings>
+    <settings pass="oobeSystem">
+        <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" language="neutral" name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" versionScope="nonSxS">
+            <OOBE>
+                <HideEULAPage>true</HideEULAPage>
+                <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+                <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+                <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+                <NetworkLocation>Work</NetworkLocation>
+                <ProtectYourPC>3</ProtectYourPC>
+                <SkipMachineOOBE>true</SkipMachineOOBE>
+                <SkipUserOOBE>true</SkipUserOOBE>
+            </OOBE>
+            <UserAccounts>
+                <AdministratorPassword>
+                    <Value>Vmlab!2026Win</Value>
+                    <PlainText>true</PlainText>
+                </AdministratorPassword>
+            </UserAccounts>
+            <AutoLogon>
+                <Password>
+                    <Value>Vmlab!2026Win</Value>
+                    <PlainText>true</PlainText>
+                </Password>
+                <Enabled>true</Enabled>
+                <Username>Administrator</Username>
+                <LogonCount>999</LogonCount>
+            </AutoLogon>
+            <FirstLogonCommands>
+                <SynchronousCommand wcm:action="add">
+                    <Order>1</Order>
+                    <RequiresUserInput>false</RequiresUserInput>
+                    <CommandLine>cmd.exe /c powershell.exe -NoProfile -ExecutionPolicy Bypass -File A:\bootstrap.ps1</CommandLine>
+                    <Description>vmlab bootstrap: install the PowerShell guest agent from the floppy</Description>
+                </SynchronousCommand>
+            </FirstLogonCommands>
+        </component>
+    </settings>
+</unattend>

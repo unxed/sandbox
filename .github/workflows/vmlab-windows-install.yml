@@ -1,0 +1,143 @@
+name: vmlab-windows-install
+
+# Unattended Windows install + WSL2 bring-up (unxed/f4#1494 and related):
+# the follow-up to vmlab-windows-boot.yml (which only proved the guest boots
+# and that nested virtualization is exposed to it). This workflow actually
+# installs Windows Server 2022 (eval ISO) from an autounattend.xml floppy,
+# then drives the whole post-install pipeline -- enable WSL2's optional
+# features, reboot, install the WSL2 kernel MSI, `wsl --import` an Ubuntu
+# rootfs, and finally run f4#1494's wsl-distro-probe.ps1 -- purely through
+# the PowerShell guest agent (vmlab/guests/windows-agent.ps1), no
+# keyboard/mouse past the initial boot screenshots. See vmlab/README.md,
+# "Гость Windows".
+#
+# Everything from job 00 onward runs as a single generated batch scenario
+# (vmlab/guests/windows-install-gen.py + vmlab/guests/win-jobs/*.ps1); job 00
+# snapshots the freshly-installed disk (`save postinstall`) before touching
+# WSL2, and that disk (with the snapshot inside it) is cached so a failure in
+# a later job doesn't cost re-running the ~20-40min unattended install on the
+# next attempt -- the next run restores the cache and passes --resume, which
+# skips straight to job 01 via `--loadvm postinstall`.
+on:
+  workflow_dispatch:
+    inputs:
+      fresh:
+        description: 'ignore any cached post-install disk snapshot and reinstall from scratch'
+        default: 'false'
+  push:
+    paths:
+      - 'vmlab/guests/windows-install.json'
+      - 'vmlab/guests/autounattend.xml'
+      - 'vmlab/guests/bootstrap.ps1'
+      - 'vmlab/guests/windows-agent.ps1'
+      - 'vmlab/guests/vmlab-agent.cmd'
+      - 'vmlab/guests/windows-install-gen.py'
+      - 'vmlab/guests/win-jobs/**'
+      - '.github/workflows/vmlab-windows-install.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: KVM and tools
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm || true
+          ls -l /dev/kvm || echo "NO /dev/kvm (TCG fallback, very slow -- would not finish in time)"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils tesseract-ocr dosfstools mtools
+          qemu-system-x86_64 --version | head -1
+
+      - name: Restore install ISO cache (~5.2GB, stable key -- avoids Microsoft's ~11min download on every run)
+        uses: actions/cache/restore@v4
+        id: isocache
+        with:
+          path: /tmp/vmlab/base.img
+          key: vmlab-win-iso-v1
+
+      - name: Restore post-install disk snapshot cache (skips the unattended install if we already have one)
+        if: inputs.fresh != 'true'
+        uses: actions/cache/restore@v4
+        id: diskcache
+        with:
+          path: /tmp/vmlab/disk.qcow2
+          key: vmlab-win-disk-none
+          restore-keys: vmlab-win-disk-
+
+      - name: Build the answer-file floppy (autounattend.xml + bootstrap/agent scripts)
+        run: |
+          mkdir -p /tmp/vmlab /tmp/floppy-root
+          cp vmlab/guests/autounattend.xml vmlab/guests/bootstrap.ps1 vmlab/guests/windows-agent.ps1 vmlab/guests/vmlab-agent.cmd /tmp/floppy-root/
+          truncate -s 1440k /tmp/vmlab/floppy.img
+          mkfs.vfat -F 12 -n VMLAB /tmp/vmlab/floppy.img
+          mcopy -i /tmp/vmlab/floppy.img /tmp/floppy-root/* ::
+          mdir -i /tmp/vmlab/floppy.img
+
+      - name: Decide resume vs. fresh install
+        id: mode
+        run: |
+          if [ -f /tmp/vmlab/disk.qcow2 ] && qemu-img snapshot -l /tmp/vmlab/disk.qcow2 2>/dev/null | grep -q postinstall; then
+            echo "found disk.qcow2 with a postinstall snapshot -> resuming"
+            echo "resume=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "no usable postinstall snapshot -> full unattended install"
+            rm -f /tmp/vmlab/disk.qcow2
+            echo "resume=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate scenario
+        run: |
+          if [ "${{ steps.mode.outputs.resume }}" = "1" ]; then
+            python3 vmlab/guests/windows-install-gen.py /tmp/scenario.txt --resume
+          else
+            python3 vmlab/guests/windows-install-gen.py /tmp/scenario.txt
+          fi
+          cat /tmp/scenario.txt
+
+      - name: Run (install if needed, then the whole WSL2 + probe pipeline)
+        run: |
+          date -u +%T
+          if [ "${{ steps.mode.outputs.resume }}" = "1" ]; then
+            python3 vmlab/vmlab.py run --guest vmlab/guests/windows-install.json --scenario /tmp/scenario.txt --loadvm postinstall
+          else
+            python3 vmlab/vmlab.py run --guest vmlab/guests/windows-install.json --scenario /tmp/scenario.txt
+          fi
+          date -u +%T
+
+      - name: Was a snapshot saved?
+        id: saved
+        if: always()
+        run: '[ -f /tmp/vmlab/SAVED ] && echo saved=1 >> "$GITHUB_OUTPUT" || true'
+
+      - name: Save post-install disk snapshot cache
+        if: always() && steps.saved.outputs.saved == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/vmlab/disk.qcow2
+          key: vmlab-win-disk-${{ github.run_id }}
+
+      - name: Save install ISO cache (first run only, key is stable)
+        if: always() && steps.isocache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/vmlab/base.img
+          key: vmlab-win-iso-v1
+
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmlab-windows-install-${{ github.run_id }}
+          path: |
+            /tmp/vmlab/shots
+            /tmp/vmlab/upload
+            /tmp/vmlab/qemu.log
+            /tmp/vmlab/serial.log
+            /tmp/scenario.txt
+          if-no-files-found: ignore

@@ -268,6 +268,28 @@ docker/сборки образа. KVM нужен для тяжёлых нагр�
   Само по себе `svm=True, npt=True` только снимает самый вероятный блокер (отсутствие
   аппаратной вложенной виртуализации), не доказывает работоспособность.
 
+### Установка Windows без человека и пробег WSL2 (`vmlab-windows-install.yml`)
+
+Следующий шаг после пробы: настоящая **неинтерактивная** установка Windows Server 2022 eval,
+включение WSL2 внутри неё и прогон пробного скрипта f4#1494 (`wsl-distro-probe.ps1`,
+сравнение `\\wsl.localhost\` с локальным `wsl.exe`). Файлы:
+
+| Файл | Назначение |
+|---|---|
+| `vmlab/guests/windows-install.json` | тот же eval-ISO, но с `disk_gb` (настоящий диск для установки) и `allow_reboot` (гостю разрешено перезагружаться самому — иначе `-no-reboot` просто гасит QEMU) |
+| `vmlab/guests/autounattend.xml` | answer-файл: один MBR-диск, `/IMAGE/NAME` = `Windows Server 2022 SERVERSTANDARD` (Desktop Experience, без продуктового ключа — eval-канал), `AutoLogon` от Administrator (`LogonCount` большой — переживает все наши перезагрузки), `FirstLogonCommands` из одной команды (`A:\bootstrap.ps1`) |
+| `vmlab/guests/bootstrap.ps1`, `vmlab-agent.cmd`, `windows-agent.ps1` | тот же паттерн, что `haiku-agent.sh`/`redox-agent.ion`, но для Windows: `bootstrap.ps1` кладёт `windows-agent.ps1` в `C:\vmlab` и лончер в `%ProgramData%\...\StartUp`, дальше агент сам поднимается на каждом логоне (AutoLogon это гарантирует и после перезагрузок) и опрашивает `job.ps1`/`job.out` через `Invoke-WebRequest` |
+| все четыре файла выше | лежат на **флоппи** (не на CD): Windows Setup сам находит `autounattend.xml` в корне съёмного носителя без какой-либо настройки, а флоппи всегда `A:` — в отличие от второго CD-ROM, чья буква диска непредсказуема |
+| `vmlab/guests/win-jobs/*.ps1` | сама последовательность: `00-hello` (первый живой отклик агента после установки) → `01-enable-wsl-features` (два `dism`-фичи + перезагрузка, сам шлёт свой лог до перезагрузки — иначе ответ никогда не уйдёт) → `02-post-reboot-check` → `03-install-kernel` (msi с `wslstorestorage.blob.core.windows.net`, см. `learn.microsoft.com/windows/wsl/install-manual` — на Server нет Store, значит и `wsl --update` тем путём не работает) → `04-import-ubuntu` (`wsl --import` из `cloud-images.ubuntu.com/wsl/...rootfs.tar.gz` — тоже без Store и без интерактивного создания UNIX-пользователя) → `05-wsl-distro-probe.ps1` (весь скрипт sogonov из f4#1494, построчно как в тикете) |
+| `vmlab/guests/windows-install-gen.py` | оборачивает каждый `win-jobs/*.ps1` в `payload job.ps1 <base64>` / `waitupload job.out` / `catupload job.out` / `shot` — тем же `job.$EXT`-протоколом, что и `ctl.py sh`, но статическим сценарием для `vmlab.py run` (батч, без git-шины); `--resume` пропускает загрузочную преамбулу и `00-hello` (для восстановления из снимка) |
+| `.github/workflows/vmlab-windows-install.yml` | собирает флоппи (`mkfs.vfat`+`mtools`), кэширует ISO (стабильный ключ) и диск с post-install снимком (`vmlab-win-disk-*`, восстановление по префиксу) отдельно — если начиная с `02`/`03`/`04` что-то ломается, следующий прогон стартует не с установки Windows, а с `--loadvm postinstall` |
+
+В `vmlab.py` для этого добавлено немного: `disk_gb` у гостя с `boot: cdrom` — постоянный qcow2-диск рядом с установочным ISO (индекс `1`); флоппи (`floppy.img`, если файл существует — тот же паттерн, что уже был у `payload.iso`); `allow_reboot` делает `-no-reboot` необязательным; `snapshot_names()` теперь смотрит и на `disk.qcow2`; шаг сценария `catupload NAME` — печатает файл, который гость положил на хост, прямо в лог шага (в батч-режиме нет сессионной шины, через которую можно забрать `out/`, поэтому результат должен быть виден в самом логе job'а).
+
+Реальный прогон (что именно получилось — установка, включение WSL2, импорт Ubuntu, вывод пробного
+скрипта) описывается отдельно после первого исполнения этого workflow; на момент написания этого
+раздела механизм собран, но ещё не прогнан на раннере.
+
 ## Второй способ: `redoxer` в docker (`f4-redox/vm/`)
 
 В репозитории есть и другой способ запускать Redox в CI, он **не заменён** vmlab и не дублирует его:

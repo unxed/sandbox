@@ -19,6 +19,7 @@ Scenario language: one step per line, '#' starts a comment.
   hmp CMD                     raw QEMU human-monitor command
   payload NAME BASE64         publish a file for the guest (http://10.0.2.2:8000/NAME)
   waitupload NAME [TIMEOUT]   wait for a file the guest PUT to the host server
+  catupload NAME              print a file the guest PUT to the host server, into this step's own log
   xshot NAME                  screenshot of the host X display (VMLAB_XVFB=1 -> Xvfb :1, guest DISPLAY=10.0.2.2:1)
   xkey KEYS / xclick X Y [right|middle|double] / xtype TEXT / xrun CMD   xdotool input on that display
   xsh CMD                     run a command on the host with DISPLAY set, output goes to the log (e.g. xwininfo, ss)
@@ -160,10 +161,19 @@ def start_qemu(guest, work, loadvm=None):
             "-m", str(guest.get("ram", 2048)), "-smp", str(guest.get("smp", 2)),
             "-display", "none", "-vga", "std"]
     if guest.get("boot") == "cdrom":
-        # Boot media only (installer/live ISO), no persistent disk, no snapshot support:
-        # attach the downloaded image read-only as a CD-ROM instead of the usual
+        # Installer/live ISO, attached read-only as a CD-ROM instead of the usual
         # qcow2-overlay-over-raw-backing-file hard disk.
         args += ["-drive", "file=%s,media=cdrom,if=ide,index=0,readonly=on" % base]
+        if guest.get("disk_gb"):
+            # A real persistent disk alongside the install media (Windows: this is
+            # what the installer partitions/formats). Created once, sized disk_gb;
+            # kept across runs the same way base.img/overlay.qcow2 already are
+            # (whoever calls this restores it from an actions/cache before running).
+            disk = work / "disk.qcow2"
+            if not disk.exists():
+                subprocess.run(["qemu-img", "create", "-q", "-f", "qcow2", str(disk),
+                                "%dG" % guest["disk_gb"]], check=True)
+            args += ["-drive", "file=%s,format=qcow2,if=ide,index=1" % disk]
     else:
         overlay = work / "overlay.qcow2"
         if not overlay.exists():
@@ -181,11 +191,23 @@ def start_qemu(guest, work, loadvm=None):
     args += ["-nic", "user,model=%s" % guest.get("nic", "e1000"),
             "-qmp", "unix:%s,server=on,wait=off" % (work / "qmp.sock"),
             "-serial", "file:%s" % (work / "serial.log"),
-            "-monitor", "none", "-no-reboot"]
+            "-monitor", "none"]
+    if not guest.get("allow_reboot"):
+        # Guests that don't expect to reboot themselves: treat a guest-initiated
+        # reset as "done" (qemu exits) rather than actually rebooting. Guests that
+        # DO need a real reboot mid-scenario (Windows: Setup's own internal restart,
+        # later `Restart-Computer` for the WSL2 feature install) set allow_reboot.
+        args.append("-no-reboot")
     args += guest.get("qemu_extra", [])
     extra_drive = work / "payload.iso"
     if extra_drive.exists():
         args += ["-drive", "file=%s,media=cdrom,if=ide,index=2,readonly=on" % extra_drive]
+    extra_floppy = work / "floppy.img"
+    if extra_floppy.exists():
+        # Small FAT floppy (built by whoever calls this, e.g. autounattend.xml +
+        # guest agent for Windows): Windows Setup auto-detects autounattend.xml at
+        # the root of removable media with no configuration needed here.
+        args += ["-drive", "file=%s,format=raw,if=floppy,readonly=on" % extra_floppy]
     if loadvm:
         args += ["-loadvm", loadvm]
     log("qemu:", " ".join(args))
@@ -194,10 +216,12 @@ def start_qemu(guest, work, loadvm=None):
 
 
 def snapshot_names(work):
-    overlay = work / "overlay.qcow2"
-    if not overlay.exists():
+    f = work / "disk.qcow2"  # persistent installed-OS disk (Windows: disk_gb guests)
+    if not f.exists():
+        f = work / "overlay.qcow2"  # everyone else: qcow2 overlay on the base image
+    if not f.exists():
         return []
-    out = subprocess.run(["qemu-img", "snapshot", "-l", str(overlay)],
+    out = subprocess.run(["qemu-img", "snapshot", "-l", str(f)],
                          capture_output=True, text=True).stdout
     return [l.split()[1] for l in out.splitlines()[2:] if l.strip()]
 
@@ -352,6 +376,15 @@ class Lab:
                 return "%s %d bytes" % (p[0], f.stat().st_size)
             time.sleep(0.5)
         raise TimeoutError("guest did not upload %s" % p[0])
+
+    def do_catupload(self, rest):
+        """catupload NAME: print a file the guest PUT to the host, into this step's own log
+        (batch/`run` mode has no session bus to fetch it through afterwards; this puts the
+        content directly in the job's own stdout, e.g. for `gh run view --log`)."""
+        p = WORK / "upload" / rest.strip()
+        if not p.exists():
+            raise FileNotFoundError(str(p))
+        return "\n" + p.read_text(errors="replace")
 
     # -- host-side X11 (Xvfb, started when VMLAB_XVFB=1; the guest reaches it as DISPLAY=10.0.2.2:1)
     def _x(self, argv, **kw):
