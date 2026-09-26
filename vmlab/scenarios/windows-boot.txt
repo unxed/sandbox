@@ -1,0 +1,12 @@
+# Boot the Windows Server 2022 evaluation ISO (WinPE-based Setup) from a cold
+# start, no hard disk attached: this only proves the guest boots and renders
+# video under QEMU/KVM, it does not install anything.
+wait 8
+shot bios
+key ret
+wait 5
+shot loading1
+wait 15
+shot loading2
+waittext Windows Setup 90
+shot setup
