@@ -8,7 +8,10 @@ wait 5
 shot loading1
 wait 15
 shot loading2
-# The window title text OCRs unreliably ("Microsoft Server Operating System
-# Setup"); "Language to install" on the same screen is unique and legible.
-waittext Language to install 90
+# OCR of this screen is unreliable (small font in a small centered dialog on
+# a 1024x768 desktop -- tesseract mangles "Microsoft Server Operating System
+# Setup" / "Language to install" into noise even though the screen is
+# correct, confirmed by eye against the screenshot); wait for the screen to
+# stop changing instead of matching text.
+stable 5 90
 shot setup
