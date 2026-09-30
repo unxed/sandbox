@@ -1,0 +1,61 @@
+name: far2l-exts-docs-check
+run-name: "far2l-exts-docs-check ${{ inputs.doc_ref }}"
+
+# Checks VTExts.md (the far2l terminal extensions documentation) against the far2l sources:
+#  1. constants, letters and numeric facts against FarTTY.h, WinCompat.h and the TTY backend / VT sources;
+#  2. byte examples against the real StackSerializer/base64 of far2l (compiled here).
+on:
+  workflow_dispatch:
+    inputs:
+      doc_repo:
+        description: repository with the document
+        default: unxed/far2l
+      doc_ref:
+        description: branch or commit of the document
+        default: extsdocs
+      doc_path:
+        description: path of the document in that repository
+        default: VTExts.md
+      far2l_ref:
+        description: elfmz/far2l commit to check against
+        default: c12197bceb57b645dcbac99af6c51be815cb756b
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: sb
+          sparse-checkout: far2l-exts-docs
+      - uses: actions/checkout@v4
+        with:
+          repository: elfmz/far2l
+          ref: ${{ inputs.far2l_ref }}
+          path: far2l
+          fetch-depth: 1
+          sparse-checkout: |
+            WinPort
+            utils
+            far2l/src/vt
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.doc_repo }}
+          ref: ${{ inputs.doc_ref }}
+          path: doc
+          fetch-depth: 1
+          sparse-checkout: ${{ inputs.doc_path }}
+      - name: Constants, letters and numeric facts
+        run: python3 sb/far2l-exts-docs/check_consts.py doc/${{ inputs.doc_path }} far2l
+      - name: Extract examples
+        run: python3 sb/far2l-exts-docs/extract_examples.py doc/${{ inputs.doc_path }} examples.tsv
+      - name: Build the checker with far2l's own StackSerializer
+        run: |
+          g++ -std=c++17 -O1 -Wall -Wno-unused-variable -Wno-unused-but-set-variable -I far2l/utils/include -I far2l/WinPort \
+            sb/far2l-exts-docs/check_examples.cpp far2l/utils/src/StackSerializer.cpp far2l/utils/src/base64.cpp -o check_examples
+      - name: Byte examples
+        run: ./check_examples examples.tsv
