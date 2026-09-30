@@ -1,0 +1,50 @@
+name: mcommander-termux
+run-name: "mcommander-termux ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.arch }}"
+
+# Builds the Termux package of a branch of M-Commander the way the workflow
+# ci-termux.yml of the project does (packaging/termux/build-deb.sh), and, for
+# x86_64, installs it in Termux and runs it (packaging/termux/smoke.sh).
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: repository to check out (owner/name)
+        default: unxed/mcommander
+      ref:
+        description: branch, tag or commit
+        required: true
+      arch:
+        description: aarch64, arm, x86_64 or i686
+        default: x86_64
+      smoke:
+        description: install the x86_64 package in Termux and run it
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  termux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+      - name: Install the tools that make the source archive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+              autoconf automake libtool gettext autopoint
+      - name: Build the package
+        run: packaging/termux/build-deb.sh ${{ inputs.arch }}
+      - name: Install it in Termux and run it
+        if: inputs.smoke && inputs.arch == 'x86_64'
+        run: packaging/termux/smoke.sh termux-out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: termux-${{ inputs.arch }}
+          path: termux-out/*.deb
