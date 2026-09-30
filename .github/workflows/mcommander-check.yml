@@ -1,0 +1,54 @@
+name: mcommander-check
+run-name: "mcommander-check ${{ inputs.repo }}@${{ inputs.ref }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: repository to check out (owner/name)
+        default: unxed/mcommander
+      ref:
+        description: branch, tag or commit
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autopoint gettext libtool pkg-config check \
+            e2fslibs-dev libglib2.0-dev libgpm-dev libncurses-dev libslang2-dev libssh2-1-dev \
+            libx11-dev unzip
+
+      - name: Bootstrap and configure
+        run: |
+          ./autogen.sh
+          mkdir build && cd build
+          ../configure --enable-option-checking=fatal
+
+      - name: Build
+        run: make -C build -j"$(nproc)"
+
+      - name: Library tests
+        run: make -C build/tests/lib check
+
+      - name: Source tests
+        run: make -C build/tests/src check
+
+      - name: Test logs
+        if: failure()
+        run: |
+          for f in build/tests/lib/*.log build/tests/src/*.log; do
+            case "$f" in *test-suite.log) echo "== $f"; cat "$f";; esac
+          done
