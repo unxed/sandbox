@@ -1,0 +1,74 @@
+name: mcommander-full
+run-name: "mcommander-full ${{ inputs.repo }}@${{ inputs.ref }}"
+
+# Builds a branch of M-Commander the way the CI of the project does and runs
+# its checks: sources and docs lint, formatting, generated man pages, the build
+# with -Werror and `make check`.  Nothing is built anywhere else.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: repository to check out (owner/name)
+        default: unxed/mcommander
+      ref:
+        description: branch, tag or commit
+        required: true
+      apply_generated:
+        description: print the diff that `make indent` and update-man-in.sh make
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autopoint check gettext libtool pkg-config groff \
+            e2fslibs-dev libglib2.0-dev libgpm-dev libncurses-dev libslang2-dev libssh2-1-dev libx11-dev unzip \
+            go-md2man python3-pip
+          pip install --break-system-packages clang-format==20.1.3
+      - name: Lint documentation and sources
+        working-directory: maint
+        run: |
+          ./doctest.py
+          ./asciitest.py
+      - name: Check the man pages
+        run: |
+          ./maint/check-man.pl
+          ./maint/update-man-in.sh
+          git diff --stat -- doc/man/
+          git diff -- doc/man/ > /tmp/man.diff || true
+          if [ "${{ inputs.apply_generated }}" = true ]; then git diff -- doc/man/; fi
+          git diff --exit-code -- doc/man/
+      - name: Bootstrap and configure
+        run: |
+          ./autogen.sh
+          ./configure --prefix="$PWD/install-prefix" --enable-option-checking=fatal --enable-mclib --enable-werror
+      - name: Formatting
+        run: |
+          clang-format --version
+          make indent
+          git diff --name-only -- '*.c' '*.h'
+          if [ "${{ inputs.apply_generated }}" = true ]; then git diff -- '*.c' '*.h'; fi
+          git diff --exit-code -- '*.c' '*.h'
+      - name: Build
+        run: make -j"$(nproc)"
+      - name: Library tests
+        run: make -C tests/lib check
+      - name: All tests
+        run: make check
+      - name: Logs
+        if: failure()
+        run: |
+          find . -name test-suite.log -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \;
