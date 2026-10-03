@@ -140,6 +140,10 @@ begin
 end;
 
 begin
+{$if defined(go32v2) or defined(msdos)}
+  WriteLn('skipped: DOS has no threads');
+  Halt(0);
+{$endif}
   InitCriticalSection(CS);
   WriteLn('-- Churn'); Churn(10, 50);
   WriteLn('-- TThread'); PlainTThread;
