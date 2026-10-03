@@ -188,6 +188,10 @@ begin
 end; // выход из области видимости ждёт все задачи
 
 begin
+{$if defined(go32v2) or defined(msdos)}
+  WriteLn('skipped: DOS has no threads (TGroup.Go raises SAFE-R8)');
+  Halt(0);
+{$endif}
   WriteLn('-- FanIn'); FanIn;
   WriteLn('-- Buffered'); Buffered;
   WriteLn('-- Failure'); Failure;

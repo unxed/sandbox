@@ -1088,6 +1088,11 @@ begin
   if ATask.FGroup <> nil then
     SafeFail('SAFE-R3: TGroup.Go: task already started');
   ATask.FGroup := Self;
+{$if defined(go32v2) or defined(msdos)}
+  // DOS однозадачна: потоков нет, BeginThread не вернёт управление осмысленно (проверено на go32v2 под DOSBox-X: тест зависал).
+  ATask.Destroy;
+  SafeFail('SAFE-R8: this target (DOS) has no threads; goroutines are not available. Use plain procedures');
+{$endif}
   // Без менеджера потоков (Unix без cthreads) RTLEventCreate возвращает nil.
   Probe := RTLEventCreate;
   if Probe = nil then
