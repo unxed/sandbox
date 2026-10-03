@@ -1,3 +1,4 @@
+{ SPDX-License-Identifier: MIT }
 // UNSAFE-UNIT: менеджер потоков FPC. На Linux — свой, на системных вызовах без libc (как в Go); с -dSAFE_LIBC и на других Unix — cthreads.
 { SafeThreads: одна строка для потоков на всех целях (SPEC §14).
 
