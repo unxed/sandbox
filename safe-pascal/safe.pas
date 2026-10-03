@@ -56,6 +56,11 @@ type
 function SafeNewLife(AObj: TObject; const Who: string): TSafeLife;
 procedure SafeFail(const Msg: string);
 
+{ Счётчик живых объектов под владением (аналог testing.allocator из Zig): растёт при Own/Share/Adopt,
+  убывает при уничтожении. Тест, который «всё освободил», проверяет SafeCheckNoLeaks (R5). }
+function SafeLiveCount: LongInt;
+procedure SafeCheckNoLeaks;
+
 type
   { ---------- API (SPEC §5) ---------- }
 
@@ -124,6 +129,32 @@ type
     function Count: SizeInt;
   end;
 
+  { ---------- defer (идея из Zig) ----------
+    Запись-сторож: вызывает процедуру при выходе переменной из области видимости, в том числе при исключении.
+    D := TDefer.Call(@Self.CloseHandle);  // ... дальше любой код ...   // CloseHandle вызовется сама
+    Cancel — «errdefer наоборот»: успех, вызывать не нужно.
+    Исключение внутри отложенной процедуры нельзя бросить из деструктора во время раскрутки стека: оно
+    подавляется и учитывается (SafeDeferFailures; SafeCheckNoLeaks тоже падает), а не теряется молча. }
+  TSafeDeferProc = procedure of object;
+
+  TSafeDeferImpl = class(TInterfacedObject)
+  public
+    Proc: TSafeDeferProc;
+    Cancelled: Boolean;
+    destructor Destroy; override;
+  end;
+
+  TDefer = record
+  private
+    FImpl: TSafeDeferImpl;
+    FRef: IInterface;
+  public
+    class function Call(AProc: TSafeDeferProc): TDefer; static;
+    procedure Cancel;
+  end;
+
+function SafeDeferFailures: LongInt;
+
   { ---------- UTF-8 ---------- }
 
   { Перечислитель символов (code points). Current: один символ как String. }
@@ -178,6 +209,28 @@ implementation
 
 { ---------- внутреннее ---------- }
 
+var
+  GLive: LongInt = 0;         // объекты под владением (TOwned/TShared/TArena), живые сейчас
+  GDeferFailures: LongInt = 0; // исключения, подавленные в отложенных вызовах
+
+function SafeLiveCount: LongInt;
+begin
+  Result := GLive;
+end;
+
+function SafeDeferFailures: LongInt;
+begin
+  Result := GDeferFailures;
+end;
+
+procedure SafeCheckNoLeaks;
+begin
+  if GLive <> 0 then
+    SafeFail(Format('SAFE-R5: %d owned object(s) still alive', [GLive]));
+  if GDeferFailures <> 0 then
+    SafeFail(Format('SAFE-R5: %d exception(s) were suppressed in deferred calls', [GDeferFailures]));
+end;
+
 procedure SafeFail(const Msg: string);
 begin
   raise ESafety.Create(Msg);
@@ -192,6 +245,7 @@ begin
       '): TInterfacedObject is owned by its interface refcount; hold it through an interface');
   Result := TSafeLife.Create;
   Result.Obj := AObj;
+  InterlockedIncrement(GLive);
 end;
 
 destructor TSafeLife.Destroy;
@@ -203,7 +257,10 @@ begin
   O := Obj;
   Obj := nil;
   if O <> nil then
+  begin
     O.Destroy; // Free здесь затенён хелпером
+    InterlockedDecrement(GLive);
+  end;
   CellRef := nil;
   inherited Destroy;
 end;
@@ -229,6 +286,7 @@ begin
     O := Items[I];
     Items[I] := nil;
     O.Destroy;
+    InterlockedDecrement(GLive);
   end;
   Count := 0;
   SetLength(Items, 0);
@@ -439,6 +497,7 @@ begin
     SetLength(FImpl.Items, 2 * FImpl.Count + 8);
   FImpl.Items[FImpl.Count] := AObj;
   Inc(FImpl.Count);
+  InterlockedIncrement(GLive);
 end;
 
 procedure TArena.FreeAll;
@@ -451,6 +510,32 @@ function TArena.Count: SizeInt;
 begin
   Check;
   Result := FImpl.Count;
+end;
+
+{ ---------- defer ---------- }
+
+destructor TSafeDeferImpl.Destroy;
+begin
+  if (not Cancelled) and Assigned(Proc) then
+    try
+      Proc();
+    except
+      InterlockedIncrement(GDeferFailures); // из деструктора бросать нельзя: учитываем, SafeCheckNoLeaks заметит
+    end;
+  inherited Destroy;
+end;
+
+class function TDefer.Call(AProc: TSafeDeferProc): TDefer;
+begin
+  Result.FImpl := TSafeDeferImpl.Create;
+  Result.FImpl.Proc := AProc;
+  Result.FRef := Result.FImpl;
+end;
+
+procedure TDefer.Cancel;
+begin
+  if FImpl <> nil then
+    FImpl.Cancelled := True;
 end;
 
 { ---------- UTF-8 ---------- }

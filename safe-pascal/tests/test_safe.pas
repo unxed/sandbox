@@ -196,6 +196,105 @@ begin
   end;
 end;
 
+type
+  TDeferProbe = class
+  public
+    Hits: Integer;
+    procedure Hit;
+    procedure Boom;
+  end;
+
+procedure TDeferProbe.Hit;
+begin
+  Inc(Hits);
+end;
+
+procedure TDeferProbe.Boom;
+begin
+  raise Exception.Create('boom in a deferred call');
+end;
+
+var
+  Probe: TDeferProbe;
+
+procedure DeferScope;
+var
+  D: TDefer;
+begin
+  D := TDefer.Call(@Probe.Hit);
+  Check(Probe.Hits = 0, 'defer: not called yet inside the scope');
+end;
+
+procedure DeferCancelled;
+var
+  D: TDefer;
+begin
+  D := TDefer.Call(@Probe.Hit);
+  D.Cancel;
+end;
+
+procedure DeferWithException;
+var
+  D: TDefer;
+begin
+  D := TDefer.Call(@Probe.Hit);
+  raise Exception.Create('x');
+end;
+
+procedure Defers;
+begin
+  Probe := TDeferProbe.Create;
+  DeferScope;
+  Check(Probe.Hits = 1, 'defer: called at scope exit');
+  DeferCancelled;
+  Check(Probe.Hits = 1, 'defer: Cancel skips the call');
+  try
+    DeferWithException;
+  except
+    on E: Exception do ;
+  end;
+  Check(Probe.Hits = 2, 'defer: called when the scope is left by an exception');
+  // UNSAFE: Probe is a plain object of this test, nothing else owns it
+  Probe.Destroy;
+end;
+
+procedure Leaks;
+var
+  A: TProbeBox;
+begin
+  Check(SafeLiveCount = 0, 'leaks: nothing alive after the scenarios above');
+  SafeCheckNoLeaks; // must not raise
+  A := TProbeBox.Own(TProbe.Create('leak'));
+  Check(SafeLiveCount = 1, 'leaks: an owned object is counted');
+  try
+    SafeCheckNoLeaks;
+    Check(False, 'leaks: SafeCheckNoLeaks raises with a live object');
+  except
+    on E: ESafety do Check(Pos('SAFE-R5', E.Message) > 0, 'leaks: SafeCheckNoLeaks raises R5 with a live object');
+  end;
+  A.Reset;
+  Check(SafeLiveCount = 0, 'leaks: Reset releases the count');
+end;
+
+procedure DeferFailureIsCounted;
+var
+  D: TDefer;
+  P: TDeferProbe;
+begin
+  P := TDeferProbe.Create;
+  D := TDefer.Call(@P.Boom);
+  D := Default(TDefer); // the deferred call runs now and raises inside the destructor of the guard
+  Check(SafeDeferFailures = 1, 'defer: an exception inside a deferred call is counted, not lost');
+  try
+    SafeCheckNoLeaks;
+    Check(False, 'defer: SafeCheckNoLeaks reports the suppressed exception');
+  except
+    on E: ESafety do Check(Pos('SAFE-R5', E.Message) > 0, 'defer: SafeCheckNoLeaks reports the suppressed exception (R5)');
+  end;
+  // UNSAFE: P is a plain object of this test, nothing else owns it
+  P.Destroy;
+end;
+
 procedure Run(const Name: string; Proc: TProcedure; const ExpectLog: string);
 begin
   Log := '';
@@ -214,6 +313,10 @@ begin
   Run('InterfacedRejected', @InterfacedRejected, '');
   Run('Slices', @Slices, '');
   Run('ArenaScope', @ArenaScope, '~z~y~x~w');
+
+  Run('Defers', @Defers, '');
+  Run('Leaks', @Leaks, '~leak');
+  Run('DeferFailureIsCounted', @DeferFailureIsCounted, '');
 
   WriteLn('-- UTF8');
   Check(Length('aё😀') = 7, 'utf8: Length in bytes');
