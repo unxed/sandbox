@@ -304,7 +304,7 @@ function SafeDeferFailures: LongInt;     // исключения, подавле
 |---|---|---|
 | S1 | `GetMem/FreeMem/ReallocMem/AllocMem/New/Dispose` | **компилятор**: затенены типом-заглушкой → ошибка + сообщение `SAFE-S1` |
 | S2 | `Move/FillChar` | **компилятор**: то же, `SAFE-S2` |
-| S3 | `.Free`, `FreeAndNil`, `.Destroy` | `FreeAndNil` — ошибка компилятора; `.Free` — предупреждение `deprecated` с `SAFE-S3` (хелпер `TObject`); `.Destroy` — линтер |
+| S3 | `.Free`, `FreeAndNil`, `.Destroy` | `FreeAndNil` и `.Free` — ошибка компилятора. `.Free` закрыт хелпером `TObject` с методом `Free(const X: SAFE_S3_NoFree_UseTOwnedReset_or_UnsafeDestroy)`: без аргумента вызов не компилируется, а имя типа в сообщении «Found declaration» объясняет правило. `.Destroy` — линтер |
 | S4 | `Pointer, PByte, PChar, PAnsiChar, PWideChar`, `^T`, `@`, арифметика указателей | типы — предупреждение `SAFE-S4`; `^T`, `@` — линтер |
 | S5 | поле/глобальная переменная класса-типа без `// borrow:` | линтер |
 | S6 | `TFoo.Create` не сразу в `Own/Share/Adopt`/интерфейс/`raise` | линтер; рантайм частично (R3) |
@@ -346,7 +346,8 @@ System.GetMem(Buf, Len);
 | Двойное освобождение через `TOwned/TShared/TArena` невозможно | рантайм-конструкция (счётчик) |
 | Доступ к пустому владельцу, выход за границы слайса | рантайм (ESafety) |
 | Висячий `TSlice`, висячий `TWeak` | невозможны по построению |
-| `.Free`, сырые указатели вне unsafe | компилятор-предупреждение + линтер |
+| `.Free` вне unsafe | компилятор (ошибка) |
+| сырые указатели вне unsafe | компилятор-предупреждение + линтер |
 | Заём (параметр/локальная) не переживает владельца | линтер (S5) + программист |
 | Отсутствие циклов `TShared` | программист + линтер (эвристика) |
 | Объекты арены не используются после `FreeAll` | программист; в отладке `-gh` |
@@ -614,6 +615,7 @@ end;
 | v0.2 | идеи из Zig (§12): `TDefer`, `SafeLiveCount`/`SafeCheckNoLeaks` (R5); `-dSAFE_NO_CWSTRING` для статических Linux без libc; замер на настоящем коде (DOS Navigator, `unxed/dn`): разрыв `object`/`class` |
 | v0.3 | FFI (§13, S12, `TCResource`), горутины (§14: `TGroup/TTask/TChan/Select`, R6–R8, S11) |
 | v0.3.1 | таблица проверенных целей (§2): x86_64/i386/aarch64 Linux, DOS, Windows; R8 на целях без потоков (DOS) вместо зависания; карточка §0 дополнена (defer, тесты, старый стиль, цели) |
+| v0.5.1 | `.Free` — ошибка компиляции (хелпер с параметром-заглушкой); CI: статический аудит, Alpine/Debian/Ubuntu 16.04/CentOS 7, режим `SAFE_LIBC`, i386 и aarch64 под qemu |
 | v0.5 | §18: Linux без libc по умолчанию (fpwidestring, SafeThreads на clone/futex), `-dSAFE_LIBC`, проверка на x86_64/i386/aarch64 и Alpine; решение по GC |
 | v0.5.1 | §2 согласован с v0.5: матрица проверенных целей на коде v0.5 (i386 и aarch64 без libc проходят все тесты без ключей); `test_threads` пропускается на DOS |
 | v0.5.2 | §0 «Что реально есть, а что пока только план»; §19 (код в стиле Turbo Pascal) |

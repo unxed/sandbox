@@ -1,4 +1,4 @@
-// EXPECT: warn SAFE-S3
+// EXPECT: fail SAFE_S3
 program mf_free;
 {$mode objfpc}{$H+}
 uses SysUtils, Safe;

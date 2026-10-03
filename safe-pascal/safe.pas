@@ -352,11 +352,16 @@ type
   PAnsiChar = System.PAnsiChar deprecated 'SAFE-S4: raw pointer. Use String; at OS boundary write System.PAnsiChar in unsafe code';
   PWideChar = System.PWideChar deprecated 'SAFE-S4: raw pointer. Use String; at OS boundary write System.PWideChar in unsafe code';
 
-  { Free — метод, его закрывает хелпер. Поведение прежнее, но с предупреждением.
-    Ограничение: другой хелпер для TObject, подключённый после Safe, перекроет этот (S7). }
+  { Free — метод TObject; его закрывает хелпер с тем же именем, но с обязательным
+    параметром, которого в безопасном коде не создать. Поэтому Obj.Free — ОШИБКА
+    компиляции без всяких опций, а объяснение правила — имя типа параметра, которое
+    компилятор печатает в строке "Found declaration: Free(const SAFE_S3_...)".
+    В unsafe-коде — Obj.Destroy с // UNSAFE:. Ограничение: другой хелпер для TObject,
+    подключённый после Safe, перекроет этот (S7). }
+  SAFE_S3_NoFree_UseTOwnedReset_or_UnsafeDestroy = record end;
   TSafeObjectHelper = class helper for TObject
   public
-    procedure Free; deprecated 'SAFE-S3: manual destruction. Use TOwned/TShared/TArena; in unsafe code call .Destroy with // UNSAFE: comment';
+    procedure Free(const Forbidden: SAFE_S3_NoFree_UseTOwnedReset_or_UnsafeDestroy);
   end;
 
 implementation
@@ -1287,10 +1292,8 @@ end;
 
 { ---------- хелпер Free ---------- }
 
-procedure TSafeObjectHelper.Free;
+procedure TSafeObjectHelper.Free(const Forbidden: SAFE_S3_NoFree_UseTOwnedReset_or_UnsafeDestroy);
 begin
-  if Self <> nil then
-    Destroy;
 end;
 
 initialization
