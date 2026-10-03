@@ -5,10 +5,11 @@
 
 | Файл | Что это |
 |---|---|
-| `SPEC.md` | спецификация v0.3; §0 — карточка правил, §13 FFI, §14 горутины |
+| `SPEC.md` | спецификация; §0 — карточка правил, §13 FFI, §14 горутины, §15–16 план: зависимости как в Go, инструмент `sp`, что ещё взять у Go/Rust |
 | `safe.pas` | вся библиотека: UTF-8, TOwned/TShared/TWeak/TSlice/TArena, TDefer, горутины (TGroup/TTask/TChan/Select), FFI (TCResource), отравление опасных примитивов |
 | `tests/test_safe.pas` | рантайм-тесты владения, слайсов, арены, defer, UTF-8 |
 | `tests/test_go.pas` | горутины, каналы, select, отмена, структурное ожидание |
+| `tests/test_sumtype.pas` | образец типа-суммы из SPEC §16 |
 | `tests/test_ffi.pas`, `tests/ffi_libc.pas` | FFI: образец модуля обвязки libc и тест |
 | `tests/compile/mf_*.pas` | проверки компиляции: опасное не собирается/предупреждает, `System.X` собирается |
 | `tests/run.sh` | прогон всего (копирует файлы в одну папку и вызывает голый `fpc`) |
