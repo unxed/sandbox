@@ -13,12 +13,21 @@
 unit Safe;
 
 {$mode objfpc}{$H+}
+{ Linux по умолчанию — переносимый режим без libc (как Go): строки — fpwidestring
+  (Unicode на Паскале), потоки — SafeThreads на системных вызовах; один бинарник
+  работает и на Debian, и на Alpine. -dSAFE_LIBC — режим с libc (cwstring, cthreads),
+  нужен только для FFI с C-библиотеками (аналог cgo). }
+{$if defined(linux) and not defined(SAFE_LIBC)}{$define SAFE_PORTABLE}{$endif}
 {$modeswitch advancedrecords}
 
 interface
 
 uses
-  {$if defined(unix) and not defined(SAFE_NO_CWSTRING)}cwstring,{$endif} // UTF-8 <-> UTF-16 и регистр букв через libc (SAFE_NO_CWSTRING: статическая сборка без libc)
+  {$ifdef SAFE_PORTABLE}
+  unicodeducet, fpwidestring, // Unicode без libc; unicodeducet раньше: его таблица сортировки нужна fpwidestring при старте
+  {$else}
+  {$if defined(unix) and not defined(SAFE_NO_CWSTRING)}cwstring,{$endif} // UTF-8 <-> UTF-16 и регистр через libc
+  {$endif}
   {$ifdef windows}Windows,{$endif}
   SysUtils;
 

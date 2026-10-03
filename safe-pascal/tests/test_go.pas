@@ -4,7 +4,7 @@ program test_go;
 {$mode objfpc}{$H+}
 
 uses
-  {$ifdef unix}cthreads,{$endif} // горутинам на Unix нужен менеджер потоков, первым (SPEC §14)
+  SafeThreads, // менеджер потоков — первым в uses программы (SPEC §14)
   SysUtils, Safe;
 
 type

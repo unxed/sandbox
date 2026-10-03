@@ -8,6 +8,8 @@
 | `SPEC.md` | спецификация; §0 — карточка правил, §13 FFI, §14 горутины, §15–16 план: зависимости как в Go, инструмент `sp`, что ещё взять у Go/Rust |
 | `safe.pas` | вся библиотека: UTF-8, TOwned/TShared/TWeak/TSlice/TArena, TDefer, горутины (TGroup/TTask/TChan/Select), FFI (TCResource), отравление опасных примитивов |
 | `tests/test_safe.pas` | рантайм-тесты владения, слайсов, арены, defer, UTF-8 |
+| `safethreads.pas` | менеджер потоков без libc для Linux (clone/futex/mmap); первым в uses программы |
+| `tests/test_threads.pas` | нагрузочный тест потоков |
 | `tests/test_go.pas` | горутины, каналы, select, отмена, структурное ожидание |
 | `tests/test_sumtype.pas` | образец типа-суммы из SPEC §16 |
 | `tests/test_ffi.pas`, `tests/ffi_libc.pas` | FFI: образец модуля обвязки libc и тест |
