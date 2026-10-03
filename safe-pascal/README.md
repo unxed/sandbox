@@ -5,9 +5,11 @@
 
 | Файл | Что это |
 |---|---|
-| `SPEC.md` | спецификация v0.1; §0 — карточка правил |
-| `safe.pas` | вся библиотека: UTF-8, TOwned/TShared/TWeak/TSlice/TArena, отравление опасных примитивов |
-| `tests/test_safe.pas` | рантайм-тесты |
+| `SPEC.md` | спецификация v0.3; §0 — карточка правил, §13 FFI, §14 горутины |
+| `safe.pas` | вся библиотека: UTF-8, TOwned/TShared/TWeak/TSlice/TArena, TDefer, горутины (TGroup/TTask/TChan/Select), FFI (TCResource), отравление опасных примитивов |
+| `tests/test_safe.pas` | рантайм-тесты владения, слайсов, арены, defer, UTF-8 |
+| `tests/test_go.pas` | горутины, каналы, select, отмена, структурное ожидание |
+| `tests/test_ffi.pas`, `tests/ffi_libc.pas` | FFI: образец модуля обвязки libc и тест |
 | `tests/compile/mf_*.pas` | проверки компиляции: опасное не собирается/предупреждает, `System.X` собирается |
 | `tests/run.sh` | прогон всего (копирует файлы в одну папку и вызывает голый `fpc`) |
 | `.github/workflows/safe-pascal.yml` | CI: Ubuntu, `fp-compiler` из apt |
@@ -20,6 +22,7 @@
 
 Итерация 1: код написан, первый прогон workflow `safe-pascal` зелёный (гипотезы затенения подтвердились).
 Итерация 2 (v0.2, идеи из Zig, SPEC §12): `TDefer`, `SafeLiveCount`/`SafeCheckNoLeaks` (R5), раздел «уроки практики» по порту DOS Navigator (`object` против `class`). Проверка — тот же workflow.
+Итерация 3 (v0.3): горутины (SPEC §14) и FFI (SPEC §13). Собрано и прогнано локально (FPC 3.2.2, Linux): все тесты зелёные, `test_go` 30 прогонов подряд без сбоев. Найдено: `cthreads` нельзя спрятать в `Safe` (должен инициализироваться раньше SysUtils), поэтому для горутин на Unix одна строка в файле программы, иначе R8.
 
 ## Гипотезы, которые проверяет первый прогон CI
 
