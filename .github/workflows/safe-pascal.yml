@@ -1,0 +1,21 @@
+name: safe-pascal
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'safe-pascal/**'
+      - '.github/workflows/safe-pascal.yml'
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Free Pascal
+        run: sudo apt-get update && sudo apt-get install -y fp-compiler
+      - name: Tests (no compiler options, safe.pas next to sources)
+        env:
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+        run: bash safe-pascal/tests/run.sh
