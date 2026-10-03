@@ -17,7 +17,7 @@ unit Safe;
 interface
 
 uses
-  {$ifdef unix}cwstring,{$endif} // UTF-8 <-> UTF-16 и регистр букв через libc
+  {$if defined(unix) and not defined(SAFE_NO_CWSTRING)}cwstring,{$endif} // UTF-8 <-> UTF-16 и регистр букв через libc (SAFE_NO_CWSTRING: статическая сборка без libc)
   {$ifdef windows}Windows,{$endif}
   SysUtils;
 

@@ -91,6 +91,9 @@ FPC ищет модули в папке компилируемого исход�
 
 Отключить UTF-8-инициализацию (если приложение само управляет кодировками): `-dSAFE_NO_UTF8`.
 
+Статические сборки Linux без libc (в нашем случае i386 и aarch64 из `unxed/dn`): `cwstring` тянет libc, и линковка падает (`cannot find crti.o: file in wrong format`).
+Тогда `-dSAFE_NO_CWSTRING`: UTF-8 как кодировка по умолчанию остаётся, пропадают только преобразование в UTF-16 и смена регистра не-ASCII-букв через libc.
+
 ## §3. Строки: UTF-8 everywhere
 
 - `String` = `AnsiString` с `DefaultSystemCodePage = CP_UTF8`. Имена файлов, консоль, `Input/Output` — UTF-8.
