@@ -1,0 +1,27 @@
+name: fpc-utf8
+
+on:
+  workflow_dispatch: {}
+  push:
+    paths:
+      - 'fpc-utf8/**'
+      - '.github/workflows/fpc-utf8.yml'
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Free Pascal
+        run: sudo apt-get update && sudo apt-get install -y fp-compiler
+      - name: Build test (module injected by -Fa)
+        run: |
+          fpc -iV
+          mkdir -p build
+          fpc @fpc-utf8/utf8.cfg -Fufpc-utf8 -FUbuild -FEbuild fpc-utf8/test_utf8.pas
+      - name: Run test
+        working-directory: build
+        env:
+          LANG: C.UTF-8
+          LC_ALL: C.UTF-8
+        run: ./test_utf8
