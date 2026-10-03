@@ -60,6 +60,8 @@ procedure SafeFail(const Msg: string);
   убывает при уничтожении. Тест, который «всё освободил», проверяет SafeCheckNoLeaks (R5). }
 function SafeLiveCount: LongInt;
 procedure SafeCheckNoLeaks;
+{ Исключения, подавленные в отложенных вызовах TDefer (см. ниже). }
+function SafeDeferFailures: LongInt;
 
 type
   { ---------- API (SPEC §5) ---------- }
@@ -152,8 +154,6 @@ type
     class function Call(AProc: TSafeDeferProc): TDefer; static;
     procedure Cancel;
   end;
-
-function SafeDeferFailures: LongInt;
 
   { ---------- UTF-8 ---------- }
 
