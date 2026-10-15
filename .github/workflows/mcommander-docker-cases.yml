@@ -1,0 +1,57 @@
+name: mcommander-docker-cases
+run-name: "mcommander-docker-cases ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.subjects }} [${{ inputs.locales }}]"
+
+# The docker sandbox of M-Commander (tests/misc/docker): builds mc in the
+# debian-12 image and presses the keys of the cases, once per locale.
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: repository to check out (owner/name)
+        default: unxed/mcommander
+      ref:
+        description: branch, tag or commit
+        required: true
+      subjects:
+        description: comma separated subjects, empty for every one
+        default: ''
+      locales:
+        description: JSON list of locales
+        default: '["ru_RU.UTF-8", "ru_RU.KOI8-R", "ru_RU.CP866"]'
+
+permissions:
+  contents: read
+
+jobs:
+  cases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        locale: ${{ fromJSON(inputs.locales) }}
+    env:
+      SLOW: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+      - name: Build the image and mc
+        run: tests/misc/docker/sandbox.sh debian-12 up
+      - name: Press the keys
+        run: |
+          args="-w local"
+          if [ -n "${{ inputs.subjects }}" ]; then
+            args="$args -c ${{ inputs.subjects }}"
+          fi
+          tests/misc/docker/ci.sh debian-12 $args -- -l "${{ matrix.locale }}"
+      - name: The report
+        if: always()
+        run: cat tests/misc/docker/reports/*-ci/index.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: report-${{ matrix.locale }}
+          path: tests/misc/docker/reports/
