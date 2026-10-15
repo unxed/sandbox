@@ -48,9 +48,9 @@ jobs:
           ./maint/check-man.pl
           ./maint/update-man-in.sh
           git diff --stat -- doc/man/
-          git diff -- doc/man/ > /tmp/man.diff || true
+          mkdir -p /tmp/generated
+          git diff -- doc/man/ > /tmp/generated/man.diff || true
           if [ "${{ inputs.apply_generated }}" = true ]; then git diff -- doc/man/; fi
-          git diff --exit-code -- doc/man/
       - name: Bootstrap and configure
         run: |
           ./autogen.sh
@@ -60,8 +60,14 @@ jobs:
           clang-format --version
           make indent
           git diff --name-only -- '*.c' '*.h'
+          git diff -- '*.c' '*.h' > /tmp/generated/indent.diff || true
           if [ "${{ inputs.apply_generated }}" = true ]; then git diff -- '*.c' '*.h'; fi
-          git diff --exit-code -- '*.c' '*.h'
+      - name: What was generated
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated
+          path: /tmp/generated/
       - name: Build
         run: make -j"$(nproc)"
       - name: Library tests
@@ -72,3 +78,8 @@ jobs:
         if: failure()
         run: |
           find . -name test-suite.log -exec sh -c 'echo "=== $1"; cat "$1"' _ {} \;
+      - name: The tree was up to date
+        if: always()
+        run: |
+          test ! -s /tmp/generated/man.diff || { echo "doc/man/ is out of date"; exit 1; }
+          test ! -s /tmp/generated/indent.diff || { echo "make indent changes the sources"; exit 1; }
