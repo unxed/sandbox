@@ -1,0 +1,49 @@
+name: hx-far
+run-name: "hx-far ${{ inputs.far }}"
+
+# What Far Manager imports that the HX Win32 emulation lacks (hx-far/README.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      far:
+        description: URL of a Far x86 .7z (default - latest Far 3 x86 of FarGroup/FarManager)
+        default: ""
+      hx_ref:
+        description: ref of Baron-von-Riedesel/HX
+        default: master
+
+permissions:
+  contents: read
+
+jobs:
+  imports:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Baron-von-Riedesel/HX
+          ref: ${{ inputs.hx_ref }}
+          path: hx
+      - name: download Far
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAR_URL: ${{ inputs.far }}
+        run: |
+          if [ -z "$FAR_URL" ]; then
+            FAR_URL=$(gh release view -R FarGroup/FarManager --json assets \
+              --jq '.assets[] | select(.name|test("_x86_.*[0-9a-f]\\.7z$")) | .url' | head -1)
+          fi
+          echo "Far: $FAR_URL" | tee -a "$GITHUB_STEP_SUMMARY"
+          curl -fsSL -o far.7z "$FAR_URL"
+          7z x -y -ofar far.7z > /dev/null
+          find far -maxdepth 2 | head -50
+      - run: pip install pefile
+      - name: report
+        run: python3 hx-far/imports.py far hx | tee report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hx-far-report
+          path: report.md
