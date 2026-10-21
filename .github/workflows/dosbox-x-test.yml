@@ -1,5 +1,5 @@
 name: dosbox-x-test
-run-name: "dosbox-x-test ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.cputype }}/${{ inputs.core }}"
+run-name: "dosbox-x-test ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.cputype }}/${{ inputs.core }}${{ inputs.sse2 && ' sse2' || '' }}"
 
 # Build DOSBox-X from a branch of a fork and run the guest tests of dosbox-x-sse2/ (README there).
 
@@ -18,6 +18,10 @@ on:
       core:
         description: core of the guest
         default: normal
+      sse2:
+        description: "enable sse2 = true in the guest (and assemble the test with -DSSE2)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -58,7 +62,7 @@ jobs:
       - name: guest tests
         run: |
           mkdir -p guest
-          nasm -f bin dosbox-x-sse2/ud.asm -o guest/UD.COM
+          nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} dosbox-x-sse2/ud.asm -o guest/UD.COM
           cat > guest/dosbox-x.conf <<CONF
           [sdl]
           output=surface
@@ -67,6 +71,7 @@ jobs:
           [cpu]
           core=${{ inputs.core }}
           cputype=${{ inputs.cputype }}
+          enable sse2=${{ inputs.sse2 }}
           [autoexec]
           mount c "$PWD/guest"
           c:

@@ -1,7 +1,7 @@
 ; Guest test for DOSBox-X: does an instruction raise #UD (INT 6) or run?
 ; The table is at the end: TEST name, length, expected (1 = #UD, 0 = runs), bytes.
 ; Build: nasm -f bin ud.asm -o UD.COM. Output (stdout): one PASS/FAIL line per test.
-; cputype must be pentium_iii (MMX and SSE, no SSE2) for the expectations below.
+; cputype must be pentium_iii (MMX and SSE). Assemble with -DSSE2 when the guest has "enable sse2 = true".
 	org 100h
 	cpu 686
 
@@ -16,6 +16,43 @@ start:
 	mov eax, cr4
 	or ax, 600h
 	mov cr4, eax
+	; CPUID.1:EDX bit 26 (SSE2) and bit 19 (CLFLUSH)
+	mov eax, 1
+	cpuid
+	mov [cpuid_edx], edx
+	mov dx, s_cpuid
+	mov ah, 9
+	int 21h
+	mov eax, [cpuid_edx]
+	shr eax, 26
+	and al, 1
+	add al, '0'
+	mov dl, al
+	mov ah, 2
+	int 21h
+	mov dx, s_nl
+	mov ah, 9
+	int 21h
+%ifdef SSE2
+	cmp byte [cpuid_edx+3], 0
+	mov al, [cpuid_edx+3]
+	and al, 04h
+	jnz .cpuid_ok
+	inc byte [fails]
+	mov dx, s_cpuid_fail
+	mov ah, 9
+	int 21h
+.cpuid_ok:
+%else
+	mov al, [cpuid_edx+3]
+	and al, 04h
+	jz .cpuid_ok
+	inc byte [fails]
+	mov dx, s_cpuid_fail
+	mov ah, 9
+	int 21h
+.cpuid_ok:
+%endif
 	mov si, table
 next:
 	mov al, [si]
@@ -108,6 +145,9 @@ s_fail:	db 'FAIL $'
 s_ud:	db '  ud=$'
 s_nl:	db 13, 10, '$'
 s_done:	db 'DONE fails=$'
+s_cpuid:	db 'CPUID.1:EDX[26]=$'
+s_cpuid_fail:	db 'FAIL cpuid sse2 bit', 13, 10, '$'
+cpuid_edx:	dd 0
 curlen:	db 0
 expect:	db 0
 udflag:	db 0
@@ -121,7 +161,18 @@ exe:	times 8 db 0
 	db %1, '$'
 %endmacro
 
+%ifdef SSE2
+FENCE equ 0
+%else
+FENCE equ 1
+%endif
+
 table:
+	; SSE2 fences and CLFLUSH: run with "enable sse2", #UD without
+	TEST "lfence", 3, FENCE, 0Fh,0AEh,0E8h
+	TEST "mfence", 3, FENCE, 0Fh,0AEh,0F0h
+	TEST "clflush [bx]", 3, FENCE, 0Fh,0AEh,37h
+	TEST "sfence", 3, 0, 0Fh,0AEh,0F8h
 	; legacy MMX and SSE: must run
 	TEST "mmx pxor mm0,mm1", 3, 0, 0Fh,0EFh,0C1h
 	TEST "mmx movq mm0,mm1", 3, 0, 0Fh,06Fh,0C1h
