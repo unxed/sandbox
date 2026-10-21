@@ -1,5 +1,5 @@
 name: dosbox-x-test
-run-name: "dosbox-x-test ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.cputype }}/${{ inputs.core }}${{ inputs.sse2int && ' sse2+double+int' || inputs.sse2double && ' sse2+double' || (inputs.sse2 && ' sse2' || '') }}"
+run-name: "dosbox-x-test ${{ inputs.repo }}@${{ inputs.ref }}${{ inputs.m32 && ' m32' || '' }} ${{ inputs.cputype }}/${{ inputs.core }}${{ inputs.sse2int && ' sse2+double+int' || inputs.sse2double && ' sse2+double' || (inputs.sse2 && ' sse2' || '') }}"
 
 # Build DOSBox-X from a branch of a fork and run the guest tests of dosbox-x-sse2/ (README there).
 
@@ -20,6 +20,10 @@ on:
         default: normal
       sse2:
         description: "enable sse2 = true in the guest (and assemble the test with -DSSE2)"
+        type: boolean
+        default: false
+      m32:
+        description: "build a 32-bit DOSBox-X (multiarch): the only way to test core_dyn_x86"
         type: boolean
         default: false
       sse2int:
@@ -47,14 +51,23 @@ jobs:
           path: dbx
       - name: packages
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq autoconf automake libtool nasm pkg-config libsdl2-dev libsdl2-net-dev \
-            libpng-dev libfreetype-dev libx11-dev libxrandr-dev libxkbfile-dev libncurses-dev zlib1g-dev \
-            libpcap-dev libslirp-dev ccache > /dev/null
+          if [ "${{ inputs.m32 }}" = true ]; then
+            sudo dpkg --add-architecture i386
+            sudo sed -i 's/^Types: deb$/Types: deb/' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null || true
+            sudo apt-get update -qq || true
+            sudo apt-get install -y -qq gcc-multilib g++-multilib autoconf automake libtool nasm pkg-config \
+              libsdl2-dev:i386 libsdl2-net-dev:i386 libpng-dev:i386 libfreetype-dev:i386 libx11-dev:i386 \
+              libxrandr-dev:i386 libxkbfile-dev:i386 libncurses-dev:i386 zlib1g-dev:i386 ccache > /dev/null
+          else
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq autoconf automake libtool nasm pkg-config libsdl2-dev libsdl2-net-dev \
+              libpng-dev libfreetype-dev libx11-dev libxrandr-dev libxkbfile-dev libncurses-dev zlib1g-dev \
+              libpcap-dev libslirp-dev ccache > /dev/null
+          fi
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-dosbox-x-${{ runner.os }}-${{ inputs.ref }}
+          key: ccache-dosbox-x-${{ runner.os }}-${{ inputs.m32 }}-${{ inputs.ref }}
           restore-keys: ccache-dosbox-x-${{ runner.os }}-
       - name: build
         working-directory: dbx
@@ -63,7 +76,13 @@ jobs:
           CXX: ccache g++
         run: |
           ./autogen.sh
-          ./configure --enable-sdl2 --disable-debug --disable-alsa-midi --disable-opengl
+          if [ "${{ inputs.m32 }}" = true ]; then
+            export PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig PKG_CONFIG_LIBDIR=/usr/lib/i386-linux-gnu/pkgconfig
+            ./configure --host=i686-linux-gnu --enable-sdl2 --disable-debug --disable-alsa-midi --disable-opengl \
+              CFLAGS="-m32 -O2" CXXFLAGS="-m32 -O2" LDFLAGS="-m32"
+          else
+            ./configure --enable-sdl2 --disable-debug --disable-alsa-midi --disable-opengl
+          fi
           make -j"$(nproc)" 2>&1 | tail -30
           ls -la src/dosbox-x
           ccache -s | head -5
