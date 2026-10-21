@@ -1,0 +1,97 @@
+name: hx-far-run
+run-name: "hx-far-run HX ${{ inputs.hx }} ${{ inputs.args }}"
+
+# Stand: Far Manager x86 under the HX runtime in DOSBox-X, screenshots (hx-far/README.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      far:
+        description: URL of a Far x86 .7z (default - latest Far 3 x86 of FarGroup/FarManager)
+        default: ""
+      hx:
+        description: release tag of Baron-von-Riedesel/HX for HXRT/HXGUI
+        default: v2.23
+      args:
+        description: arguments of far.exe
+        default: "-p"
+      stubs:
+        description: empty stand-in DLLs to put next to far.exe
+        default: "imm32 netapi32 psapi rpcrt4 secur32 setupapi userenv winspool.drv"
+      dpmildr:
+        description: value of DPMILDR (128 = start even with unresolved imports)
+        default: "128"
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dosbox-x xvfb imagemagick gcc-mingw-w64-i686 p7zip-full unzip > /dev/null
+          dosbox-x -version 2>&1 | head -2 || true
+      - name: HX runtime
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.hx }}" -R Baron-von-Riedesel/HX -p 'HXRT*.zip' -p 'HXGUI*.zip' -D dl
+          mkdir -p c/HX c/OUT x
+          for z in dl/*.zip; do unzip -q -o "$z" -d x; done
+          find x -ipath '*/bin/*' -type f -exec cp -f {} c/HX/ \;
+          ls c/HX
+      - name: Far
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAR_URL: ${{ inputs.far }}
+        run: |
+          if [ -z "$FAR_URL" ]; then
+            FAR_URL=$(gh release view -R FarGroup/FarManager --json assets \
+              --jq '.assets[] | select(.name|test("_x86_.*[0-9a-f]\\.7z$")) | .url' | head -1)
+          fi
+          echo "Far: $FAR_URL" | tee -a "$GITHUB_STEP_SUMMARY"
+          curl -fsSL -o far.7z "$FAR_URL"
+          7z x -y -oc/FAR far.7z > /dev/null
+          ls c/FAR
+      - name: stub DLLs
+        run: |
+          for d in ${{ inputs.stubs }}; do
+            case $d in *.*) f=$d ;; *) f=$d.dll ;; esac
+            i686-w64-mingw32-gcc -shared -nostdlib -O2 -o "c/FAR/$f" hx-far/stub.c \
+              -Wl,-e,_DllMainCRTStartup@12 -Wl,--kill-at
+            echo "stub: $f"
+          done
+      - name: RUN.BAT
+        run: |
+          {
+            echo '@echo off'
+            echo 'set PATH=C:\HX;%PATH%'
+            echo 'set DPMILDR=${{ inputs.dpmildr }}'
+            echo 'ver > C:\OUT\VER.TXT'
+            echo 'C:\HX\HDPMI32.EXE -r > C:\OUT\HDPMI.TXT'
+            echo 'cd \FAR'
+            echo 'C:\HX\DPMILD32.EXE FAR.EXE -? > C:\OUT\HELP.TXT'
+            echo 'echo errorlevel after far -?: >> C:\OUT\HELP.TXT'
+            echo 'if errorlevel 1 echo 1 or more >> C:\OUT\HELP.TXT'
+            echo 'C:\HX\DPMILD32.EXE FAR.EXE ${{ inputs.args }}'
+            echo 'echo far exited > C:\OUT\EXIT.TXT'
+          } | sed 's/$/\r/' > c/RUN.BAT
+          cat c/RUN.BAT
+      - name: run
+        run: hx-far/run.sh "$PWD/c" "$PWD/out" 90 5 15 30 60 89
+      - name: results
+        if: always()
+        run: |
+          cp -r c/OUT out/dos 2>/dev/null || true
+          for f in out/dos/*; do echo "== $f"; cat "$f"; echo; done | tee -a "$GITHUB_STEP_SUMMARY"
+          tail -30 out/dosbox-x.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hx-far-run
+          path: out
