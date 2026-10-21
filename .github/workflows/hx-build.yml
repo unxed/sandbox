@@ -47,19 +47,30 @@ jobs:
           }
           # wrc (Open Watcom) is only needed for DUSER32.RC (cursors): use rc.exe of the SDK
           New-Item -ItemType Directory -Force tools\wrc | Out-Null
+          # cmd splits "-fo=FILE" at "=" into "-fo" and "FILE"
           @(
             '@echo off'
-            'set out='
-            'set in='
+            'set "out="'
+            'set "in="'
+            'set "want="'
             ':loop'
             'if "%~1"=="" goto run'
-            'set a=%~1'
-            'if /i "%a:~0,4%"=="-fo=" set out=%a:~4%'
-            'if not "%a:~0,1%"=="-" set in=%a%'
+            'if defined want goto takeout'
+            'if /i "%~1"=="-fo" set "want=1"'
+            'if /i "%~1"=="-fo" goto next'
+            'set "a=%~1"'
+            'if not "%a:~0,1%"=="-" set "in=%~1"'
+            'goto next'
+            ':takeout'
+            'set "out=%~1"'
+            'set "want="'
+            ':next'
             'shift'
             'goto loop'
             ':run'
+            'echo wrc.cmd: rc.exe /fo "%out%" "%in%"'
             'rc.exe /nologo /fo "%out%" "%in%"'
+            'exit /b %errorlevel%'
           ) | Set-Content -Encoding ascii tools\wrc\wrc.cmd
           (Resolve-Path tools\wrc).Path | Out-File -Append $env:GITHUB_PATH
       - name: HXDEV (import libraries)
