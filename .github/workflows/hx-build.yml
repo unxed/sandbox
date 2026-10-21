@@ -15,6 +15,9 @@ on:
       dirs:
         description: directories of SrcEmu to build, in order
         default: DKRNL32
+      hxdev:
+        description: release tag of Baron-von-Riedesel/HX whose HXDEV gives the import libraries (LIBCOFF)
+        default: v2.23
 
 permissions:
   contents: read
@@ -59,6 +62,17 @@ jobs:
             'rc.exe /nologo /fo "%out%" "%in%"'
           ) | Set-Content -Encoding ascii tools\wrc\wrc.cmd
           (Resolve-Path tools\wrc).Path | Out-File -Append $env:GITHUB_PATH
+      - name: HXDEV (import libraries)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "${{ inputs.hxdev }}" -R Baron-von-Riedesel/HX -p 'HXDEV*.zip' -D dl
+          Expand-Archive (Get-ChildItem dl -Filter 'HXDEV*.zip')[0].FullName -DestinationPath hxdev
+          $lib = (Get-ChildItem hxdev -Recurse -Filter 'dkrnl32.lib' | Where-Object { $_.Directory.Name -ieq 'Lib' } | Select-Object -First 1).DirectoryName
+          if (-not $lib) { throw "Lib with dkrnl32.lib not found" }
+          "HXLIB=$lib" | Out-File -Append $env:GITHUB_ENV
+          "LIBCOFF: $lib"
       - uses: ilammy/msvc-dev-cmd@v1.13.0
         with:
           arch: x86
@@ -68,7 +82,7 @@ jobs:
           for %%d in (${{ inputs.dirs }}) do (
             echo === %%d
             cd /d %GITHUB_WORKSPACE%\hx\SrcEmu\%%d || exit /b 1
-            nmake /nologo RCBIN=wrc.cmd || exit /b 1
+            nmake /nologo RCBIN=wrc.cmd "LIBCOFF=%HXLIB%" || exit /b 1
           )
       - name: collect
         if: always()
