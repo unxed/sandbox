@@ -43,3 +43,10 @@ DLLs from branch `far-stand` of `unxed/HX` (c2449c0): missing DKRNL32/DUSER32 fu
 the `\\?\` path prefix stripped in W functions, directory handles + `NtQueryDirectoryFile`
 (Far lists directories only this way), `GetModuleHandle("ntdll")`. The stray "00000000 00000003"
 at the bottom right comes with the debug DKRNL32.
+
+**2026-10-21, later:** with `far-stand` f7728bb (release DLLs) Far 2 goes into a folder (Down, Enter),
+back up (Ctrl+PgUp, `far2-ctrl-pgup-2026-10-21.png`), asks on F10 (`far2-quit-2026-10-21.png`) and
+exits on Enter (run https://github.com/unxed/sandbox/actions/runs/39620132182). The fix that made
+this work: DKRNL32 kept the 1 MB stack of every terminated thread until its handle was closed, and
+Far 2 restarts a short thread (`WindowHandler::Check`) without closing the handles, so memory ran
+out ("Access denied", empty panel). Now the dispatcher frees the stack when the thread ends.
