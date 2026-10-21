@@ -52,7 +52,7 @@ jobs:
           i=0
           for r in $REFS; do
             i=$((i+1))
-            sha=$(git -C tv3 rev-parse "origin/$r" 2>/dev/null || git -C tv3 rev-parse "$r")
+            sha=$(git -C tv3 rev-parse --verify -q "origin/$r^{commit}" || git -C tv3 rev-parse --verify "$r^{commit}")
             git -C tv3 checkout -q --detach "$sha"
             git -C tv3 clean -qfdx
             echo "## $r = $sha" | tee "out/$i-ref.txt"
@@ -67,6 +67,7 @@ jobs:
             cat out/new.txt
           fi
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: tv3-audit
           path: out/
