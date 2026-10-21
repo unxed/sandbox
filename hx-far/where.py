@@ -28,8 +28,25 @@ def slot(va):
         return struct.unpack('<I', b[2:6])[0]
     return None
 
+# symbols from a linker map next to the PE (MSVC format: "0001:... name rva+base f obj")
+import glob, os, re
+syms = []
+for m in glob.glob(os.path.join(os.path.dirname(sys.argv[1]) or '.', '*.map')):
+    for line in open(m, encoding='latin-1'):
+        f = line.split()
+        if len(f) >= 3 and re.match(r'^[0-9a-fA-F]{4}:[0-9a-fA-F]{8}$', f[0]) and re.match(r'^[0-9a-fA-F]{8}$', f[2]):
+            syms.append((int(f[2], 16), f[1]))
+syms.sort()
+
+def symbol(va):
+    import bisect
+    i = bisect.bisect_right(syms, (va, '\uffff')) - 1
+    return '%s+%X' % (syms[i][1], va - syms[i][0]) if i >= 0 else '?'
+
 for a in sys.argv[2:]:
     ret = int(a, 16)
+    if syms:
+        print('%08X: in %s' % (ret, symbol(ret)))
     b6 = read(ret - 6, 6)
     b5 = read(ret - 5, 5)
     what = 'no call before it'
