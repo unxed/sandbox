@@ -21,6 +21,9 @@ on:
       dpmildr:
         description: value of DPMILDR (128 = start even with unresolved imports)
         default: "128"
+      hxbuild:
+        description: run id of hx-build whose DLLs replace those of the release (SBEMU variant, else RELEASE)
+        default: ""
       cputype:
         description: DOSBox-X cputype (pentium_iii has SSE; DOSBox-X has no SSE2)
         default: pentium_iii
@@ -30,6 +33,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   run:
@@ -50,6 +54,13 @@ jobs:
           mkdir -p c/HX c/OUT x
           for z in dl/*.zip; do unzip -q -o "$z" -d x; done
           find x -ipath '*/bin/*' -type f -exec cp -f {} c/HX/ \;
+          if [ -n "${{ inputs.hxbuild }}" ]; then
+            gh run download "${{ inputs.hxbuild }}" -R "$GITHUB_REPOSITORY" -n hx-build -D built
+            for d in built/*/; do
+              v=$(ls -d "$d"SBEMU 2>/dev/null || ls -d "$d"RELEASE)
+              for f in "$v"/*.DLL; do cp -fv "$f" c/HX/; done
+            done
+          fi
           ls c/HX
       - name: Far
         env:

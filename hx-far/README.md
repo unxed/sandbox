@@ -25,3 +25,14 @@ screenshots of the X screen by a timetable; screenshots, `C:\OUT` and the DOSBox
 artifact `hx-far-run`.
 
 Run: `gh workflow run hx-far-run.yml -R unxed/sandbox [-f args=... -f stubs=... -f dpmildr=...]`.
+
+`-f hxbuild=<run id of hx-build.yml>` puts the DLLs built from a branch of `unxed/HX` (for example
+`far-stand`) over those of the release. `hx-build.yml` builds `SrcEmu` directories with nmake,
+JWasm 2.20 and JWlink 2.0 on `windows-latest`.
+
+Findings so far (2026-10-21):
+- Far 3.0.6745.5025 x86 loads with the stand-in DLLs, then stops in `sqlite3.dll` on SSE2
+  (`66 0F 13`, MOVLPD; illegal instruction C000001D). DOSBox-X has no SSE2 (`cputype` up to
+  `pentium_iii`, which has SSE only).
+- Far 2.0 build 1807 x86 needs no SSE2; it stops on the first missing function, `GetProcessHeaps`
+  (found with `where.py`). Branch `far-stand` of `unxed/HX` adds the DKRNL32 functions Far 2 imports.
