@@ -39,6 +39,7 @@ total = collections.Counter()
 info = []
 pes = sorted(glob.glob(os.path.join(far, '**', '*.exe'), recursive=True) +
              glob.glob(os.path.join(far, '**', '*.dll'), recursive=True))
+shipped = {os.path.basename(p).lower() for p in pes}
 for path in pes:
     rel = os.path.relpath(path, far)
     try:
@@ -66,6 +67,8 @@ for path in pes:
             name = imp.name.decode('latin-1') if imp.name else f'#{imp.ordinal}'
             total[h] += 1
             tag = rel + (' (delay)' if delay else '')
+            if dll.lower() in shipped:
+                continue  # a DLL of Far itself, analysed as a file of its own
             if h not in defs:
                 nodll[dll.lower()].add(tag)
             elif name not in defs[h]:
