@@ -1,0 +1,87 @@
+name: dosbox-x-test
+run-name: "dosbox-x-test ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.cputype }}/${{ inputs.core }}"
+
+# Build DOSBox-X from a branch of a fork and run the guest tests of dosbox-x-sse2/ (README there).
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: DOSBox-X repository (owner/name)
+        default: unxed/dosbox-x
+      ref:
+        description: branch, tag or commit
+        default: master
+      cputype:
+        description: cputype of the guest
+        default: pentium_iii
+      core:
+        description: core of the guest
+        default: normal
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          path: dbx
+      - name: packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq autoconf automake libtool nasm pkg-config libsdl2-dev libsdl2-net-dev \
+            libpng-dev libfreetype-dev libx11-dev libxrandr-dev libxkbfile-dev libncurses-dev zlib1g-dev \
+            libpcap-dev libslirp-dev ccache > /dev/null
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-dosbox-x-${{ runner.os }}-${{ inputs.ref }}
+          restore-keys: ccache-dosbox-x-${{ runner.os }}-
+      - name: build
+        working-directory: dbx
+        env:
+          CC: ccache gcc
+          CXX: ccache g++
+        run: |
+          ./autogen.sh
+          ./configure --enable-sdl2 --disable-debug --disable-alsa-midi --disable-opengl
+          make -j"$(nproc)" 2>&1 | tail -30
+          ls -la src/dosbox-x
+          ccache -s | head -5
+      - name: guest tests
+        run: |
+          mkdir -p guest
+          nasm -f bin dosbox-x-sse2/ud.asm -o guest/UD.COM
+          cat > guest/dosbox-x.conf <<CONF
+          [sdl]
+          output=surface
+          [dosbox]
+          memsize=64
+          [cpu]
+          core=${{ inputs.core }}
+          cputype=${{ inputs.cputype }}
+          [autoexec]
+          mount c "$PWD/guest"
+          c:
+          ud.com > out.txt
+          exit
+          CONF
+          sed -i 's/^          //' guest/dosbox-x.conf
+          cat guest/dosbox-x.conf
+          export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
+          timeout 120 dbx/src/dosbox-x -conf guest/dosbox-x.conf -nopromptfolder -fastlaunch -exit > guest/dosbox.log 2>&1 || true
+          tail -5 guest/dosbox.log
+          echo "=== out.txt"; tr -d '\r' < guest/OUT.TXT | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -q "^DONE fails=0" <(tr -d '\r' < guest/OUT.TXT)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dosbox-x-test
+          path: guest
