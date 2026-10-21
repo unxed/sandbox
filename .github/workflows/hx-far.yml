@@ -12,6 +12,9 @@ on:
       hx_ref:
         description: ref of Baron-von-Riedesel/HX
         default: master
+      where:
+        description: "return addresses to explain, as <file in the Far dir>:<hex VA>[,<hex VA>...]"
+        default: ""
 
 permissions:
   contents: read
@@ -43,6 +46,13 @@ jobs:
       - run: pip install pefile
       - name: report
         run: python3 hx-far/imports.py far hx | tee report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: where
+        if: inputs.where != ''
+        env:
+          WHERE: ${{ inputs.where }}
+        run: |
+          f=$(find far -iname "${WHERE%%:*}" | head -1)
+          python3 hx-far/where.py "$f" $(echo "${WHERE#*:}" | tr ',' ' ') | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: hx-far-report
