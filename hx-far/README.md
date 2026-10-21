@@ -50,3 +50,14 @@ exits on Enter (run https://github.com/unxed/sandbox/actions/runs/39620132182). 
 this work: DKRNL32 kept the 1 MB stack of every terminated thread until its handle was closed, and
 Far 2 restarts a short thread (`WindowHandler::Check`) without closing the handles, so memory ran
 out ("Access denied", empty panel). Now the dispatcher frees the stack when the thread ends.
+
+**2026-10-21: Far 3.0.6745.5025 x86 on DOSBox-X with SSE2.** DOSBox-X from branch `sse2-rest` of
+`unxed/dosbox-x` (`-f dosbox_run=<dosbox-x-test run> -f sse2=true`), HX DLLs from `far-stand`
+(`f7728bb`), stand-in DLLs, `DPMILDR=128`:
+- DOSBox-X from apt (no SSE2): Far stops in `sqlite3.dll` at `66 0F 13` (MOVLPD), "exception
+  C000001D" (`far3-no-sse2-2026-10-21.png`, run https://github.com/unxed/sandbox/actions/runs/39633729020);
+- DOSBox-X with SSE2 (run https://github.com/unxed/sandbox/actions/runs/39633326778): that instruction
+  runs; Far stops later, at "exception C0000005 ... 7000982E", after the loader reports missing
+  `api-ms-win-core-synch-l1-2-0`, `api-ms-win-core-fibers-l1-1-1/2`, `api-ms-win-core-localization-l1-2-1`
+  and `kernelbase` (`far3-with-sse2-2026-10-21.png`). That is a gap in the Win32 emulation of HX, not in the
+  CPU; next in the plan for Far 3 (go2dos `docs/UTF8-DOS.md`, section 7, H3).
