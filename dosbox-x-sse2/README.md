@@ -31,9 +31,19 @@ MMX/SSE instructions that must run, and SSE2 encodings that must be #UD while SS
   bit 26 = 0, 34 of 34 rows pass, nothing changed) and https://github.com/unxed/sandbox/actions/runs/39624091997
   (`-f sse2=true`: bit 26 = 1, 34 of 34 pass).
 
+- 2026-10-21, step 3 (`sse2-double`, one commit over `sse2-skeleton`): double precision with the 66
+  (packed) and F2 (scalar) prefixes: `MOVUPD/MOVAPD/MOVSD/MOVLPD/MOVHPD/MOVNTPD/UNPCK[LH]PD/SHUFPD/
+  MOVMSKPD`, `AND/ANDN/OR/XORPD`, `ADD/SUB/MUL/DIV/SQRT/MIN/MAX` (PD and SD), `COMISD/UCOMISD`,
+  `CMPPD/CMPSD`, `CVTSI2SD/CVTTSD2SI/CVTSD2SI/CVTSS2SD/CVTSD2SS/CVTPS2PD/CVTPD2PS`. Run
+  https://github.com/unxed/sandbox/actions/runs/39625343645 (`-f sse2=true -f sse2double=true`):
+  `sse2.asm` 58 of 58 results match (including NaN rules of MIN/MAX/CMP, "integer indefinite" and
+  MXCSR rounding of CVTSD2SI), `ud.asm` 34 of 34. Not implemented in this step: MXCSR exception
+  flags and #XM, directed rounding of the arithmetic, `CVTPI2PD`, `CVTPD2PI`, `CVTDQ2PD` and the
+  other conversions of `0F E6`/`0F 5B`.
+
 ## Next steps (each is a separate upstream PR, tests first)
 
-3. Scalar and packed double and the moves (enough for Far 3 and sqlite3): `MOVLPD/MOVHPD`
+3. (done, see above) Scalar and packed double and the moves (enough for Far 3 and sqlite3): `MOVLPD/MOVHPD`
    (`66 0F 12/13/16/17`), `MOVSD` (`F2 0F 10/11`), `MOVAPD/MOVUPD`, `AND/ANDN/OR/XORPD`,
    `ADD/SUB/MUL/DIV/SQRT/MIN/MAX SD+PD`, `COMISD/UCOMISD`, `CMPSD/CMPPD`, `CVTSI2SD`,
    `CVTTSD2SI`, `CVTSD2SI`, `CVTSS2SD/CVTSD2SS`, `CVTPS2PD/CVTPD2PS`. Use the existing `f64[2]`
