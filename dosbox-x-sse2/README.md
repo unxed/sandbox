@@ -41,6 +41,16 @@ MMX/SSE instructions that must run, and SSE2 encodings that must be #UD while SS
   flags and #XM, directed rounding of the arithmetic, `CVTPI2PD`, `CVTPD2PI`, `CVTDQ2PD` and the
   other conversions of `0F E6`/`0F 5B`.
 
+- 2026-10-21, step 4 (`sse2-int`, one commit over `sse2-double`): integer SSE2 on XMM registers
+  (the 66 prefix on the MMX opcodes): `MOVDQA/MOVDQU/MOVD/MOVQ/MOVNTDQ`, `PSHUFD/PSHUFLW/PSHUFHW`,
+  `PUNPCK[LH]BW/WD/DQ/QDQ`, `PACKSSWB/PACKUSWB/PACKSSDW`, `PADD/PSUB B/W/D/Q`, saturating `PADDS/
+  PADDUS/PSUBS/PSUBUS B/W`, `PMULLW/PMULHW/PMADDWD/PMULUDQ`, `PAND/PANDN/POR/PXOR`, `PCMPEQ/PCMPGT
+  B/W/D`, shifts by xmm or imm8 and `PSLLDQ/PSRLDQ`. Lane-wise functions in `support.h`
+  (`SSE2_PINT`), shared by register and memory forms. Run
+  https://github.com/unxed/sandbox/actions/runs/39626974121 (`-f sse2=true -f sse2double=true
+  -f sse2int=true`): `sse2int.asm` 190 of 190 (expected values from an independent Python model,
+  `gen_sse2int.py`), `sse2.asm` 58 of 58, `ud.asm` 34 of 34.
+
 ## Next steps (each is a separate upstream PR, tests first)
 
 3. (done, see above) Scalar and packed double and the moves (enough for Far 3 and sqlite3): `MOVLPD/MOVHPD`
@@ -49,7 +59,7 @@ MMX/SSE instructions that must run, and SSE2 encodings that must be #UD while SS
    `CVTTSD2SI`, `CVTSD2SI`, `CVTSS2SD/CVTSD2SS`, `CVTPS2PD/CVTPD2PS`. Use the existing `f64[2]`
    of `XMM_Reg`; MIN/MAX/CMP with the NaN and +-0 rules of the SDM; "integer indefinite"
    (0x80000000) in `CVTT*`. Each form gets a result-checking row in the guest test.
-4. Integer XMM: `MOVD/MOVQ xmm`, `MOVDQA/MOVDQU/MOVNTDQ/MOVNTI`, `PXOR/PAND/POR/PANDN`,
+4. (done, see above) Integer XMM: `MOVD/MOVQ xmm`, `MOVDQA/MOVDQU/MOVNTDQ/MOVNTI`, `PXOR/PAND/POR/PANDN`,
    `PUNPCK*`, `PSHUFD/HW/LW`, `PADDQ/PSUBQ`, `PSLLQ/PSRLQ/PSLLDQ/PSRLDQ`, `PCMPEQ*`, `PADD/PSUB`.
    First move the MMX operations of `prefix_0f_mmx.h` into functions on `uint64_t` so that the
    XMM forms can apply them to both halves.
