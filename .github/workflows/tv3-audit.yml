@@ -6,7 +6,9 @@ run-name: "tv3-audit ${{ inputs.refs }}"
 # developer machine. The artifact holds, per revision, the raw output, a review sheet with the matched lines of both
 # sides and the list of match keys; with two revisions, new.txt lists the keys of the second that the first lacks
 # (a PR head against main: the PR adds no match when it is empty). The artifact contains excerpts of the corpora:
-# download it, then delete it.
+# download it, then delete it. With `extra`, a shell command runs afterwards in the checkout of the last revision
+# (CORPORA set): the lowered-threshold and the similarity checks of a port step of unxed/tv3#12; its output is
+# printed in the log and kept in out/extra.txt.
 on:
   workflow_dispatch:
     inputs:
@@ -16,6 +18,9 @@ on:
       refs:
         description: "revisions, space-separated (e.g. 'main <pr head sha>')"
         default: main
+      extra:
+        description: "optional shell command, run after the audit in the tv3 checkout of the last revision with CORPORA set (the lowered and the similarity checks of a port step); output in out/extra.txt"
+        default: ""
 
 permissions:
   contents: read
@@ -66,6 +71,14 @@ jobs:
             echo "keys of the 2nd revision missing from the 1st: $(grep -c . out/new.txt || true)" | tee -a "$GITHUB_STEP_SUMMARY"
             cat out/new.txt
           fi
+      - name: Extra command
+        if: inputs.extra != ''
+        env:
+          EXTRA: ${{ inputs.extra }}
+        run: |
+          set -u
+          ( cd tv3 && CORPORA="$HOME/.cache/tv-audit" bash -c "$EXTRA" ) > out/extra.txt 2>&1 || echo "extra: exit $?" >> out/extra.txt
+          cat out/extra.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
