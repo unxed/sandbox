@@ -1,0 +1,68 @@
+name: hx-utf8
+run-name: "hx-utf8 ${{ inputs.repo }}@${{ inputs.ref }}"
+
+# Differential test of HX DKRNL32 code page conversions against Windows
+# kernel32 (hx-utf8/README.md).
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: HX repository (owner/name)
+        default: unxed/HX
+      ref:
+        description: branch, tag or commit
+        default: dkrnl32-cp-utf8
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          ref: ${{ inputs.ref }}
+          path: hx
+      - uses: actions/checkout@v4
+        with:
+          repository: Baron-von-Riedesel/HX
+          ref: master
+          path: up
+      - name: JWasm 2.20
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Baron-von-Riedesel/JWasm/releases/download/v2.20/JWasm_v220_win32.zip -OutFile jwasm.zip
+          Expand-Archive jwasm.zip -DestinationPath jwasm
+          $exe = Get-ChildItem jwasm -Recurse -Filter jwasm.exe | Select-Object -First 1
+          "JWASM=$($exe.FullName)" | Out-File -Append $env:GITHUB_ENV
+          & $exe.FullName -? | Select-Object -First 1
+      - uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: x86
+      - name: assemble (flags of SrcEmu/DKRNL32/MAKEFILE)
+        shell: cmd
+        run: |
+          for %%t in (hx up) do (
+            mkdir %%t-obj %%t-dbg
+            for %%f in (WC2MB GETCPINF) do (
+              "%JWASM%" -zze -c -coff -nologo -Sg -D_KERNEL32_=1 -I%%t\Include -D?FLAT=1 -Fo%%t-obj\%%f.obj %%t\SrcEmu\DKRNL32\%%f.ASM || exit /b 1
+              "%JWASM%" -zze -c -coff -nologo -Sg -D_KERNEL32_=1 -D_DEBUG -I%%t\Include -D?FLAT=1 -Fo%%t-dbg\%%f.obj %%t\SrcEmu\DKRNL32\%%f.ASM || exit /b 1
+            )
+          )
+      - name: link
+        shell: cmd
+        run: |
+          cl /nologo /W3 /MD /Fetest-hx.exe hx-utf8\test.c hx-obj\WC2MB.obj hx-obj\GETCPINF.obj kernel32.lib /link /SAFESEH:NO || exit /b 1
+          cl /nologo /W3 /MD /Fetest-up.exe hx-utf8\test.c up-obj\WC2MB.obj up-obj\GETCPINF.obj kernel32.lib /link /SAFESEH:NO || exit /b 1
+      - name: baseline (upstream master, failures expected)
+        shell: cmd
+        continue-on-error: true
+        run: test-up.exe > up.txt & findstr /c:"checks," up.txt
+      - name: test
+        shell: cmd
+        run: test-hx.exe
