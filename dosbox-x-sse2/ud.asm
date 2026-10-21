@@ -20,6 +20,27 @@ start:
 	mov eax, 1
 	cpuid
 	mov [cpuid_edx], edx
+	mov [cpuid_eax], eax
+	mov dx, s_cpuid_eax
+	mov ah, 9
+	int 21h
+	mov cx, 4
+	mov bx, [cpuid_eax]
+.hex:
+	rol bx, 4
+	mov dl, bl
+	and dl, 0Fh
+	add dl, '0'
+	cmp dl, '9'
+	jbe .hd
+	add dl, 7
+.hd:
+	mov ah, 2
+	int 21h
+	loop .hex
+	mov dx, s_nl
+	mov ah, 9
+	int 21h
 	mov dx, s_cpuid
 	mov ah, 9
 	int 21h
@@ -146,6 +167,8 @@ s_ud:	db '  ud=$'
 s_nl:	db 13, 10, '$'
 s_done:	db 'DONE fails=$'
 s_cpuid:	db 'CPUID.1:EDX[26]=$'
+s_cpuid_eax:	db 'CPUID.1:EAX=$'
+cpuid_eax:	dd 0
 s_cpuid_fail:	db 'FAIL cpuid sse2 bit', 13, 10, '$'
 cpuid_edx:	dd 0
 curlen:	db 0

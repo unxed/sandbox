@@ -22,6 +22,10 @@ on:
         description: "enable sse2 = true in the guest (and assemble the test with -DSSE2)"
         type: boolean
         default: false
+      sse2implied:
+        description: "the cputype has SSE2 itself (pentium_4): expect SSE2 without enable sse2"
+        type: boolean
+        default: false
       m32:
         description: "build a 32-bit DOSBox-X (multiarch): the only way to test core_dyn_x86"
         type: boolean
@@ -90,9 +94,9 @@ jobs:
       - name: guest tests
         run: |
           mkdir -p guest
-          nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} ${{ inputs.sse2int && '-DSSE2INT' || '' }} dosbox-x-sse2/ud.asm -o guest/UD.COM
+          nasm -f bin ${{ (inputs.sse2 || inputs.sse2implied) && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} ${{ inputs.sse2int && '-DSSE2INT' || '' }} dosbox-x-sse2/ud.asm -o guest/UD.COM
           nasm -f bin dosbox-x-sse2/sse2.asm -o guest/SSE2.COM
-          nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} ${{ inputs.sse2int && '-DSSE2INT' || '' }} dosbox-x-sse2/udinline.asm -o guest/UDI.COM
+          nasm -f bin ${{ (inputs.sse2 || inputs.sse2implied) && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} ${{ inputs.sse2int && '-DSSE2INT' || '' }} dosbox-x-sse2/udinline.asm -o guest/UDI.COM
           nasm -f bin dosbox-x-sse2/sse2int.asm -o guest/SSE2I.COM
           cat > guest/dosbox-x.conf <<CONF
           [sdl]
