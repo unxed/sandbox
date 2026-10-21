@@ -1,5 +1,5 @@
 name: dosbox-x-test
-run-name: "dosbox-x-test ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.cputype }}/${{ inputs.core }}${{ inputs.sse2double && ' sse2+double' || (inputs.sse2 && ' sse2' || '') }}"
+run-name: "dosbox-x-test ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.cputype }}/${{ inputs.core }}${{ inputs.sse2int && ' sse2+double+int' || inputs.sse2double && ' sse2+double' || (inputs.sse2 && ' sse2' || '') }}"
 
 # Build DOSBox-X from a branch of a fork and run the guest tests of dosbox-x-sse2/ (README there).
 
@@ -20,6 +20,10 @@ on:
         default: normal
       sse2:
         description: "enable sse2 = true in the guest (and assemble the test with -DSSE2)"
+        type: boolean
+        default: false
+      sse2int:
+        description: "the branch has the integer XMM instructions (with sse2): run sse2i.com, expect them in ud.com"
         type: boolean
         default: false
       sse2double:
@@ -66,8 +70,9 @@ jobs:
       - name: guest tests
         run: |
           mkdir -p guest
-          nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} dosbox-x-sse2/ud.asm -o guest/UD.COM
+          nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} ${{ inputs.sse2int && '-DSSE2INT' || '' }} dosbox-x-sse2/ud.asm -o guest/UD.COM
           nasm -f bin dosbox-x-sse2/sse2.asm -o guest/SSE2.COM
+          nasm -f bin dosbox-x-sse2/sse2int.asm -o guest/SSE2I.COM
           cat > guest/dosbox-x.conf <<CONF
           [sdl]
           output=surface
@@ -82,6 +87,7 @@ jobs:
           c:
           ud.com > out.txt
           ${{ inputs.sse2double && 'sse2.com > out2.txt' || 'rem' }}
+          ${{ inputs.sse2int && 'sse2i.com > out3.txt' || 'rem' }}
           exit
           CONF
           sed -i 's/^          //' guest/dosbox-x.conf
@@ -91,6 +97,10 @@ jobs:
           tail -5 guest/dosbox.log
           echo "=== out.txt"; tr -d '\r' < guest/OUT.TXT | tee -a "$GITHUB_STEP_SUMMARY"
           grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT.TXT)
+          if [ "${{ inputs.sse2int }}" = true ]; then
+            echo "=== out3.txt"; tr -d '\r' < guest/OUT3.TXT | tee -a "$GITHUB_STEP_SUMMARY"
+            grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT3.TXT)
+          fi
           if [ "${{ inputs.sse2double }}" = true ]; then
             echo "=== out2.txt"; tr -d '\r' < guest/OUT2.TXT | tee -a "$GITHUB_STEP_SUMMARY"
             grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT2.TXT)

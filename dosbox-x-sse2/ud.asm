@@ -171,6 +171,11 @@ DBL equ 0
 %else
 DBL equ 1
 %endif
+%ifdef SSE2INT
+INT equ 0
+%else
+INT equ 1
+%endif
 
 table:
 	; SSE2 fences and CLFLUSH: run with "enable sse2", #UD without
@@ -191,23 +196,23 @@ table:
 	TEST "sse movups xmm0,xmm1", 3, 0, 0Fh,010h,0C1h
 	TEST "sse movss xmm0,xmm1", 4, 0, 0F3h,0Fh,010h,0C1h
 	; SSE2 forms of MMX opcodes: SSE2 is not emulated, so #UD (before the fix they ran as MMX)
-	TEST "sse2 pxor xmm0,xmm1 (66 0F EF)", 4, 1, 66h,0Fh,0EFh,0C1h
-	TEST "sse2 movdqa xmm0,xmm1 (66 0F 6F)", 4, 1, 66h,0Fh,06Fh,0C1h
-	TEST "sse2 movdqu xmm0,xmm1 (F3 0F 6F)", 4, 1, 0F3h,0Fh,06Fh,0C1h
-	TEST "sse2 movq xmm0,xmm1 (F3 0F 7E)", 4, 1, 0F3h,0Fh,07Eh,0C1h
-	TEST "sse2 movd xmm0,eax (66 0F 6E)", 4, 1, 66h,0Fh,06Eh,0C0h
-	TEST "sse2 movdqa xmm1,xmm0 (66 0F 7F)", 4, 1, 66h,0Fh,07Fh,0C1h
-	TEST "sse2 pshufd (66 0F 70)", 5, 1, 66h,0Fh,070h,0C1h,00h
-	TEST "sse2 pshuflw (F2 0F 70)", 5, 1, 0F2h,0Fh,070h,0C1h,00h
-	TEST "sse2 pshufhw (F3 0F 70)", 5, 1, 0F3h,0Fh,070h,0C1h,00h
-	TEST "sse2 punpcklbw xmm (66 0F 60)", 4, 1, 66h,0Fh,060h,0C1h
-	TEST "sse2 paddb xmm (66 0F FC)", 4, 1, 66h,0Fh,0FCh,0C1h
-	TEST "sse2 paddq xmm (66 0F D4)", 4, 1, 66h,0Fh,0D4h,0C1h
-	TEST "sse2 psllq xmm,1 (66 0F 73)", 5, 1, 66h,0Fh,073h,0F0h,01h
-	TEST "sse2 pcmpeqb xmm (66 0F 74)", 4, 1, 66h,0Fh,074h,0C1h
-	TEST "sse2 pmullw xmm (66 0F D5)", 4, 1, 66h,0Fh,0D5h,0C1h
-	TEST "sse2 psubb xmm (66 0F F8)", 4, 1, 66h,0Fh,0F8h,0C1h
+	TEST "sse2 pxor xmm0,xmm1 (66 0F EF)", 4, INT, 66h,0Fh,0EFh,0C1h
+	TEST "sse2 movdqa xmm0,xmm1 (66 0F 6F)", 4, INT, 66h,0Fh,06Fh,0C1h
+	TEST "sse2 movdqu xmm0,xmm1 (F3 0F 6F)", 4, INT, 0F3h,0Fh,06Fh,0C1h
+	TEST "sse2 movq xmm0,xmm1 (F3 0F 7E)", 4, INT, 0F3h,0Fh,07Eh,0C1h
+	TEST "sse2 movd xmm0,eax (66 0F 6E)", 4, INT, 66h,0Fh,06Eh,0C0h
+	TEST "sse2 movdqa xmm1,xmm0 (66 0F 7F)", 4, INT, 66h,0Fh,07Fh,0C1h
+	TEST "sse2 pshufd (66 0F 70)", 5, INT, 66h,0Fh,070h,0C1h,00h
+	TEST "sse2 pshuflw (F2 0F 70)", 5, INT, 0F2h,0Fh,070h,0C1h,00h
+	TEST "sse2 pshufhw (F3 0F 70)", 5, INT, 0F3h,0Fh,070h,0C1h,00h
+	TEST "sse2 punpcklbw xmm (66 0F 60)", 4, INT, 66h,0Fh,060h,0C1h
+	TEST "sse2 paddb xmm (66 0F FC)", 4, INT, 66h,0Fh,0FCh,0C1h
+	TEST "sse2 paddq xmm (66 0F D4)", 4, INT, 66h,0Fh,0D4h,0C1h
+	TEST "sse2 psllq xmm,1 (66 0F 73)", 5, INT, 66h,0Fh,073h,0F0h,01h
+	TEST "sse2 pcmpeqb xmm (66 0F 74)", 4, INT, 66h,0Fh,074h,0C1h
+	TEST "sse2 pmullw xmm (66 0F D5)", 4, INT, 66h,0Fh,0D5h,0C1h
+	TEST "sse2 psubb xmm (66 0F F8)", 4, INT, 66h,0Fh,0F8h,0C1h
 	TEST "sse2 xorpd xmm (66 0F 57)", 4, DBL, 66h,0Fh,057h,0C1h
 	TEST "sse2 movsd xmm (F2 0F 10)", 4, DBL, 0F2h,0Fh,010h,0C1h
-	TEST "sse2 movq xmm,xmm (66 0F D6)", 4, 1, 66h,0Fh,0D6h,0C1h
+	TEST "sse2 movq xmm,xmm (66 0F D6)", 4, INT, 66h,0Fh,0D6h,0C1h
 	db 0
