@@ -1,6 +1,6 @@
 #!/bin/sh
 # Run Far under HX in DOSBox-X on Xvfb and take screenshots (hx-far/README.md).
-# Usage: run.sh <C: drive dir> <output dir> <seconds> <shots...>
+# Usage: run.sh <C: drive dir> <output dir> <seconds> <shots...>   (env KEYS, CPUTYPE, CORE)
 set -u
 cdrive=$1 out=$2 total=$3; shift 3
 mkdir -p "$out"
@@ -24,6 +24,18 @@ Xvfb :99 -screen 0 1024x768x24 & xpid=$!
 sleep 2
 DISPLAY=:99 SDL_AUDIODRIVER=dummy dosbox-x -conf "$out/dosbox-x.conf" -nopromptfolder -fastlaunch \
   > "$out/dosbox-x.log" 2>&1 & dpid=$!
+# keys: KEYS="<sec>:<xdotool key>[ <sec>:<key>...]", e.g. "30:Down 31:Return 60:F10"
+if [ -n "${KEYS:-}" ]; then
+  (
+    t=0
+    for k in $KEYS; do
+      s=${k%%:*}; key=${k#*:}
+      sleep $((s - t)); t=$s
+      DISPLAY=:99 xdotool mousemove 500 400 key --delay 50 "$key" || true
+      echo "$s: key $key" >> "$out/keys.log"
+    done
+  ) &
+fi
 t=0
 for s in "$@"; do
   sleep $((s - t)); t=$s
