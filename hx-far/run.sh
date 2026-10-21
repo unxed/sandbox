@@ -12,6 +12,7 @@ memsize=256
 [cpu]
 core=${CORE:-normal}
 cputype=${CPUTYPE:-pentium_iii}
+enable sse2=${SSE2:-false}
 cycles=max
 [dos]
 lfn=true
@@ -22,7 +23,7 @@ call C:\\RUN.BAT
 CONF
 Xvfb :99 -screen 0 1024x768x24 & xpid=$!
 sleep 2
-DISPLAY=:99 SDL_AUDIODRIVER=dummy dosbox-x -conf "$out/dosbox-x.conf" -nopromptfolder -fastlaunch \
+DISPLAY=:99 SDL_AUDIODRIVER=dummy ${DOSBOX:-dosbox-x} -conf "$out/dosbox-x.conf" -nopromptfolder -fastlaunch \
   > "$out/dosbox-x.log" 2>&1 & dpid=$!
 # keys: KEYS="<sec>:<xdotool key>[ <sec>:<key>...]", e.g. "30:Down 31:Return 60:F10"
 if [ -n "${KEYS:-}" ]; then

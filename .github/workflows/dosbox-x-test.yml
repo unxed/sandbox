@@ -130,3 +130,7 @@ jobs:
         with:
           name: dosbox-x-test
           path: guest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dosbox-x-bin
+          path: dbx/src/dosbox-x
