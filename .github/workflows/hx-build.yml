@@ -42,6 +42,23 @@ jobs:
             $f.DirectoryName | Out-File -Append $env:GITHUB_PATH
             "$n -> $($f.FullName)"
           }
+          # wrc (Open Watcom) is only needed for DUSER32.RC (cursors): use rc.exe of the SDK
+          New-Item -ItemType Directory -Force tools\wrc | Out-Null
+          @(
+            '@echo off'
+            'set out='
+            'set in='
+            ':loop'
+            'if "%~1"=="" goto run'
+            'set a=%~1'
+            'if /i "%a:~0,4%"=="-fo=" set out=%a:~4%'
+            'if not "%a:~0,1%"=="-" set in=%a%'
+            'shift'
+            'goto loop'
+            ':run'
+            'rc.exe /nologo /fo "%out%" "%in%"'
+          ) | Set-Content -Encoding ascii tools\wrc\wrc.cmd
+          (Resolve-Path tools\wrc).Path | Out-File -Append $env:GITHUB_PATH
       - uses: ilammy/msvc-dev-cmd@v1.13.0
         with:
           arch: x86
@@ -51,7 +68,7 @@ jobs:
           for %%d in (${{ inputs.dirs }}) do (
             echo === %%d
             cd /d %GITHUB_WORKSPACE%\hx\SrcEmu\%%d || exit /b 1
-            nmake /nologo || exit /b 1
+            nmake /nologo RCBIN=wrc.cmd || exit /b 1
           )
       - name: collect
         if: always()
