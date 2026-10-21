@@ -166,6 +166,11 @@ FENCE equ 0
 %else
 FENCE equ 1
 %endif
+%ifdef SSE2DOUBLE
+DBL equ 0
+%else
+DBL equ 1
+%endif
 
 table:
 	; SSE2 fences and CLFLUSH: run with "enable sse2", #UD without
@@ -202,7 +207,7 @@ table:
 	TEST "sse2 pcmpeqb xmm (66 0F 74)", 4, 1, 66h,0Fh,074h,0C1h
 	TEST "sse2 pmullw xmm (66 0F D5)", 4, 1, 66h,0Fh,0D5h,0C1h
 	TEST "sse2 psubb xmm (66 0F F8)", 4, 1, 66h,0Fh,0F8h,0C1h
-	TEST "sse2 xorpd xmm (66 0F 57)", 4, 1, 66h,0Fh,057h,0C1h
-	TEST "sse2 movsd xmm (F2 0F 10)", 4, 1, 0F2h,0Fh,010h,0C1h
+	TEST "sse2 xorpd xmm (66 0F 57)", 4, DBL, 66h,0Fh,057h,0C1h
+	TEST "sse2 movsd xmm (F2 0F 10)", 4, DBL, 0F2h,0Fh,010h,0C1h
 	TEST "sse2 movq xmm,xmm (66 0F D6)", 4, 1, 66h,0Fh,0D6h,0C1h
 	db 0
