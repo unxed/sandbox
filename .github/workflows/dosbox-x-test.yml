@@ -63,6 +63,7 @@ jobs:
         run: |
           mkdir -p guest
           nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} dosbox-x-sse2/ud.asm -o guest/UD.COM
+          nasm -f bin dosbox-x-sse2/sse2.asm -o guest/SSE2.COM
           cat > guest/dosbox-x.conf <<CONF
           [sdl]
           output=surface
@@ -76,6 +77,7 @@ jobs:
           mount c "$PWD/guest"
           c:
           ud.com > out.txt
+          ${{ inputs.sse2 && 'sse2.com > out2.txt' || 'rem' }}
           exit
           CONF
           sed -i 's/^          //' guest/dosbox-x.conf
@@ -85,6 +87,10 @@ jobs:
           tail -5 guest/dosbox.log
           echo "=== out.txt"; tr -d '\r' < guest/OUT.TXT | tee -a "$GITHUB_STEP_SUMMARY"
           grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT.TXT)
+          if [ "${{ inputs.sse2 }}" = true ]; then
+            echo "=== out2.txt"; tr -d '\r' < guest/OUT2.TXT | tee -a "$GITHUB_STEP_SUMMARY"
+            grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT2.TXT)
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
