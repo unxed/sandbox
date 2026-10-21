@@ -4,6 +4,10 @@ Looks for `call [IAT]` (FF 15) or `call rel32` to a `jmp [IAT]` stub (FF 25)
 just before each return address."""
 import struct, sys
 import pefile
+try:
+    import capstone
+except ImportError:
+    capstone = None
 
 pe = pefile.PE(sys.argv[1])
 base = pe.OPTIONAL_HEADER.ImageBase
@@ -37,3 +41,18 @@ for a in sys.argv[2:]:
         s = slot(dest)
         what = 'call %08X' % dest + (' -> jmp [%08X] -> %s' % (s, iat.get(s, '?')) if s else '')
     print('%08X: %s' % (ret, what))
+
+    if capstone and what == 'no call before it':
+        # linear sweep from the start offset that ends exactly at ret
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+        for back in range(48, 0, -1):
+            code = read(ret - back, back)
+            ins = list(md.disasm(code, ret - back))
+            if ins and ins[-1].address + ins[-1].size == ret and sum(i.size for i in ins) == back:
+                for i in ins[-12:]:
+                    note = ''
+                    for k, v in iat.items():
+                        if ('0x%x' % k) in i.op_str:
+                            note = '   ; ' + v
+                    print('    %08X  %-8s %s%s' % (i.address, i.mnemonic, i.op_str, note))
+                break

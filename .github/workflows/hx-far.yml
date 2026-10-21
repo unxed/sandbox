@@ -43,7 +43,7 @@ jobs:
           curl -fsSL -o far.7z "$FAR_URL"
           7z x -y -ofar far.7z > /dev/null
           find far -maxdepth 2 | head -50
-      - run: pip install pefile
+      - run: pip install pefile capstone
       - name: report
         run: python3 hx-far/imports.py far hx | tee report.md >> "$GITHUB_STEP_SUMMARY"
       - name: where
