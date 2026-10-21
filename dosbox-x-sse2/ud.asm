@@ -171,7 +171,8 @@ table:
 	; SSE2 fences and CLFLUSH: run with "enable sse2", #UD without
 	TEST "lfence", 3, FENCE, 0Fh,0AEh,0E8h
 	TEST "mfence", 3, FENCE, 0Fh,0AEh,0F0h
-	TEST "clflush [bx]", 3, FENCE, 0Fh,0AEh,37h
+	TEST "clflush [bx] (0F AE /7 m)", 3, FENCE, 0Fh,0AEh,3Fh
+	TEST "0F AE /6 m is #UD", 3, 1, 0Fh,0AEh,37h
 	TEST "sfence", 3, 0, 0Fh,0AEh,0F8h
 	; legacy MMX and SSE: must run
 	TEST "mmx pxor mm0,mm1", 3, 0, 0Fh,0EFh,0C1h
