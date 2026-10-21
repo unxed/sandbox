@@ -36,3 +36,10 @@ Findings so far (2026-10-21):
   `pentium_iii`, which has SSE only).
 - Far 2.0 build 1807 x86 needs no SSE2; it stops on the first missing function, `GetProcessHeaps`
   (found with `where.py`). Branch `far-stand` of `unxed/HX` adds the DKRNL32 functions Far 2 imports.
+
+**2026-10-21: Far 2.0 build 1807 x86 shows its panels under HX v2.23 in DOSBox-X**
+(`far2-panels-2026-10-21.png`, run https://github.com/unxed/sandbox/actions/runs/39618234287).
+DLLs from branch `far-stand` of `unxed/HX` (c2449c0): missing DKRNL32/DUSER32 functions,
+the `\\?\` path prefix stripped in W functions, directory handles + `NtQueryDirectoryFile`
+(Far lists directories only this way), `GetModuleHandle("ntdll")`. The stray "00000000 00000003"
+at the bottom right comes with the debug DKRNL32.
