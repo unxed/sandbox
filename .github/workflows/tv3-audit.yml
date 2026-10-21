@@ -1,0 +1,73 @@
+name: tv3-audit
+run-name: "tv3-audit ${{ inputs.refs }}"
+
+# Runs tools/audit/run.sh of unxed/tv3 (the tree and every commit of the history against the reference corpora) on
+# one or more revisions, in CI only: the corpora are fetched here (and kept in the Actions cache), never on a
+# developer machine. The artifact holds, per revision, the raw output, a review sheet with the matched lines of both
+# sides and the list of match keys; with two revisions, new.txt lists the keys of the second that the first lacks
+# (a PR head against main: the PR adds no match when it is empty). The artifact contains excerpts of the corpora:
+# download it, then delete it.
+on:
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: repository (owner/name)
+        default: unxed/tv3
+      refs:
+        description: "revisions, space-separated (e.g. 'main <pr head sha>')"
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: sandbox
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo }}
+          path: tv3
+          fetch-depth: 0
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq unrar unzip
+      - name: Corpora cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/tv-audit
+          key: tv-audit-corpora-v1-${{ hashFiles('tv3/tools/audit/fetch-corpora.sh') }}
+      - name: Audit
+        env:
+          REFS: ${{ inputs.refs }}
+        run: |
+          set -u
+          mkdir -p out
+          C="$HOME/.cache/tv-audit"
+          i=0
+          for r in $REFS; do
+            i=$((i+1))
+            sha=$(git -C tv3 rev-parse "origin/$r" 2>/dev/null || git -C tv3 rev-parse "$r")
+            git -C tv3 checkout -q --detach "$sha"
+            git -C tv3 clean -qfdx
+            echo "## $r = $sha" | tee "out/$i-ref.txt"
+            ( cd tv3 && CORPORA="$C" sh tools/audit/run.sh ) > "out/$i-audit.txt" 2>&1 || true
+            tail -n 3 "out/$i-audit.txt"
+            python3 sandbox/tv3-audit/excerpt.py "out/$i-audit.txt" "$PWD/tv3" "$C" "out/$i-sheet.txt" "out/$i-keys.txt"
+            echo "$r $sha: $(grep -c . "out/$i-keys.txt" || true) keys" >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ "$i" -ge 2 ]; then
+            comm -13 out/1-keys.txt out/2-keys.txt > out/new.txt
+            echo "keys of the 2nd revision missing from the 1st: $(grep -c . out/new.txt || true)" | tee -a "$GITHUB_STEP_SUMMARY"
+            cat out/new.txt
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tv3-audit
+          path: out/
+          retention-days: 2
