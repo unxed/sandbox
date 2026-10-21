@@ -10,8 +10,8 @@ output=surface
 [dosbox]
 memsize=256
 [cpu]
-core=dynamic
-cputype=pentium
+core=${CORE:-normal}
+cputype=${CPUTYPE:-pentium_iii}
 cycles=max
 [dos]
 lfn=true

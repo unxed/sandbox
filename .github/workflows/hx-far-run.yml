@@ -1,5 +1,5 @@
 name: hx-far-run
-run-name: "hx-far-run HX ${{ inputs.hx }} ${{ inputs.args }}"
+run-name: "hx-far-run HX ${{ inputs.hx }} ${{ inputs.cputype }}/${{ inputs.core }} ${{ inputs.args }}"
 
 # Stand: Far Manager x86 under the HX runtime in DOSBox-X, screenshots (hx-far/README.md).
 
@@ -21,6 +21,12 @@ on:
       dpmildr:
         description: value of DPMILDR (128 = start even with unresolved imports)
         default: "128"
+      cputype:
+        description: DOSBox-X cputype (pentium_iii has SSE; DOSBox-X has no SSE2)
+        default: pentium_iii
+      core:
+        description: DOSBox-X core
+        default: normal
 
 permissions:
   contents: read
@@ -83,6 +89,9 @@ jobs:
           } | sed 's/$/\r/' > c/RUN.BAT
           cat c/RUN.BAT
       - name: run
+        env:
+          CPUTYPE: ${{ inputs.cputype }}
+          CORE: ${{ inputs.core }}
         run: hx-far/run.sh "$PWD/c" "$PWD/out" 90 5 15 30 60 89
       - name: results
         if: always()
