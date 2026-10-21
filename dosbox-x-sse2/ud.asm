@@ -75,8 +75,14 @@ done:
 	mov dx, s_done
 	mov ah, 9
 	int 21h
-	mov dl, [fails]
-	add dl, '0'
+	movzx ax, byte [fails]
+	aam				; ah = tens, al = ones
+	add ax, 3030h
+	mov bx, ax
+	mov dl, bh
+	mov ah, 2
+	int 21h
+	mov dl, bl
 	mov ah, 2
 	int 21h
 	mov dx, s_nl
