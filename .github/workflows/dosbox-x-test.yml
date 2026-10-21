@@ -85,6 +85,7 @@ jobs:
           fi
           make -j"$(nproc)" 2>&1 | tail -30
           ls -la src/dosbox-x
+          echo '--- config.h:'; grep -E 'C_DYNAMIC_X86|C_DYNREC|C_CORE_INLINE|C_TARGETCPU|C_FPU_X86|C_X86' config.h | head -20
           ccache -s | head -5
       - name: guest tests
         run: |
