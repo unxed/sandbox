@@ -92,6 +92,7 @@ jobs:
           mkdir -p guest
           nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} ${{ inputs.sse2int && '-DSSE2INT' || '' }} dosbox-x-sse2/ud.asm -o guest/UD.COM
           nasm -f bin dosbox-x-sse2/sse2.asm -o guest/SSE2.COM
+          nasm -f bin ${{ inputs.sse2 && '-DSSE2' || '' }} ${{ inputs.sse2double && '-DSSE2DOUBLE' || '' }} ${{ inputs.sse2int && '-DSSE2INT' || '' }} dosbox-x-sse2/udinline.asm -o guest/UDI.COM
           nasm -f bin dosbox-x-sse2/sse2int.asm -o guest/SSE2I.COM
           cat > guest/dosbox-x.conf <<CONF
           [sdl]
@@ -106,6 +107,7 @@ jobs:
           mount c "$PWD/guest"
           c:
           ud.com > out.txt
+          udi.com > out4.txt
           ${{ inputs.sse2double && 'sse2.com > out2.txt' || 'rem' }}
           ${{ inputs.sse2int && 'sse2i.com > out3.txt' || 'rem' }}
           exit
@@ -117,6 +119,8 @@ jobs:
           tail -5 guest/dosbox.log
           echo "=== out.txt"; tr -d '\r' < guest/OUT.TXT | tee -a "$GITHUB_STEP_SUMMARY"
           grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT.TXT)
+          echo "=== out4.txt (inline)"; tr -d '\r' < guest/OUT4.TXT | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT4.TXT)
           if [ "${{ inputs.sse2int }}" = true ]; then
             echo "=== out3.txt"; tr -d '\r' < guest/OUT3.TXT | tee -a "$GITHUB_STEP_SUMMARY"
             grep -q "^DONE fails=00" <(tr -d '\r' < guest/OUT3.TXT)
