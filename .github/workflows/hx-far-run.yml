@@ -57,7 +57,7 @@ jobs:
           if [ -n "${{ inputs.hxbuild }}" ]; then
             gh run download "${{ inputs.hxbuild }}" -R "$GITHUB_REPOSITORY" -n hx-build -D built
             for d in built/*/; do
-              v=$(ls -d "$d"SBEMU 2>/dev/null || ls -d "$d"RELEASE)
+              v=; for c in SBEMUD SBEMU DEBUG RELEASE; do [ -d "$d$c" ] && { v=$d$c; break; }; done
               for f in "$v"/*.DLL; do cp -fv "$f" c/HX/; done
             done
           fi
@@ -89,6 +89,7 @@ jobs:
             echo '@echo off'
             echo 'set PATH=C:\HX;%PATH%'
             echo 'set DPMILDR=${{ inputs.dpmildr }}'
+            echo 'set DKRNLLOG=C:\OUT\DKRNL.LOG'
             echo 'ver > C:\OUT\VER.TXT'
             echo 'C:\HX\HDPMI32.EXE -r > C:\OUT\HDPMI.TXT'
             echo 'cd \FAR'

@@ -1,5 +1,5 @@
 name: hx-build
-run-name: "hx-build ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.dirs }}"
+run-name: "hx-build ${{ inputs.repo }}@${{ inputs.ref }} ${{ inputs.dirs }}${{ inputs.debug && ' debug' || '' }}"
 
 # Build HX Win32 emulation DLLs (SrcEmu) with the tools of HXsrc.txt: nmake, JWasm, JWlink/JWlib.
 
@@ -15,6 +15,10 @@ on:
       dirs:
         description: directories of SrcEmu to build, in order
         default: DKRNL32
+      debug:
+        description: debug build (nmake DEBUG=1; trace log via DKRNLLOG=<file>)
+        type: boolean
+        default: false
       hxdev:
         description: release tag of Baron-von-Riedesel/HX whose HXDEV gives the import libraries (LIBCOFF)
         default: v2.23
@@ -93,7 +97,7 @@ jobs:
           for %%d in (${{ inputs.dirs }}) do (
             echo === %%d
             cd /d %GITHUB_WORKSPACE%\hx\SrcEmu\%%d || exit /b 1
-            nmake /nologo RCBIN=wrc.cmd "LIBCOFF=%HXLIB%" || exit /b 1
+            nmake /nologo RCBIN=wrc.cmd "LIBCOFF=%HXLIB%" DEBUG=${{ inputs.debug && 1 || 0 }} || exit /b 1
           )
       - name: collect
         if: always()
