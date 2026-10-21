@@ -17,10 +17,11 @@ for d in glob.glob(os.path.join(hx, 'SrcEmu', '*', '*.[Dd][Ee][Ff]')):
         s = line.split(';')[0].strip()
         if not s:
             continue
-        if re.match(r'(?i)^exports\b', s):
+        # DEF directives are upper case; exports such as HeapSize are not
+        if re.match(r'^EXPORTS\b', s):
             on = True
             continue
-        if re.match(r'(?i)^(library|name|description|stacksize|heapsize|imports|sections|version)\b', s):
+        if re.match(r'^(LIBRARY|NAME|DESCRIPTION|STACKSIZE|HEAPSIZE|IMPORTS|SECTIONS|VERSION)\b', s):
             on = False
             continue
         if on:
