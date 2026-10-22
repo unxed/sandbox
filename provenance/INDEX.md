@@ -34,7 +34,7 @@
 | `tools/tests/test_corpora.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/tests/test_prove.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/tests/test_provenance_lint.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
-| `tools/tests/test_text_lint.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
+| `tools/tests/test_text_lint.py` | specification | specification:infra-requirements | 2 | 2 | 0 |
 | `tools/tests/test_tokens.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/tests/test_verdict.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
-| `tools/text_lint.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
+| `tools/text_lint.py` | specification | specification:infra-requirements | 2 | 2 | 0 |
