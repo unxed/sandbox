@@ -1,0 +1,74 @@
+{
+  "path": "src/tvtext.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/ttext.h",
+      "lines": "1-524"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/platform/ttext.cpp",
+      "lines": "1-403"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/scrncell.h",
+      "lines": "1-270"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/ttext.h",
+      "sha256": "811e551ad6872af981b5d8d64fe472a7e8437999b003de30283473f00e99c75a"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/platform/ttext.cpp",
+      "sha256": "e7e7a12b574e3f2b2f02093702b4409abf60c4ca97aba8d1972790994dd43d31"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/scrncell.h",
+      "sha256": "9536580e05d4355fc8971526fb6cd89a00523f0d523ac3f284dcacfe4bdaef68"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "a03efafc2662d6b41c1ed65d13e956a5365bcb2c6361302a162e59661a1b886e"
+    },
+    {
+      "origin": "repository:docs/ASYNC.md",
+      "sha256": "22669952d272adad4aea137d9f50edd6038ce18d9abba0eed77dcd1fd23b6878"
+    },
+    {
+      "origin": "repository:src/tvcell.pas",
+      "sha256": "a1af8d97cb3e2f1c04a3a7bcfeee7556272bc28bf8f22ecd6e5c2363445d9b91"
+    },
+    {
+      "origin": "repository:src/tvcolors.pas",
+      "sha256": "9fda94548caec8f5fb349c444977016783f51b8800d264539cb2f3f60a597037"
+    },
+    {
+      "origin": "repository:src/tvutf8.pas",
+      "sha256": "194a547ad470bae95d60e1bc980f759151f16d987ffefac1a3c06c86512e1e14"
+    }
+  ],
+  "implementer": "implementer 13",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "f49e98fa6e85533b611f1039c1a6aea0e38f4095",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    },
+    {
+      "blob": "135d7c71e13e33b5f144cc0bac3a37a73e711729",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
