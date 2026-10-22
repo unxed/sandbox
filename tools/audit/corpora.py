@@ -318,6 +318,8 @@ def main():
     if changed:
         with open(changed_flag, "w") as fh:
             fh.write("changed\n")
+    for name in [g[0] for g in GIT_REFERENCES] + [a[0] for a in ARCHIVES]:
+        log("corpus %s: %d code files" % (name, sum(1 for r in refs if r.startswith(name + "/"))))
     log("references: %d, allowed: %d" % (len(refs), len(allowed)))
     if failed:
         log("NOT FETCHED: " + ", ".join(failed))
