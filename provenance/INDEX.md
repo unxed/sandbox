@@ -13,7 +13,7 @@
 | `docs/ASYNC.md` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `docs/CLEANROOM.md` | specification | specification:protocol | 1 | 1 | 0 |
 | `src/tvgeom.pas` | translation | magiblot/tvision:include/tvision/objects.h:23-207 | 2 | 2 | 0 |
-| `src/tvkeys.pas` | translation | magiblot/tvision:include/tvision/tkeys.h:1-216; magiblot/tvision:source/tvision/tkey.cpp:1-286; magiblot/tvision:source/tvision/drivers2.cpp:1-118 | 1 | 1 | 3 |
+| `src/tvkeys.pas` | translation | magiblot/tvision:include/tvision/tkeys.h:1-216; magiblot/tvision:source/tvision/tkey.cpp:1-286; magiblot/tvision:source/tvision/drivers2.cpp:1-118 | 2 | 2 | 3 |
 | `tests/t_geom.pas` | translation | magiblot/tvision:include/tvision/objects.h:23-207 | 1 | 1 | 0 |
 | `tests/testlib.inc` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/audit/audit.py` | specification | specification:infra-requirements | 3 | 3 | 0 |
