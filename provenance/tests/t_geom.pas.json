@@ -1,0 +1,40 @@
+{
+  "path": "tests/t_geom.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/objects.h",
+      "lines": "23-207"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/objects.h",
+      "sha256": "4e6b8ebe089585da03539415c90fef161231296ba3fcf357dce85f403004f14e"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "2b6863e334680aff5a10488cf09e5efd58ecb088c4452e047b7c26530aaa5de6"
+    },
+    {
+      "origin": "repository:docs/ASYNC.md",
+      "sha256": "22669952d272adad4aea137d9f50edd6038ce18d9abba0eed77dcd1fd23b6878"
+    },
+    {
+      "origin": "repository:tests/testlib.inc",
+      "sha256": "096b4f4c541c4ef4716079c3d1eeb67cdd02bb36a3711cf15f7aec58114afb3a"
+    }
+  ],
+  "implementer": "implementer 2",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "0963e364eb639398f1482e79f60fdd0bf1b5ff0f",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
