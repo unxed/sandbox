@@ -15,7 +15,7 @@
 | `src/tvansi.pas` | translation | magiblot/tvision:include/tvision/internal/ansiwrit.h:1-151; magiblot/tvision:source/platform/ansiwrit.cpp:1-449 | 2 | 2 | 0 |
 | `src/tvcell.pas` | translation | magiblot/tvision:include/tvision/scrncell.h:1-270 | 2 | 2 | 0 |
 | `src/tvcolors.pas` | translation | magiblot/tvision:include/tvision/colors.h:1-855; magiblot/tvision:source/platform/colors.cpp:1-253 | 2 | 2 | 0 |
-| `src/tvcrc.pas` | specification | specification:tvcrc | 1 | 1 | 0 |
+| `src/tvcrc.pas` | specification | specification:tvcrc | 2 | 2 | 0 |
 | `src/tvdrawbuf.pas` | translation | magiblot/tvision:include/tvision/drawbuf.h:1-82; magiblot/tvision:source/tvision/drivers.cpp:1-395 | 2 | 2 | 0 |
 | `src/tvevents.pas` | translation | magiblot/tvision:include/tvision/system.h:1-560; magiblot/tvision:source/platform/win32con.cpp:1-694; magiblot/tvision:include/tvision/internal/win32con.h:1-111; magiblot/tvision:source/platform/termio.cpp:1-1004; magiblot/tvision:include/tvision/internal/termio.h:1-171; magiblot/tvision:source/platform/far2l.cpp:1-258 | 2 | 2 | 4 |
 | `src/tvgeom.pas` | translation | magiblot/tvision:include/tvision/objects.h:23-207 | 2 | 2 | 0 |
