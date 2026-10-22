@@ -1,0 +1,28 @@
+{
+  "path": "COPYRIGHT.tvterm",
+  "kind": "verbatim",
+  "sources": [
+    {
+      "source": "magiblot/tvterm",
+      "commit": "210eb23564da06c358d2623388939bb02f7f3419",
+      "file": "COPYRIGHT",
+      "blob": "f591b9c81a1890b9cc9676ef809670ac4a4d57cc"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvterm@210eb23564da06c358d2623388939bb02f7f3419:COPYRIGHT",
+      "sha256": "6d6b6624960e571bc9fd8c86a70a7b013946487526a996b930112dc3512fe67c"
+    }
+  ],
+  "implementer": "implementer 1",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "f591b9c81a1890b9cc9676ef809670ac4a4d57cc",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
