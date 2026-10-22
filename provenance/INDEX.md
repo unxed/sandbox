@@ -12,7 +12,7 @@
 | `docs/API-NAMES.md` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `docs/ASYNC.md` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `docs/CLEANROOM.md` | specification | specification:protocol | 1 | 1 | 0 |
-| `src/tvgeom.pas` | translation | magiblot/tvision:include/tvision/objects.h:23-207 | 1 | 1 | 0 |
+| `src/tvgeom.pas` | translation | magiblot/tvision:include/tvision/objects.h:23-207 | 2 | 2 | 0 |
 | `tests/testlib.inc` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/audit/audit.py` | specification | specification:infra-requirements | 3 | 3 | 0 |
 | `tools/audit/corpora.py` | specification | specification:infra-requirements | 3 | 3 | 0 |
