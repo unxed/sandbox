@@ -16,7 +16,19 @@ The names of magiblot/tvision and magiblot/tvterm become Pascal names by these r
 APIs added beside an existing one by rule P5 of `docs/ASYNC.md` are listed here, one per line, as
 "added: <name>".
 
+added: TEventQueue.PostEvent
+added: TEventQueue.GetPostedEvent
+added: TEventQueue.HasPostedEvents
+added: TEventQueue.Backend
+added: TEventBackend
+added: TEventFifo
+
 ## Differences
 
 State protected by rule P4 of `docs/ASYNC.md` is listed here, one per line, as "difference: thread safety of
 <name>".
+
+difference: thread safety of TWakeUpEventSource.Signal
+difference: thread safety of TEventQueue.PostEvent
+difference: thread safety of TEventQueue.WakeUp
+difference: thread safety of TEventBackend.Feed
