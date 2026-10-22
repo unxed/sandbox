@@ -22,6 +22,7 @@
 | `src/tvtimer.pas` | translation | magiblot/tvision:include/tvision/system.h:1-560; magiblot/tvision:source/tvision/ttimerqu.cpp:1-140 | 2 | 2 | 0 |
 | `src/tvutf8.pas` | translation | magiblot/tvision:include/tvision/internal/utf8.h:1-112; magiblot/tvision:source/platform/ttext.cpp:1-403; magiblot/tvision:include/tvision/ttext.h:1-524 | 2 | 2 | 1 |
 | `src/tvwidth.inc` | standard | Unicode 15.0.0 EastAsianWidth.txt; Unicode 15.0.0 DerivedGeneralCategory.txt | 1 | 1 | 0 |
+| `tests/t_ansi.pas` | translation | magiblot/tvision:include/tvision/internal/ansiwrit.h:1-151; magiblot/tvision:source/platform/ansiwrit.cpp:1-449 | 1 | 1 | 0 |
 | `tests/t_async.pas` | translation | magiblot/tvision:include/tvision/system.h:1-560; magiblot/tvision:source/tvision/tevent.cpp:1-472; magiblot/tvision:include/tvision/internal/events.h:1-166; magiblot/tvision:source/platform/events.cpp:1-301 | 1 | 1 | 0 |
 | `tests/t_cell.pas` | translation | magiblot/tvision:include/tvision/scrncell.h:1-270 | 1 | 1 | 0 |
 | `tests/t_colors.pas` | translation | magiblot/tvision:include/tvision/colors.h:1-855; magiblot/tvision:source/platform/colors.cpp:1-253 | 1 | 1 | 0 |
