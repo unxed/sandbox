@@ -13,11 +13,11 @@
 | `docs/ASYNC.md` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `docs/CLEANROOM.md` | specification | specification:protocol | 1 | 1 | 0 |
 | `tests/testlib.inc` | specification | specification:infra-requirements | 1 | 1 | 0 |
-| `tools/audit/audit.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
-| `tools/audit/corpora.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
+| `tools/audit/audit.py` | specification | specification:infra-requirements | 2 | 2 | 0 |
+| `tools/audit/corpora.py` | specification | specification:infra-requirements | 2 | 2 | 0 |
 | `tools/audit/proofs.txt` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/audit/prove.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
-| `tools/audit/provenance_lint.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
+| `tools/audit/provenance_lint.py` | specification | specification:infra-requirements | 2 | 2 | 0 |
 | `tools/audit/run.sh` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/audit/tokens.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/audit/verdict.py` | specification | specification:infra-requirements | 1 | 1 | 0 |

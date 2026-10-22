@@ -281,7 +281,8 @@ def run(repo, history=False, write_index=False):
                 pending.append("%s %s" % (path, v["blob"]))
             if v["commit"] is not None:
                 try:
-                    got = git(repo, "rev-parse", "%s:%s" % (v["commit"], path)).decode().strip()
+                    got = subprocess.run(["git", "-C", repo, "rev-parse", "%s:%s" % (v["commit"], path)], stdout=subprocess.PIPE,
+                                         stderr=subprocess.DEVNULL, check=True).stdout.decode().strip()
                 except subprocess.CalledProcessError:
                     got = None
                 if got != v["blob"]:
@@ -328,6 +329,7 @@ def run(repo, history=False, write_index=False):
     text = index_text({rel: rec for rel, rec in records.items() if isinstance(rec, dict)})
     index_path = os.path.join(repo, "provenance/INDEX.md")
     if write_index:
+        os.makedirs(os.path.dirname(index_path), exist_ok=True)
         with open(index_path, "w", encoding="utf-8") as fh:
             fh.write(text)
     else:
