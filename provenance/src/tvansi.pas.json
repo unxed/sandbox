@@ -1,0 +1,60 @@
+{
+  "path": "src/tvansi.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/internal/ansiwrit.h",
+      "lines": "1-151"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/platform/ansiwrit.cpp",
+      "lines": "1-449"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/internal/ansiwrit.h",
+      "sha256": "a1e3b8a878b96cfedb6c83870c553dc1c487712726ad46e440a67c038557f809"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/platform/ansiwrit.cpp",
+      "sha256": "f7ec478b3df723079a9d63f34b90d25e9d1397fec2f57a7f19d73c988d1664de"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "a03efafc2662d6b41c1ed65d13e956a5365bcb2c6361302a162e59661a1b886e"
+    },
+    {
+      "origin": "repository:docs/ASYNC.md",
+      "sha256": "22669952d272adad4aea137d9f50edd6038ce18d9abba0eed77dcd1fd23b6878"
+    },
+    {
+      "origin": "repository:src/tvcolors.pas",
+      "sha256": "9fda94548caec8f5fb349c444977016783f51b8800d264539cb2f3f60a597037"
+    },
+    {
+      "origin": "repository:src/tvgeom.pas",
+      "sha256": "4c3f83cc5e6e59e830e188ec1e28fe0ce36c8850089b164fb5e18d9fa6598de6"
+    }
+  ],
+  "implementer": "implementer 11",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "7ef6de68228626e3013cbef9805b91681da37060",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    },
+    {
+      "blob": "31669af0911295c571e9f4078b3af956d21365d8",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
