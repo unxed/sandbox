@@ -32,3 +32,7 @@ difference: thread safety of TWakeUpEventSource.Signal
 difference: thread safety of TEventQueue.PostEvent
 difference: thread safety of TEventQueue.WakeUp
 difference: thread safety of TEventBackend.Feed
+difference: thread safety of TTimerQueue.SetTimer
+difference: thread safety of TTimerQueue.KillTimer
+difference: thread safety of TTimerQueue.CollectExpiredTimers
+difference: thread safety of TTimerQueue.TimeUntilNextTimeout
