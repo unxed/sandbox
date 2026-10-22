@@ -176,13 +176,20 @@ def extract(archive, out, kind):
             ["bsdtar", "-xf", archive, "-C", out],
         ],
     }[kind]
+    partial = False
     for cmd in tools:
         if shutil.which(cmd[0]) is None:
             continue
-        res = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if res.returncode in (0, 1) or (res.returncode == 2 and count_files(out) > 0):
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if res.returncode == 0:
             return True
-        log("extraction with %s failed (exit code %d)" % (cmd[0], res.returncode))
+        tail = res.stdout.decode("utf-8", "replace").strip().splitlines()[-6:]
+        log("extraction of %s with %s: exit code %d: %s" % (os.path.basename(archive), cmd[0], res.returncode, " | ".join(tail)))
+        if count_files(out) > 0:
+            partial = True
+    if partial:
+        log("using the files that could be extracted from " + os.path.basename(archive))
+        return True
     raise RuntimeError("cannot extract " + archive)
 
 
@@ -200,7 +207,7 @@ def find_inner(root, wanted):
 
 def fetch_archive(cache, name, url, sha, kind):
     dest = os.path.join(cache, name)
-    signature = "archive %s %s\n" % (url, sha)
+    signature = "archive 2 %s %s\n" % (url, sha)
     if marker_ok(dest, signature):
         return False
     shutil.rmtree(dest, ignore_errors=True)
@@ -238,6 +245,7 @@ def fetch_archive(cache, name, url, sha, kind):
                         out = os.path.join(target, rel)
                         os.makedirs(os.path.dirname(out), exist_ok=True)
                         shutil.copyfile(full, out)
+                log("%s: %d of %d files kept" % (inner, count_files(target) if os.path.isdir(target) else 0, count_files(tmp)))
         else:
             extract(archive, dest, kind)
             prune_to_code(dest)
