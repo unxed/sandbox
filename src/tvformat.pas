@@ -12,9 +12,20 @@ function FormatStr(const Fmt: ShortString; const Args: array of const): ShortStr
 
 implementation
 
+uses
+  SysUtils;
+
+const
+  MaxShortLen = 255;
+
 function FormatStr(const Fmt: ShortString; const Args: array of const): ShortString;
+var
+  Full: AnsiString;
 begin
-  Result := '';
+  Full := Format(Fmt, Args);
+  if Length(Full) > MaxShortLen then
+    SetLength(Full, MaxShortLen);
+  Result := Full;
 end;
 
 end.
