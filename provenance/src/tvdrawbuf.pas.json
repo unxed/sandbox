@@ -1,0 +1,68 @@
+{
+  "path": "src/tvdrawbuf.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/drawbuf.h",
+      "lines": "1-82"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/tvision/drivers.cpp",
+      "lines": "1-395"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/drawbuf.h",
+      "sha256": "4cc709d57fa54e30b3a0982a75d080bf92bc6f05215e36280d28396d838309d4"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/tvision/drivers.cpp",
+      "sha256": "0295ae6f1ab9a99a1018dbb9e2f178d2c06b95bf6018472933cb55ce438009d5"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "2177bcb2269e6b9dec6eb979d7c473fa0de5c46c4b42422fd0cdb1db1f7ae6e4"
+    },
+    {
+      "origin": "repository:docs/ASYNC.md",
+      "sha256": "22669952d272adad4aea137d9f50edd6038ce18d9abba0eed77dcd1fd23b6878"
+    },
+    {
+      "origin": "repository:src/tvcell.pas",
+      "sha256": "a1af8d97cb3e2f1c04a3a7bcfeee7556272bc28bf8f22ecd6e5c2363445d9b91"
+    },
+    {
+      "origin": "repository:src/tvcolors.pas",
+      "sha256": "9fda94548caec8f5fb349c444977016783f51b8800d264539cb2f3f60a597037"
+    },
+    {
+      "origin": "repository:src/tvtext.pas",
+      "sha256": "4b54630ae6cec87f74565c01ce9af1d049dd553e843938c804fb27043b9ec3b2"
+    },
+    {
+      "origin": "repository:src/tvutf8.pas",
+      "sha256": "194a547ad470bae95d60e1bc980f759151f16d987ffefac1a3c06c86512e1e14"
+    }
+  ],
+  "implementer": "implementer 12",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "a2cf9e8129d91d6553fe749da8d12adfe978a36f",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    },
+    {
+      "blob": "4bc3fc63454f870f2997ffebfabe1e5efb1dc1cd",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
