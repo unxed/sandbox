@@ -1,0 +1,26 @@
+{
+  "path": "tools/audit/facts/windows-console-mouse-event-record-str.md",
+  "kind": "standard",
+  "sources": [
+    {
+      "document": "MOUSE_EVENT_RECORD structure",
+      "url": "https://github.com/MicrosoftDocs/Console-Docs/blob/8cf64f2ce92961421c4fb95f08ce3ee932893028/docs/mouse-event-record-str.md"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "standard:MOUSE_EVENT_RECORD structure",
+      "sha256": "c0e212d6cdedfdfe3b1693460f595544d54118d6f41674b79da3e2dd2575f2a9"
+    }
+  ],
+  "implementer": "implementer 7",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "07a0cf3c44cb5e3850f4260caaf56b1d211a136a",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
