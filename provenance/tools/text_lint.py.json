@@ -1,0 +1,29 @@
+{
+  "path": "tools/text_lint.py",
+  "kind": "specification",
+  "sources": [
+    {
+      "specification": "infra-requirements"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "specification:infra-requirements",
+      "sha256": "65ffa58e354e07cab903e2da22f8b61ce9906232108ff59a6b66878a66bd2e64"
+    },
+    {
+      "origin": "specification:protocol",
+      "sha256": "091e4da363bbb03b015d355d049f56f1bd110990f91a9c477c8f4bf4e034731c"
+    }
+  ],
+  "implementer": "implementer 1",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "daf3c1f143df93b65e936fb51670f7c5fe638629",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
