@@ -66,6 +66,7 @@ class FileTests(unittest.TestCase):
         data = CYR.encode("utf-8")
         self.assertTrue(text_lint.check_bytes("docs/a.md", data))
         self.assertEqual(text_lint.check_bytes("tests/a.pas", data), [])
+        self.assertEqual(text_lint.check_bytes("tools/audit/facts/a.md", data), [])
 
     def test_self_is_exempt(self):
         data = (WT + " " + WA).encode("utf-8")

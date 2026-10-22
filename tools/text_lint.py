@@ -84,7 +84,8 @@ def check_bytes(path, data):
         if "\ufffd" in text:
             return [{"where": path, "rule": "replacement character", "detail": ""}]
         return []
-    return check_text(path, text, allow_cyrillic=path.startswith("tests/"))
+    # the documents of standards of the facts are kept as published
+    return check_text(path, text, allow_cyrillic=path.startswith(("tests/", "tools/audit/facts/")))
 
 
 def git(repo, *args):
