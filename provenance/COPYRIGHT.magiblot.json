@@ -1,0 +1,28 @@
+{
+  "path": "COPYRIGHT.magiblot",
+  "kind": "verbatim",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "COPYRIGHT",
+      "blob": "a200eaeb79f6095c5c8dcbc4f41b2f17267ec1da"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:COPYRIGHT",
+      "sha256": "66220baeb9761b723fba913b74cf8257621a65c38cadb941fbb5bc181104b548"
+    }
+  ],
+  "implementer": "implementer 1",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "a200eaeb79f6095c5c8dcbc4f41b2f17267ec1da",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
