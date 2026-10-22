@@ -1,0 +1,64 @@
+{
+  "path": "src/tvkeys.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/tkeys.h",
+      "lines": "1-216"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/tvision/tkey.cpp",
+      "lines": "1-286"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/tvision/drivers2.cpp",
+      "lines": "1-118"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/tkeys.h",
+      "sha256": "bcb3c6eeac38cd03869564cddc329aa1c596f3cea9221f0505eba92443f59e2f"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/tvision/tkey.cpp",
+      "sha256": "f51021d1bc2c3f892f2fec65f23415c174a1affd688cf0376099f2954addb5af"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/tvision/drivers2.cpp",
+      "sha256": "0e2e2355bae9a3a86b944c17f0121e4cf39a541af5515da9c6a50126b4442792"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "2b6863e334680aff5a10488cf09e5efd58ecb088c4452e047b7c26530aaa5de6"
+    },
+    {
+      "origin": "repository:docs/ASYNC.md",
+      "sha256": "22669952d272adad4aea137d9f50edd6038ce18d9abba0eed77dcd1fd23b6878"
+    },
+    {
+      "origin": "repository:tests/testlib.inc",
+      "sha256": "096b4f4c541c4ef4716079c3d1eeb67cdd02bb36a3711cf15f7aec58114afb3a"
+    }
+  ],
+  "implementer": "implementer 3",
+  "proofs": [
+    "a50cda4ca9ab4a2b7f2feeaf8c3165506e977466db805c7f13c420d711e351dc",
+    "543afbdd435d1d6f319419befe5362197bca14c69d951ccdee12199ff6290e43",
+    "2e9f9da7b3af1fbd1e7913e7f6c8c3a22955639e667b210c74f00545f5053410"
+  ],
+  "versions": [
+    {
+      "blob": "0192bff4a0043f1df3c69c2bba072633f53fd224",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
