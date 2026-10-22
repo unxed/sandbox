@@ -1,0 +1,54 @@
+{
+  "path": "src/tvcolors.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/colors.h",
+      "lines": "1-855"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/platform/colors.cpp",
+      "lines": "1-253"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/colors.h",
+      "sha256": "969dece0e35e1c203e37bb92887f57497948b280507f5865e8ffc7ccf69f4ead"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/platform/colors.cpp",
+      "sha256": "acb34692ce46b882e017ce246a7c31cb5c7f69785afbfeae388833c9b41fe752"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "871103aaba0337b816bbdc537f0e4da9ee35bd5628dc589373fa0a3d3bed26f3"
+    },
+    {
+      "origin": "repository:src/tvgeom.pas",
+      "sha256": "4c3f83cc5e6e59e830e188ec1e28fe0ce36c8850089b164fb5e18d9fa6598de6"
+    },
+    {
+      "origin": "repository:src/tvutf8.pas",
+      "sha256": "194a547ad470bae95d60e1bc980f759151f16d987ffefac1a3c06c86512e1e14"
+    },
+    {
+      "origin": "repository:tests/testlib.inc",
+      "sha256": "096b4f4c541c4ef4716079c3d1eeb67cdd02bb36a3711cf15f7aec58114afb3a"
+    }
+  ],
+  "implementer": "implementer 8",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "6bbad51cb883678ede6925b0e8e8606f6a79b1c9",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
