@@ -18,6 +18,7 @@
 | `src/tvwidth.inc` | standard | Unicode 15.0.0 EastAsianWidth.txt; Unicode 15.0.0 DerivedGeneralCategory.txt | 1 | 1 | 0 |
 | `tests/t_geom.pas` | translation | magiblot/tvision:include/tvision/objects.h:23-207 | 1 | 1 | 0 |
 | `tests/t_keys.pas` | translation | magiblot/tvision:include/tvision/tkeys.h:1-216; magiblot/tvision:source/tvision/tkey.cpp:1-286; magiblot/tvision:source/tvision/drivers2.cpp:1-118 | 1 | 1 | 0 |
+| `tests/t_utf8.pas` | translation | magiblot/tvision:include/tvision/internal/utf8.h:1-112; magiblot/tvision:source/platform/ttext.cpp:1-403; magiblot/tvision:include/tvision/ttext.h:1-524 | 1 | 1 | 0 |
 | `tests/testlib.inc` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `tools/audit/audit.py` | specification | specification:infra-requirements | 3 | 3 | 0 |
 | `tools/audit/corpora.py` | specification | specification:infra-requirements | 3 | 3 | 0 |
