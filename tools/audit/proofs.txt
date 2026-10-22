@@ -2,3 +2,4 @@
 raw	a50cda4ca9ab4a2b7f2feeaf8c3165506e977466db805c7f13c420d711e351dc	src/tvkeys.pas	translation magiblot/tvision:include/tvision/tkeys.h:46-95
 raw	543afbdd435d1d6f319419befe5362197bca14c69d951ccdee12199ff6290e43	src/tvkeys.pas	translation magiblot/tvision:include/tvision/tkeys.h:98-108
 raw	2e9f9da7b3af1fbd1e7913e7f6c8c3a22955639e667b210c74f00545f5053410	src/tvkeys.pas	translation magiblot/tvision:include/tvision/tkeys.h:98-108
+raw	d93972d796888a86ae6b99be50b7a566c2275c4c96b7a6d1c13701e5ff78876a	src/tvutf8.pas	translation magiblot/tvision:source/platform/ttext.cpp:14-36
