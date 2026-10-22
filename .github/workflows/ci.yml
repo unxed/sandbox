@@ -1,0 +1,138 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tests of the tools
+        run: python3 -m unittest discover -s tools/tests -p 'test_*.py' -v
+      - name: Text rules of the files
+        run: python3 tools/text_lint.py
+      - name: Text rules of the commits, the title and the description of a pull request
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          printf '%s' "$PR_TITLE" > "$RUNNER_TEMP/pr-title.txt"
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.txt"
+          python3 tools/text_lint.py --commits "$BASE..$HEAD" \
+            --text "$RUNNER_TEMP/pr-title.txt" --text "$RUNNER_TEMP/pr-body.txt"
+      - name: The pull request does not change VERDICT.md
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if git diff --name-only "$BASE...$HEAD" | grep -qx 'VERDICT.md'; then
+            echo "VERDICT.md is written by CI only"
+            exit 1
+          fi
+      - name: Provenance check with the history
+        run: python3 tools/audit/provenance_lint.py --history
+      - name: Install Free Pascal
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fpc
+      - name: Build of the units
+        run: tools/test.sh build
+      - name: Unit tests
+        run: tools/test.sh
+
+  verdict:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      CORPORA: /home/runner/tv3-corpora
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full libarchive-tools
+          sudo apt-get install -y unrar || echo "unrar is not available"
+      - name: Restore the cache of the corpora
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CORPORA }}
+          key: corpora-${{ hashFiles('tools/audit/corpora.py') }}-${{ github.run_id }}
+          restore-keys: |
+            corpora-${{ hashFiles('tools/audit/corpora.py') }}-
+            corpora-
+      - name: Fetch the corpora
+        id: corpora
+        continue-on-error: true
+        run: python3 tools/audit/corpora.py
+      - name: Check what the cache has to save
+        id: changed
+        if: always()
+        run: |
+          if [ -f "$CORPORA/.changed" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Save the cache of the corpora
+        if: always() && steps.changed.outputs.changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CORPORA }}
+          key: corpora-${{ hashFiles('tools/audit/corpora.py') }}-${{ github.run_id }}
+      - name: Audit of the whole history
+        id: audit
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 tools/audit/audit.py --corpora "$CORPORA" \
+            --raw 16 --ren 60 --ren-ident-percent 40 --lit 12 --lit-distinct 6 \
+            --out "$RUNNER_TEMP/audit.json"
+      - name: Provenance check with the history
+        id: provenance
+        if: always()
+        continue-on-error: true
+        run: python3 tools/audit/provenance_lint.py --history --json "$RUNNER_TEMP/provenance.json"
+      - name: Text check of the files and of every commit
+        id: text
+        if: always()
+        continue-on-error: true
+        run: python3 tools/text_lint.py --commits HEAD --json "$RUNNER_TEMP/text.json"
+      - name: Verdict
+        id: verdict
+        if: always()
+        run: |
+          python3 tools/audit/verdict.py \
+            --audit "$RUNNER_TEMP/audit.json" \
+            --provenance "$RUNNER_TEMP/provenance.json" \
+            --text "$RUNNER_TEMP/text.json" \
+            --dossier "https://github.com/${{ github.repository }}/blob/$(git rev-parse HEAD)/provenance/INDEX.md" \
+            > "$RUNNER_TEMP/verdict.txt" || true
+          cat "$RUNNER_TEMP/verdict.txt"
+          cat "$RUNNER_TEMP/verdict.txt" >> "$GITHUB_STEP_SUMMARY"
+      - name: Commit VERDICT.md
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          cp "$RUNNER_TEMP/verdict.txt" VERDICT.md
+          if git diff --quiet -- VERDICT.md && git ls-files --error-unmatch VERDICT.md >/dev/null 2>&1; then
+            echo "VERDICT.md is current"
+          else
+            git config user.name "tv3 maintainers"
+            git config user.email "tv3-maintainers@users.noreply.github.com"
+            git add VERDICT.md
+            git commit -m "Update VERDICT.md"
+            git push origin HEAD:main
+          fi
+      - name: The job fails when the corpora, the audit or the provenance check fail
+        if: always() && (steps.corpora.outcome != 'success' || steps.audit.outcome != 'success' || steps.provenance.outcome != 'success')
+        run: |
+          echo "corpora: ${{ steps.corpora.outcome }}, audit: ${{ steps.audit.outcome }}, provenance: ${{ steps.provenance.outcome }}"
+          exit 1
