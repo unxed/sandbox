@@ -1,0 +1,98 @@
+{
+  "path": "tests/t_async.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/system.h",
+      "lines": "1-560"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/tvision/tevent.cpp",
+      "lines": "1-472"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/internal/events.h",
+      "lines": "1-166"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/platform/events.cpp",
+      "lines": "1-301"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/system.h",
+      "sha256": "2012b6d6efab5627525bb124c0695fda1a530b80a2157dc3e21d8f12ed8fc266"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/tvision/tevent.cpp",
+      "sha256": "04d5a37d9c14be6a924edd2d3468c68527430559d57d0313ebcc8ea004f95418"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/internal/events.h",
+      "sha256": "5de50312299cdd2154ca87ce87cd3092eca4bce081cb863967c4dfdca10d08e2"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/platform/events.cpp",
+      "sha256": "93f0b1ea30df1f9051ec9c3235fbf6b2cd0a12a045a57dcd27d0af627ffccb54"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "0ea6001d7fc3f3f0e7501044869fcd39704247f4ea2bb37a666a332d306428b1"
+    },
+    {
+      "origin": "repository:docs/ASYNC.md",
+      "sha256": "22669952d272adad4aea137d9f50edd6038ce18d9abba0eed77dcd1fd23b6878"
+    },
+    {
+      "origin": "repository:tests/testlib.inc",
+      "sha256": "096b4f4c541c4ef4716079c3d1eeb67cdd02bb36a3711cf15f7aec58114afb3a"
+    },
+    {
+      "origin": "repository:tests/t_geom.pas",
+      "sha256": "a6d97d55ee16ce800fb75806c567861863a6be49640fe5936f91a6d290d1f016"
+    },
+    {
+      "origin": "repository:tests/t_events.pas",
+      "sha256": "ce31c3f73fc3adf792655c558974fd25a1bbb23608d1bdb190d4257e39ff265f"
+    },
+    {
+      "origin": "repository:src/tvgeom.pas",
+      "sha256": "4c3f83cc5e6e59e830e188ec1e28fe0ce36c8850089b164fb5e18d9fa6598de6"
+    },
+    {
+      "origin": "repository:src/tvkeys.pas",
+      "sha256": "8da33db690d728078f51bbfdbf8f390c73063f908f52c6f25af328f2e1962a51"
+    },
+    {
+      "origin": "repository:src/tvutf8.pas",
+      "sha256": "194a547ad470bae95d60e1bc980f759151f16d987ffefac1a3c06c86512e1e14"
+    },
+    {
+      "origin": "repository:src/tvevents.pas",
+      "sha256": "a24fb07f4e2d82e2c244fdd66f3e766cc1ee88becdb1ac4a2af47fcacff07cb4"
+    },
+    {
+      "origin": "repository:src/tvsys.pas",
+      "sha256": "5cc8894b6d166144aeb295a6445c0144041a43e103d360f2d5215317ddf967ac"
+    }
+  ],
+  "implementer": "implementer 6",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "14ce5137adfefb1119864153c133111c849cae54",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
