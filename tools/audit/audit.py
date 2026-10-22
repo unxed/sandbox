@@ -310,7 +310,12 @@ def main(argv=None):
             m["comparison"], m["path"], m["lines"][0], m["lines"][1], m["ntokens"], m["id"], m["reference"]))
     for e in invalid:
         print("INVALID PROOF %s: %s" % (e["line"], e["reason"]))
+    parts = {}
+    for rel in refs:
+        key = "/".join(rel.split("/")[:2])
+        parts[key] = parts.get(key, 0) + 1
     print("corpora: " + ", ".join("%s %d" % kv for kv in sorted(corpora.items())))
+    print("parts: " + ", ".join("%s %d" % kv for kv in sorted(parts.items())))
     print("references %d, allowed %d, versions %d, matches %d, unproved %d" % (
         len(refs), len(allowed.files), len(files), len(match_list), len(unproved)))
     print("AUDIT PASS" if report["pass"] else "AUDIT FAIL")
