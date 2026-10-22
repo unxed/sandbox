@@ -9,3 +9,5 @@
 | `docs/API-NAMES.md` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `docs/ASYNC.md` | specification | specification:infra-requirements | 1 | 1 | 0 |
 | `docs/CLEANROOM.md` | specification | specification:protocol | 1 | 1 | 0 |
+| `tools/tests/test_text_lint.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
+| `tools/text_lint.py` | specification | specification:infra-requirements | 1 | 1 | 0 |
