@@ -60,41 +60,156 @@ var
 
 implementation
 
+uses
+  Math, TvUtf8, TvText;
+
+type
+  TCellArray = array[0..$FFFFF] of TScreenCell;
+  PCellArray = ^TCellArray;
+
+{ Moves the text of Str into Dest, switching between the two attributes at each tilde.
+  Pre: Indent < Length(Dest), Length(Str) > 0. }
+function CStrInto(var Dest: array of TScreenCell; Indent: SizeInt; const Str: string; const Attrs: TAttrPair;
+  StrIndent: Word): SizeInt;
+var
+  I, J, W: SizeInt;
+  Toggle: Integer;
+  CurAttr: TColorAttr;
+  Cell: TScreenCell;
+begin
+  I := Indent;
+  J := 0;
+  W := 0;
+  Toggle := 1;
+  CurAttr := Attrs.Attrs[0];
+  while J < Length(Str) do
+    if Str[J + 1] = '~' then
+    begin
+      CurAttr := Attrs.Attrs[Toggle];
+      Toggle := 1 - Toggle;
+      Inc(J);
+    end
+    else if StrIndent <= W then
+    begin
+      if not TTextCells.DrawOne(Dest, I, Str, J, CurAttr) then
+        Break;
+    end
+    else
+    begin
+      if not TText.Next(Str, J, W) then
+        Break;
+      if (StrIndent < W) and (I < Length(Dest)) then
+      begin
+        { StrIndent is in the middle of a double-width character. }
+        Cell := TScreenCell.Create(TScreenCharacter.Create(' '), CurAttr);
+        Dest[I] := Cell;
+        Inc(I);
+      end;
+    end;
+  Result := I - Indent;
+end;
+
 constructor TDrawBuffer.Create;
 begin
+  { The screen's dimensions are arbitrary, so the buffer is allocated dynamically. The largest dimension is taken,
+    since a buffer can also draw vertical views. Some room is left for views that exceed the screen size. }
+  Capacity := 8 + SizeUInt(Max(Max(ScreenWidth, ScreenHeight), 80));
+  GetMem(Data, Capacity * SizeOf(TScreenCell));
+  FillChar(Data^, Capacity * SizeOf(TScreenCell), 0);
 end;
 
 destructor TDrawBuffer.Destroy;
 begin
+  FreeMem(Data);
   inherited Destroy;
 end;
 
 procedure TDrawBuffer.MoveChar(Indent: Word; C: Char; Attr: TColorAttr; Count: Word);
+var
+  Dest: PScreenCell;
+  Cell: TScreenCell;
 begin
+  if (Count = 0) or (Indent >= Capacity) then
+    Exit;
+  if SizeUInt(Indent) + Count >= Capacity then
+    Count := Word(Capacity - Indent);
+  Dest := @Data[Indent];
+  if Attr <> 0 then
+  begin
+    if C <> #0 then
+    begin
+      Cell := TScreenCell.Create(TScreenCharacter.Create(C), Attr);
+      while Count > 0 do
+      begin
+        Dest^ := Cell;
+        Inc(Dest);
+        Dec(Count);
+      end;
+    end
+    else
+      while Count > 0 do
+      begin
+        Dest^.Attribute := Attr;
+        Inc(Dest);
+        Dec(Count);
+      end;
+  end
+  else
+    while Count > 0 do
+    begin
+      Dest^.Character.InitWithChar(C);
+      Inc(Dest);
+      Dec(Count);
+    end;
 end;
 
 function TDrawBuffer.MoveStr(Indent: Word; const Str: string; Attr: TColorAttr; MaxStrWidth: Word;
   StrIndent: Word): Word;
 begin
-  Result := 0;
+  if (Indent >= Capacity) or (Length(Str) = 0) or (MaxStrWidth = 0) then
+  begin
+    Result := 0;
+    Exit;
+  end;
+  if (SizeUInt(Indent) + MaxStrWidth < Indent) or (SizeUInt(Indent) + MaxStrWidth >= Capacity) then
+    MaxStrWidth := Word(Capacity - Indent);
+  if Attr <> 0 then
+    Result := Word(TTextCells.DrawStr(Slice(PCellArray(Data)^, SizeInt(Indent) + MaxStrWidth), Indent, Str, StrIndent, Attr))
+  else
+    Result := Word(TTextCells.DrawStr(Slice(PCellArray(Data)^, SizeInt(Indent) + MaxStrWidth), Indent, Str, StrIndent));
 end;
 
 function TDrawBuffer.MoveCStr(Indent: Word; const Str: string; const Attrs: TAttrPair; MaxStrWidth: Word;
   StrIndent: Word): Word;
 begin
-  Result := 0;
+  if (Indent >= Capacity) or (Length(Str) = 0) or (MaxStrWidth = 0) then
+  begin
+    Result := 0;
+    Exit;
+  end;
+  if (SizeUInt(Indent) + MaxStrWidth < Indent) or (SizeUInt(Indent) + MaxStrWidth >= Capacity) then
+    MaxStrWidth := Word(Capacity - Indent);
+  Result := Word(CStrInto(Slice(PCellArray(Data)^, SizeInt(Indent) + MaxStrWidth), Indent, Str, Attrs, StrIndent));
 end;
 
 procedure TDrawBuffer.MoveBuf(Indent: Word; Source: Pointer; Attr: TColorAttr; Count: Word);
+var
+  Str: string;
 begin
+  SetString(Str, PChar(Source), Count);
+  MoveStr(Indent, Str, Attr, High(Word), 0);
 end;
 
 procedure TDrawBuffer.PutAttribute(Indent: Word; Attr: TColorAttr);
 begin
+  if Indent < Capacity then
+    Data[Indent].Attribute := Attr;
 end;
 
 procedure TDrawBuffer.PutChar(Indent: Word; C: Byte);
 begin
+  if Indent < Capacity then
+    Data[Indent].Character.InitWithChar(Chr(C));
 end;
 
 end.
