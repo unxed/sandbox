@@ -73,84 +73,223 @@ function VFormatStr(const AFormat: string; const Args: array of const): string;
 
 implementation
 
+uses
+  SysUtils, TvKeys, TvUtf8;
+
+const
+  AltCodes1 = 'QWERTYUIOP'#0#0#0#0'ASDFGHJKL'#0#0#0#0#0'ZXCVBNM';
+  AltCodes2 = '1234567890-=';
+  { The space-bar character, U+2261 in CP437. }
+  AltSpaceChar = #$F0;
+
+  CtrlCodes = #0'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
 function Min(A, B: Integer): Integer;
 begin
-  Result := 0;
+  if A < B then
+    Exit(A);
+  Result := B;
 end;
 
 function Min(A, B: Int64): Int64;
 begin
-  Result := 0;
+  if A < B then
+    Exit(A);
+  Result := B;
 end;
 
 function Max(A, B: Integer): Integer;
 begin
-  Result := 0;
+  if A > B then
+    Exit(A);
+  Result := B;
 end;
 
 function Max(A, B: Int64): Int64;
 begin
-  Result := 0;
+  if A > B then
+    Exit(A);
+  Result := B;
 end;
 
 function GetAltChar(KeyCode: Word): Char;
+var
+  KeyDown: TKeyDownEvent;
+  AltChar: string;
 begin
-  Result := #0;
+  FillChar(KeyDown, SizeOf(KeyDown), 0);
+  KeyDown.KeyCode := KeyCode;
+  AltChar := GetAltCharStr(KeyDown);
+
+  if AltChar = '' then
+    Result := #0
+  else
+    Result := AltChar[1];
 end;
 
 function GetAltCharStr(const KeyDown: TKeyDownEvent): string;
+var
+  ScanCode: Word;
+  Ch: Char;
 begin
+  { If the Alt+Key event contains text, return it. }
+  if ((KeyDown.ControlKeyState and kbAltShift) <> 0) and (KeyDown.GetText <> '') then
+  begin
+    Result := KeyDown.GetText;
+    Exit;
+  end;
+
+  { Otherwise, try mapping the scan code to a character. }
   Result := '';
+  if KeyDown.CharScan.CharCode = 0 then
+  begin
+    ScanCode := KeyDown.CharScan.ScanCode;
+
+    Ch := #0;
+    if KeyDown.KeyCode = kbAltSpace then
+      Ch := AltSpaceChar { special case to handle alt-Space }
+    else if (ScanCode >= $10) and (ScanCode <= $32) then
+      Ch := AltCodes1[ScanCode - $10 + 1] { alt-letter }
+    else if (ScanCode >= $78) and (ScanCode <= $83) then
+      Ch := AltCodes2[ScanCode - $78 + 1]; { alt-number }
+
+    if Ch <> #0 then
+      Result := Ch;
+  end;
 end;
 
 function GetAltCode(C: Char): Word;
+var
+  I: SizeInt;
 begin
   Result := 0;
+  if C = #0 then
+    Exit;
+
+  C := UpCase(C);
+
+  if C = AltSpaceChar then
+  begin
+    Result := kbAltSpace; { special case to handle alt-Space }
+    Exit;
+  end;
+
+  for I := 1 to Length(AltCodes1) do
+    if AltCodes1[I] = C then
+    begin
+      Result := Word((I - 1 + $10) shl 8);
+      Exit;
+    end;
+
+  for I := 1 to Length(AltCodes2) do
+    if AltCodes2[I] = C then
+    begin
+      Result := Word((I - 1 + $78) shl 8);
+      Exit;
+    end;
 end;
 
 function GetCtrlChar(KeyCode: Word): Char;
+var
+  KeyDown: TKeyDownEvent;
+  CtrlChar: string;
 begin
-  Result := #0;
+  FillChar(KeyDown, SizeOf(KeyDown), 0);
+  KeyDown.KeyCode := KeyCode;
+  CtrlChar := GetCtrlCharStr(KeyDown);
+
+  if CtrlChar = '' then
+    Result := #0
+  else
+    Result := CtrlChar[1];
 end;
 
 function GetCtrlCharStr(const KeyDown: TKeyDownEvent): string;
+var
+  CharCode: Byte;
 begin
+  { If the Ctrl+Key event contains text, return it. The Alt modifier must not be present, since that would be
+    considered an Alt+Key press. }
+  if ((KeyDown.ControlKeyState and kbAltShift) = 0) and
+     ((KeyDown.ControlKeyState and kbCtrlShift) <> 0) and
+     (KeyDown.GetText <> '') then
+  begin
+    Result := KeyDown.GetText;
+    Exit;
+  end;
+
+  { Otherwise, map control characters into the corresponding ASCII character. }
   Result := '';
+  CharCode := KeyDown.CharScan.CharCode;
+  if (CharCode > 0) and (CharCode <= Ord('Z') - Ord('A') + 1) then
+    Result := CtrlCodes[CharCode + 1];
 end;
 
 function GetCtrlCode(Ch: Byte): Word;
+var
+  Letter: Integer;
 begin
-  Result := 0;
+  if (Ch >= Ord('a')) and (Ch <= Ord('z')) then
+    Letter := Ch and not $20
+  else
+    Letter := Ch;
+  Result := Word(Integer(GetAltCode(Char(Ch))) or (Letter - Ord('A') + 1));
 end;
 
 function Cstrlen(const Text: string): Integer;
+var
+  I, W: SizeInt;
 begin
-  Result := 0;
+  I := 0;
+  W := 0;
+  while I < Length(Text) do
+  begin
+    if Text[I + 1] <> '~' then
+      TText.Next(Text, I, W)
+    else
+      Inc(I);
+  end;
+  Result := W;
 end;
 
 function Strwidth(const Text: string): Integer;
 begin
-  Result := 0;
+  Result := TText.Width(Text);
 end;
 
 function NewStr(S: PAnsiChar; Size: SizeInt): PAnsiChar;
 begin
-  Result := nil;
+  if S = nil then
+  begin
+    Result := nil;
+    Exit;
+  end;
+  GetMem(Result, Size + 1);
+  Move(S^, Result^, Size);
+  Result[Size] := #0;
 end;
 
 function NewStr(const S: string): PAnsiChar;
 begin
-  Result := nil;
+  GetMem(Result, Length(S) + 1);
+  if S <> '' then
+    Move(S[1], Result^, Length(S));
+  Result[Length(S)] := #0;
 end;
 
 function FormatStr(const AFormat: string; const Args: array of const): string;
 begin
-  Result := '';
+  Result := VFormatStr(AFormat, Args);
 end;
 
 function VFormatStr(const AFormat: string; const Args: array of const): string;
 begin
-  Result := '';
+  try
+    Result := Format(AFormat, Args);
+  except
+    on EConvertError do
+      Result := AFormat;
+  end;
 end;
 
 end.
