@@ -1,0 +1,30 @@
+{
+  "path": "src/tvwidth.inc",
+  "kind": "standard",
+  "sources": [
+    {
+      "document": "Unicode 15.0.0 EastAsianWidth.txt",
+      "url": "https://www.unicode.org/Public/15.0.0/ucd/EastAsianWidth.txt"
+    },
+    {
+      "document": "Unicode 15.0.0 DerivedGeneralCategory.txt",
+      "url": "https://www.unicode.org/Public/15.0.0/ucd/extracted/DerivedGeneralCategory.txt"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "repository:tools/gen_width.py",
+      "sha256": "91e1db10078d1b72d29857603839408a18d1391a8affe3eb2b8bd8cb4fe963e4"
+    }
+  ],
+  "implementer": "implementer 4",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "0135fc30f9f884fbf0e1d93f581665505d95a787",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}

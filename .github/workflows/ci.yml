@@ -38,6 +38,14 @@ jobs:
             echo "VERDICT.md is written by CI only"
             exit 1
           fi
+      - name: The generated table is current
+        run: |
+          python3 -c "import sys, unicodedata; print('Unicode', unicodedata.unidata_version); sys.exit(0 if unicodedata.unidata_version == '15.0.0' else 1)"
+          python3 tools/gen_width.py > src/tvwidth.inc
+          echo "----- BEGIN src/tvwidth.inc -----"
+          cat src/tvwidth.inc
+          echo "----- END src/tvwidth.inc -----"
+          git diff --exit-code src/tvwidth.inc
       - name: Provenance check with the history
         run: python3 tools/audit/provenance_lint.py --history
       - name: Install Free Pascal
