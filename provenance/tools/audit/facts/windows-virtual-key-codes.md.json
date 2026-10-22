@@ -1,0 +1,26 @@
+{
+  "path": "tools/audit/facts/windows-virtual-key-codes.md",
+  "kind": "standard",
+  "sources": [
+    {
+      "document": "Virtual-Key Codes (Winuser.h)",
+      "url": "https://github.com/MicrosoftDocs/win32/blob/ca8274decead49403d70ceeed4af8d4ca74eaf11/desktop-src/inputdev/virtual-key-codes.md"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "standard:Virtual-Key Codes (Winuser.h)",
+      "sha256": "c4ddad5bc04bce06e5ff41f2a7c0bb3db80c371d770f101dadbbccf3a0f87177"
+    }
+  ],
+  "implementer": "implementer 7",
+  "proofs": [],
+  "versions": [
+    {
+      "blob": "741a1fbc2aef340ff98af0254569a138611a56dc",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
