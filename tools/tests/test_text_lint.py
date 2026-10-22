@@ -120,6 +120,16 @@ class RepoTests(unittest.TestCase):
         self.assertEqual(r["commits"], 2)
         self.assertTrue(r["findings"][0]["where"].startswith("commit "))
 
+    def test_assisted_by_trailer_is_not_checked(self):
+        self.commit("a.md", "Hello.\n", "Add a\n\nAssisted-by: " + WA + " model")
+        r = text_lint.run(self.dir, "HEAD")
+        self.assertTrue(r["pass"])
+
+    def test_other_trailer_is_checked(self):
+        self.commit("a.md", "Hello.\n", "Add a\n\nCo-Authored-By: " + WA + " model")
+        r = text_lint.run(self.dir, "HEAD")
+        self.assertFalse(r["pass"])
+
     def test_range_limits_messages(self):
         self.commit("a.md", "Hello.\n", "Add a, " + WR + " of b")
         self.commit("b.md", "Hello.\n", "Add b")

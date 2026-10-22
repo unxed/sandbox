@@ -5,7 +5,8 @@ Checks:
   * every tracked file is UTF-8, has no byte order mark and no U+FFFD;
   * no Cyrillic outside tests/;
   * the file names and the text keep to the neutral rule (a list of patterns);
-  * optionally the messages of the commits of a range and given texts.
+  * optionally the messages of the commits of a range and given texts; in a commit message the trailer
+    lines that begin with "Assisted-by:" are not checked, every other line is.
 
 Usage:
   text_lint.py [--repo DIR] [--commits RANGE] [--text FILE]... [--json FILE]
@@ -106,6 +107,7 @@ def commit_messages(repo, rng):
         if not chunk.strip():
             continue
         sha, _, body = chunk.partition("\x00")
+        body = "\n".join(line for line in body.split("\n") if not line.startswith("Assisted-by:"))
         result.append((sha, body))
     return result
 
