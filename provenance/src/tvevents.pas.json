@@ -1,0 +1,115 @@
+{
+  "path": "src/tvevents.pas",
+  "kind": "translation",
+  "sources": [
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/system.h",
+      "lines": "1-560"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/platform/win32con.cpp",
+      "lines": "1-694"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/internal/win32con.h",
+      "lines": "1-111"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/platform/termio.cpp",
+      "lines": "1-1004"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "include/tvision/internal/termio.h",
+      "lines": "1-171"
+    },
+    {
+      "source": "magiblot/tvision",
+      "commit": "b4831e2ca16652db327fb7cc964f1c8c2d512524",
+      "file": "source/platform/far2l.cpp",
+      "lines": "1-258"
+    }
+  ],
+  "inputs": [
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/system.h",
+      "sha256": "2012b6d6efab5627525bb124c0695fda1a530b80a2157dc3e21d8f12ed8fc266"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/platform/win32con.cpp",
+      "sha256": "1f8adb4f1e9c3f8c8e0b86b03789c08bed5c5962175040619358a2c6004b05c1"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/internal/win32con.h",
+      "sha256": "f24ebeb411a7b54cee7d8eb6dc9b65fd29d11adf615b8b056f713b830e60d621"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/platform/termio.cpp",
+      "sha256": "049e30c939f02e115ebff0236bf7a469dae4d5b1bd4dba70b387d7a0e559d786"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:include/tvision/internal/termio.h",
+      "sha256": "d0925837666bed6ffd55f58bfb3bc326b8ddda52c7e0eb3f02aaee8d9b812255"
+    },
+    {
+      "origin": "magiblot/tvision@b4831e2ca16652db327fb7cc964f1c8c2d512524:source/platform/far2l.cpp",
+      "sha256": "78bb269ed6003a7513bbc51bc7de432af5fdddd37dc09431933227a4dbd3302b"
+    },
+    {
+      "origin": "repository:docs/API-NAMES.md",
+      "sha256": "2b6863e334680aff5a10488cf09e5efd58ecb088c4452e047b7c26530aaa5de6"
+    },
+    {
+      "origin": "repository:docs/ASYNC.md",
+      "sha256": "22669952d272adad4aea137d9f50edd6038ce18d9abba0eed77dcd1fd23b6878"
+    },
+    {
+      "origin": "repository:tests/testlib.inc",
+      "sha256": "096b4f4c541c4ef4716079c3d1eeb67cdd02bb36a3711cf15f7aec58114afb3a"
+    },
+    {
+      "origin": "repository:src/tvgeom.pas",
+      "sha256": "4c3f83cc5e6e59e830e188ec1e28fe0ce36c8850089b164fb5e18d9fa6598de6"
+    },
+    {
+      "origin": "repository:src/tvkeys.pas",
+      "sha256": "8da33db690d728078f51bbfdbf8f390c73063f908f52c6f25af328f2e1962a51"
+    },
+    {
+      "origin": "repository:src/tvutf8.pas",
+      "sha256": "194a547ad470bae95d60e1bc980f759151f16d987ffefac1a3c06c86512e1e14"
+    },
+    {
+      "origin": "standard:Virtual-Key Codes (Winuser.h)",
+      "sha256": "c4ddad5bc04bce06e5ff41f2a7c0bb3db80c371d770f101dadbbccf3a0f87177"
+    },
+    {
+      "origin": "standard:MOUSE_EVENT_RECORD structure",
+      "sha256": "c0e212d6cdedfdfe3b1693460f595544d54118d6f41674b79da3e2dd2575f2a9"
+    }
+  ],
+  "implementer": "implementer 5",
+  "proofs": [
+    "6022ad363f23ddd1b435abf0d36cecf30c96ab28feea3728bf7a4bff007fbcdf",
+    "8695ed2e66db7a38f9eb530de5f59fdbc36c317a6f98679141a605b201f03ed9",
+    "a19ccc1f59371ee0021da3588d8d8f841500846ca69b8f11e83c3bb83a98d0c9",
+    "bc0562501c3c39b57f34651c4558291db08a6eaadffccd1bfeb920a61aba8dc4"
+  ],
+  "versions": [
+    {
+      "blob": "eb4fac08162c48739f86e28dedb1b3ccfd1b9eb3",
+      "commit": null,
+      "pr": null,
+      "audit_run": null
+    }
+  ]
+}
