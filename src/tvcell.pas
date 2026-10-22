@@ -60,79 +60,143 @@ implementation
 uses
   TvUtf8;
 
+const
+  fWide = $1;
+  fTrail = $2;
+  fOverflow = $4;
+
+  MaxCharSize = High(TUtf8Bytes) + 1;
+
+{ TScreenCharacter }
+
 function TScreenCharacter.GetLengthMinusOne: Integer;
 begin
-  Result := 0;
+  Result := FBits and $0F;
 end;
 
 procedure TScreenCharacter.SetLengthMinusOne(Value: Integer);
 begin
+  FBits := (FBits and $F0) or (Value and $0F);
 end;
 
 function TScreenCharacter.GetFlags: Integer;
 begin
-  Result := 0;
+  Result := FBits shr 4;
 end;
 
 procedure TScreenCharacter.SetFlags(Value: Integer);
 begin
+  FBits := (FBits and $0F) or ((Value and $0F) shl 4);
 end;
 
 constructor TScreenCharacter.Create(C: Char);
 begin
+  FillChar(Self, SizeOf(Self), 0);
+  FText[0] := C;
 end;
 
 procedure TScreenCharacter.InitWithChar(C: Char);
 begin
+  FillChar(Self, SizeOf(Self), 0);
+  FText[0] := C;
 end;
 
 procedure TScreenCharacter.InitWithMultiByteChar(Mbc: Cardinal; Wide: Boolean);
 begin
+  FillChar(Self, SizeOf(Self), 0);
+{$IFNDEF ENDIAN_BIG}
+  FText[0] := Chr(Byte(Mbc));
+  FText[1] := Chr(Byte(Mbc shr 8));
+  FText[2] := Chr(Byte(Mbc shr 16));
+  FText[3] := Chr(Byte(Mbc shr 24));
+  SetLengthMinusOne(Ord(Mbc > $000000FF) + Ord(Mbc > $0000FFFF) + Ord(Mbc > $00FFFFFF));
+{$ELSE}
+  FText[0] := Chr(Byte(Mbc shr 24));
+  FText[1] := Chr(Byte(Mbc shr 16));
+  FText[2] := Chr(Byte(Mbc shr 8));
+  FText[3] := Chr(Byte(Mbc));
+  SetLengthMinusOne(Ord((Mbc and $00FFFFFF) <> 0) + Ord((Mbc and $0000FFFF) <> 0) + Ord((Mbc and $000000FF) <> 0));
+{$ENDIF}
+  SetFlags(Ord(Wide) * fWide);
 end;
 
 procedure TScreenCharacter.InitWithMultiByteChar(const Mbc: string; Wide: Boolean);
+var
+  I: Integer;
 begin
+  FillChar(Self, SizeOf(Self), 0);
+  if (Length(Mbc) > 0) and (Length(Mbc) <= MaxCharSize) then
+  begin
+    SetFlags(GetFlags or (Ord(Wide) * fWide));
+    SetLengthMinusOne(Length(Mbc) - 1);
+    for I := 0 to Length(Mbc) - 1 do
+      FText[I] := Mbc[I + 1];
+  end;
 end;
 
 procedure TScreenCharacter.InitAsWideCharTrail;
 begin
+  FillChar(Self, SizeOf(Self), 0);
+  SetFlags(fTrail);
 end;
 
 function TScreenCharacter.IsWide: Boolean;
 begin
-  Result := False;
+  Result := (GetFlags and fWide) <> 0;
 end;
 
 function TScreenCharacter.IsWideCharTrail: Boolean;
 begin
-  Result := False;
+  Result := (GetFlags and fTrail) <> 0;
 end;
 
 procedure TScreenCharacter.AppendZeroWidthChar(const Mbc: string);
+var
+  Sz, I: Integer;
 begin
+  if (GetFlags and fOverflow) <> 0 then
+    Exit;
+  Sz := GetLengthMinusOne + 1;
+  if Length(Mbc) <= SizeOf(FText) - Sz then
+  begin
+    if FText[0] = #0 then
+      FText[0] := ' ';
+    if (Length(Mbc) >= 1) and (Length(Mbc) <= MaxCharSize) then
+      for I := 0 to Length(Mbc) - 1 do
+        FText[Sz + I] := Mbc[I + 1];
+    SetLengthMinusOne(GetLengthMinusOne + Length(Mbc));
+  end
+  else
+    SetFlags(GetFlags or fOverflow);
 end;
 
 function TScreenCharacter.GetText: string;
 begin
-  Result := '';
+  SetString(Result, PChar(@FText[0]), GetLengthMinusOne + 1);
 end;
+
+{ TScreenCell }
 
 constructor TScreenCell.Create(const Ch: TScreenCharacter; Attr: TColorAttr);
 begin
+  Character := Ch;
+  Attribute := Attr;
 end;
 
 constructor TScreenCell.Create(Bios: Word);
 begin
+  Character := TScreenCharacter.Create(Chr(Byte(Bios)));
+  Attribute := TColorAttr.Create(Integer(Bios shr 8));
 end;
 
 class operator TScreenCell.=(const One, Two: TScreenCell): Boolean;
 begin
-  Result := False;
+  Result := CompareByte(One, Two, SizeOf(TScreenCell)) = 0;
 end;
 
 class operator TScreenCell.<>(const One, Two: TScreenCell): Boolean;
 begin
-  Result := False;
+  Result := not (One = Two);
 end;
 
 end.
