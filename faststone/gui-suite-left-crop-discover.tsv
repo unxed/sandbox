@@ -1,0 +1,9 @@
+# Initial safe label discovery. If the label is owner-drawn/inaccessible,
+# fail and inspect the retained screenshot before recording coordinates.
+edge	left
+capture	left-before-crop-click
+click-text	Crop Board
+expect	Crop
+capture	crop-foreground
+close
+capture	fullscreen-after-crop

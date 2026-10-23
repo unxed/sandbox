@@ -1,0 +1,9 @@
+# No coordinate guesses or hotkey fallbacks. The Draw screenshot establishes
+# actual text/font/color controls for a version-specific nested followup.
+edge	left
+capture	left-before-draw-click
+click-text	Draw Board
+expect	Draw
+capture	draw-foreground-and-controls
+close
+capture	fullscreen-after-draw

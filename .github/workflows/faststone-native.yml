@@ -1,0 +1,40 @@
+name: FastStone ListView native reference
+on:
+  workflow_dispatch:
+  push:
+    branches: [faststone-5.6-validation]
+    paths: ['faststone/**', '.github/workflows/faststone-native.yml']
+permissions:
+  contents: read
+jobs:
+  measure:
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile public API probes
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dev = Join-Path $vs 'Common7\Tools\VsDevCmd.bat'
+          cmd /c "`"$dev`" -arch=${{ matrix.arch }} && cl /nologo /std:c11 /W4 faststone\listview-regression.c /Fe:faststone\listview-regression.exe user32.lib gdi32.lib comctl32.lib"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmd /c "`"$dev`" -arch=${{ matrix.arch }} && cl /nologo /std:c11 /W4 faststone\label-regression.c /Fe:faststone\label-regression.exe user32.lib gdi32.lib comctl32.lib"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Record native API behavior
+        shell: pwsh
+        run: |
+          & faststone\listview-regression.exe --measure 2>&1 | Out-File -Encoding utf8 faststone\native-listview.jsonl
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & faststone\label-regression.exe --measure-only 2>&1 | Out-File -Encoding utf8 faststone\native-labels.jsonl
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: faststone-native-${{ matrix.arch }}
+          path: |
+            faststone/native-*.jsonl
+            faststone/*regression.exe

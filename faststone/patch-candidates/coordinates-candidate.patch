@@ -1,0 +1,63 @@
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -11548,7 +11548,20 @@
+     return infoPtr->nItemCount;
+ 
+   case LVM_GETITEMPOSITION:
+-    return LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, (LPPOINT)lParam);
++  {
++    POINT *position = (POINT *)lParam, origin;
++
++    if (!LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, position)) return FALSE;
++    /* Public icon positions are in view coordinates. Internal selection and
++     * directional-navigation helpers continue to use client coordinates. */
++    if (infoPtr->uView == LV_VIEW_ICON || infoPtr->uView == LV_VIEW_SMALLICON)
++    {
++        LISTVIEW_GetOrigin(infoPtr, &origin);
++        position->x -= origin.x;
++        position->y -= origin.y;
++    }
++    return TRUE;
++  }
+ 
+   case LVM_GETITEMRECT:
+     return LISTVIEW_GetItemRect(infoPtr, (INT)wParam, (LPRECT)lParam);
+--- a/dlls/comctl32/tests/listview.c
++++ b/dlls/comctl32/tests/listview.c
+@@ -2668,6 +2668,36 @@
+ 
+     flush_sequences(sequences, NUM_MSG_SEQUENCES);
+     DestroyWindow(hwnd);
++
++    /* Icon positions are view coordinates, unlike item rectangles. */
++    {
++        static const DWORD styles[] = { LVS_ICON, LVS_SMALLICON };
++        POINT before, after, origin;
++        unsigned int i;
++
++        for (i = 0; i < ARRAY_SIZE(styles); ++i)
++        {
++            hwnd = create_listview_control(styles[i]);
++            insert_item(hwnd, 0);
++            UpdateWindow(hwnd);
++            r = SendMessageA(hwnd, LVM_SETITEMPOSITION, 0, MAKELPARAM(1000, 1000));
++            ok(r, "Failed to set item position for view %u.\n", i);
++            r = SendMessageA(hwnd, LVM_GETITEMPOSITION, 0, (LPARAM)&before);
++            ok(r, "Failed to get item position for view %u.\n", i);
++            SetWindowPos(hwnd, NULL, 0, 0, 110, 110, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
++            r = SendMessageA(hwnd, LVM_SCROLL, 100, 100);
++            ok(r, "Failed to scroll view %u.\n", i);
++            r = SendMessageA(hwnd, LVM_GETORIGIN, 0, (LPARAM)&origin);
++            ok(r && origin.x > 0 && origin.y > 0,
++                    "View %u did not scroll, origin %ld,%ld.\n", i, origin.x, origin.y);
++            r = SendMessageA(hwnd, LVM_GETITEMPOSITION, 0, (LPARAM)&after);
++            ok(r, "Failed to get scrolled item position for view %u.\n", i);
++            ok(before.x == after.x && before.y == after.y,
++                    "View %u item moved from %ld,%ld to %ld,%ld after scrolling.\n",
++                    i, before.x, before.y, after.x, after.y);
++            DestroyWindow(hwnd);
++        }
++    }
+ }
+ 
+ static void test_LVM_GETORIGIN(BOOL is_v6)

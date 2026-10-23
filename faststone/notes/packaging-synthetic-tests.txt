@@ -1,0 +1,7 @@
+PASS: four concurrent starts; one complete runtime; no default Wine prefix
+PASS: relocation, filename spaces and private Wine diagnostics
+PASS: missing display fails before application download
+PASS: offline 5.6 preparation and unchanged vendor executable
+PASS: offline 8.5 preparation and unchanged vendor executable
+PASS: wrong application archive is rejected without publishing an app
+PASS: corrupted payload is rejected before extraction
