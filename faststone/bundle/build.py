@@ -70,14 +70,20 @@ def copy_real(source, destination):
     shutil.copy2(source.resolve(), destination)
 
 
-def copy_wine(prefix, destination):
+def copy_wine(prefix, destination, omitted_unix):
     for name in ("lib/wine", "lib64/wine", "share/wine"):
         source = prefix / name
         if source.exists():
             for link in source.rglob("*"):
                 if link.is_symlink() and not link.resolve().is_relative_to(prefix.resolve()):
                     raise RuntimeError(f"Wine install symlink escapes prefix: {link}")
-            shutil.copytree(source, destination / name, symlinks=True)
+            def ignore(directory, names):
+                # Import archives are development files, never runtime libraries.
+                ignored = [entry for entry in names if entry.endswith(".a")]
+                if Path(directory).name in ("x86_64-unix", "i386-unix"):
+                    ignored += [entry for entry in names if entry in omitted_unix]
+                return ignored
+            shutil.copytree(source, destination / name, symlinks=True, ignore=ignore)
     for name in ("wine", "wine64", "wineserver", "wine-preloader", "wine64-preloader"):
         source = prefix / "bin" / name
         if source.exists():
@@ -96,7 +102,7 @@ def build(args):
         tmp = Path(tmp)
         root = tmp / "runtime"
         root.mkdir()
-        copy_wine(prefix, root / "wine")
+        copy_wine(prefix, root / "wine", set(args.omit_unix_module))
         for name in ("bin", "lib", "licenses"):
             (root / name).mkdir(exist_ok=True)
         copy_real(args.busybox, root / "bin/busybox")
@@ -144,6 +150,13 @@ def build(args):
             if is_elf(path):
                 if not args.no_strip:
                     run("strip", "--strip-debug", path, stdout=subprocess.DEVNULL)
+                dynamic = subprocess.run([str(args.patchelf), "--print-needed", str(path)], text=True, capture_output=True)
+                if dynamic.returncode == 0 and path.name != "ld-linux-x86-64.so.2":
+                    relative = os.path.relpath(root / "lib", path.parent)
+                    search = "$ORIGIN" if relative == "." else "$ORIGIN:$ORIGIN/" + relative
+                    # DT_RPATH, unlike DT_RUNPATH, covers transitive dependencies.
+                    # Every dependency also receives its own relative search path.
+                    run(args.patchelf, "--force-rpath", "--set-rpath", search, path)
                 p = subprocess.run([str(args.patchelf), "--print-interpreter", str(path)], text=True, capture_output=True)
                 if p.returncode == 0 and p.stdout.strip():
                     run(args.patchelf, "--set-interpreter", INTERPRETER, path)
@@ -157,6 +170,10 @@ def build(args):
             "configuration_header_sha256": hashlib.sha256(args.config.read_bytes()).hexdigest(),
             "configured_dlopen_libraries": sorted(requested), "excluded_optional_sonames": sorted(EXCLUDED_SONAMES),
             "bundled_libraries": recorded,
+            "elf_library_search": "relative-DT_RPATH-on-each-object",
+            "injected_environment_code_paths": False,
+            "omitted_unix_modules": sorted(set(args.omit_unix_module)),
+            "prebuilt_provenance": json.loads(args.provenance.read_text()) if args.provenance else None,
         }, indent=2) + "\n")
         sources = set(recorded.values()) | {str(args.curl.resolve()), str(args.sevenzip.resolve()), str(args.flock.resolve()), str(args.busybox.resolve())}
         packages = set()
@@ -229,4 +246,8 @@ if __name__ == "__main__":
     p.add_argument("--cc", default="gcc")
     p.add_argument("--pe-strip", default="x86_64-w64-mingw32-strip")
     p.add_argument("--no-strip", action="store_true")
+    p.add_argument("--omit-unix-module", action="append", default=[],
+                   help="Explicit optional Unix provider filename to leave out; record in metadata")
+    p.add_argument("--provenance", type=Path,
+                   help="JSON describing a third-party baseline runtime, when used")
     build(p.parse_args())

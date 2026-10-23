@@ -118,7 +118,7 @@ int main(int argc, char **argv)
 {
     char self[PATH_MAX], trailer[TRAILER_BYTES+1], magic[32], digest[65];
     char base[PATH_MAX], cache[PATH_MAX], lockpath[PATH_MAX], ready[PATH_MAX];
-    char staging[PATH_MAX], busybox[PATH_MAX], archive[PATH_MAX], launch[PATH_MAX], libs[PATH_MAX];
+    char staging[PATH_MAX], busybox[PATH_MAX], archive[PATH_MAX], launch[PATH_MAX];
     unsigned long long bo,bs,po,ps;
     struct stat st;
     ssize_t n=readlink("/proc/self/exe",self,sizeof(self)-1);
@@ -163,11 +163,12 @@ int main(int argc, char **argv)
         close(fd);
     }
     close(input); flock(lock,LOCK_UN); close(lock);
-    pathcat(busybox,cache,"bin/busybox"); pathcat(launch,cache,"launch.sh"); pathcat(libs,cache,"lib");
+    pathcat(busybox,cache,"bin/busybox"); pathcat(launch,cache,"launch.sh");
     setenv("FASTSTONE_RUNTIME",cache,1);
-    setenv("LD_LIBRARY_PATH",libs,1);
-    char gconv[PATH_MAX]; pathcat(gconv,cache,"lib/gconv");
-    setenv("GCONV_PATH",gconv,1);
+    /* Relative DT_RPATH belongs to each ELF object and does not leak to host
+     * applications launched by Wine. Do not inject code paths into their env. */
+    unsetenv("LD_LIBRARY_PATH");
+    unsetenv("GCONV_PATH");
     char **args=calloc(argc+3,sizeof(*args));
     if(!args) die("allocate arguments");
     args[0]=busybox; args[1]="sh"; args[2]=launch;

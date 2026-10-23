@@ -1,0 +1,16 @@
+# Initial actual-click smoke. Captions must exist in the observed UI; no
+# keyboard substitution or unobserved coordinate guesses are permitted.
+edge	left
+capture	left-before-crop
+click-text	Crop Board
+expect	Crop
+capture	crop-foreground
+close
+capture	fullscreen-after-crop
+edge	left
+capture	left-before-draw
+click-text	Draw Board
+expect	Draw
+capture	draw-foreground-and-nested-controls
+close
+capture	fullscreen-after-draw

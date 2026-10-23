@@ -1,0 +1,427 @@
+{
+  "prefix": "/workspace/scratch/b464dc8a731b/prebuilt/wine-11.20-amd64-wow64",
+  "unix_directory": "/workspace/scratch/b464dc8a731b/prebuilt/wine-11.20-amd64-wow64/lib/wine/x86_64-unix",
+  "required_dlopen": [
+    "libX11.so.6",
+    "libXcomposite.so.1",
+    "libXcursor.so.1",
+    "libXext.so.6",
+    "libXfixes.so.3",
+    "libXi.so.6",
+    "libXinerama.so.1",
+    "libXrandr.so.2",
+    "libXrender.so.1",
+    "libXxf86vm.so.1",
+    "libc.so.6",
+    "libdl.so.2",
+    "libfontconfig.so.1",
+    "libfreetype.so.6",
+    "libgnutls.so.30",
+    "libm.so.6",
+    "libpthread.so.0"
+  ],
+  "optional_dlopen": [
+    "libEGL.so.1",
+    "libGL.so.1",
+    "libOpenCL.so.1",
+    "libSDL2-2.0.so.0",
+    "libasound.so.2",
+    "libavcodec.so.58",
+    "libavformat.so.58",
+    "libavutil.so.56",
+    "libcapi20.so.3",
+    "libcups.so.2",
+    "libdbus-1.so.3",
+    "libgcc_s.so.1",
+    "libglib-2.0.so.0",
+    "libgobject-2.0.so.0",
+    "libgphoto2.so.6",
+    "libgphoto2_port.so.12",
+    "libgssapi_krb5.so.2",
+    "libgstaudio-1.0.so.0",
+    "libgstreamer-1.0.so.0",
+    "libgsttag-1.0.so.0",
+    "libgstvideo-1.0.so.0",
+    "libkrb5.so.3",
+    "libnetapi.so.0",
+    "libodbc.so.2",
+    "libpcap.so.1",
+    "libpcsclite.so.1",
+    "libpulse.so.0",
+    "libresolv.so.2",
+    "libsane.so.1",
+    "libudev.so.1",
+    "libusb-1.0.so.0",
+    "libv4l2.so.0",
+    "libvulkan.so.1",
+    "libwayland-client.so.0",
+    "libwayland-egl.so.1",
+    "libxkbcommon.so.0",
+    "libxkbregistry.so.0"
+  ],
+  "available_soname_paths": {
+    "libEGL.so.1": "/lib/x86_64-linux-gnu/libEGL.so.1",
+    "libGL.so.1": "/lib/x86_64-linux-gnu/libGL.so.1",
+    "libOpenCL.so.1": "/lib/x86_64-linux-gnu/libOpenCL.so.1",
+    "libSDL2-2.0.so.0": "/lib/x86_64-linux-gnu/libSDL2-2.0.so.0",
+    "libX11.so.6": "/lib/x86_64-linux-gnu/libX11.so.6",
+    "libXcomposite.so.1": "/lib/x86_64-linux-gnu/libXcomposite.so.1",
+    "libXcursor.so.1": "/lib/x86_64-linux-gnu/libXcursor.so.1",
+    "libXext.so.6": "/lib/x86_64-linux-gnu/libXext.so.6",
+    "libXfixes.so.3": "/lib/x86_64-linux-gnu/libXfixes.so.3",
+    "libXi.so.6": "/lib/x86_64-linux-gnu/libXi.so.6",
+    "libXinerama.so.1": "/lib/x86_64-linux-gnu/libXinerama.so.1",
+    "libXrandr.so.2": "/lib/x86_64-linux-gnu/libXrandr.so.2",
+    "libXrender.so.1": "/lib/x86_64-linux-gnu/libXrender.so.1",
+    "libXxf86vm.so.1": "/lib/x86_64-linux-gnu/libXxf86vm.so.1",
+    "libasound.so.2": "/lib/x86_64-linux-gnu/libasound.so.2",
+    "libc.so.6": "/lib/x86_64-linux-gnu/libc.so.6",
+    "libcups.so.2": "/lib/x86_64-linux-gnu/libcups.so.2",
+    "libdbus-1.so.3": "/lib/x86_64-linux-gnu/libdbus-1.so.3",
+    "libdl.so.2": "/lib/x86_64-linux-gnu/libdl.so.2",
+    "libfontconfig.so.1": "/lib/x86_64-linux-gnu/libfontconfig.so.1",
+    "libfreetype.so.6": "/lib/x86_64-linux-gnu/libfreetype.so.6",
+    "libgcc_s.so.1": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+    "libglib-2.0.so.0": "/lib/x86_64-linux-gnu/libglib-2.0.so.0",
+    "libgnutls.so.30": "/lib/x86_64-linux-gnu/libgnutls.so.30",
+    "libgobject-2.0.so.0": "/lib/x86_64-linux-gnu/libgobject-2.0.so.0",
+    "libgssapi_krb5.so.2": "/lib/x86_64-linux-gnu/libgssapi_krb5.so.2",
+    "libkrb5.so.3": "/lib/x86_64-linux-gnu/libkrb5.so.3",
+    "libm.so.6": "/lib/x86_64-linux-gnu/libm.so.6",
+    "libpcsclite.so.1": "/lib/x86_64-linux-gnu/libpcsclite.so.1",
+    "libpthread.so.0": "/lib/x86_64-linux-gnu/libpthread.so.0",
+    "libpulse.so.0": "/lib/x86_64-linux-gnu/libpulse.so.0",
+    "libresolv.so.2": "/lib/x86_64-linux-gnu/libresolv.so.2",
+    "libudev.so.1": "/lib/x86_64-linux-gnu/libudev.so.1",
+    "libusb-1.0.so.0": "/lib/x86_64-linux-gnu/libusb-1.0.so.0",
+    "libvulkan.so.1": "/lib/x86_64-linux-gnu/libvulkan.so.1",
+    "libwayland-client.so.0": "/lib/x86_64-linux-gnu/libwayland-client.so.0",
+    "libwayland-egl.so.1": "/lib/x86_64-linux-gnu/libwayland-egl.so.1",
+    "libxkbcommon.so.0": "/lib/x86_64-linux-gnu/libxkbcommon.so.0"
+  },
+  "missing_required_dlopen": [],
+  "missing_optional_dlopen": [
+    "libavcodec.so.58",
+    "libavformat.so.58",
+    "libavutil.so.56",
+    "libcapi20.so.3",
+    "libgphoto2.so.6",
+    "libgphoto2_port.so.12",
+    "libgstaudio-1.0.so.0",
+    "libgstreamer-1.0.so.0",
+    "libgsttag-1.0.so.0",
+    "libgstvideo-1.0.so.0",
+    "libnetapi.so.0",
+    "libodbc.so.2",
+    "libpcap.so.1",
+    "libsane.so.1",
+    "libv4l2.so.0",
+    "libxkbregistry.so.0"
+  ],
+  "linked_dependency_paths": [
+    "/lib/x86_64-linux-gnu/libFLAC.so.12",
+    "/lib/x86_64-linux-gnu/libOpenCL.so.1",
+    "/lib/x86_64-linux-gnu/libX11-xcb.so.1",
+    "/lib/x86_64-linux-gnu/libX11.so.6",
+    "/lib/x86_64-linux-gnu/libXau.so.6",
+    "/lib/x86_64-linux-gnu/libXdmcp.so.6",
+    "/lib/x86_64-linux-gnu/libXext.so.6",
+    "/lib/x86_64-linux-gnu/libapparmor.so.1",
+    "/lib/x86_64-linux-gnu/libasound.so.2",
+    "/lib/x86_64-linux-gnu/libasyncns.so.0",
+    "/lib/x86_64-linux-gnu/libbsd.so.0",
+    "/lib/x86_64-linux-gnu/libc.so.6",
+    "/lib/x86_64-linux-gnu/libcap.so.2",
+    "/lib/x86_64-linux-gnu/libcom_err.so.2",
+    "/lib/x86_64-linux-gnu/libdbus-1.so.3",
+    "/lib/x86_64-linux-gnu/libdl.so.2",
+    "/lib/x86_64-linux-gnu/libffi.so.8",
+    "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+    "/lib/x86_64-linux-gnu/libgcrypt.so.20",
+    "/lib/x86_64-linux-gnu/libglib-2.0.so.0",
+    "/lib/x86_64-linux-gnu/libgobject-2.0.so.0",
+    "/lib/x86_64-linux-gnu/libgpg-error.so.0",
+    "/lib/x86_64-linux-gnu/libgssapi_krb5.so.2",
+    "/lib/x86_64-linux-gnu/libk5crypto.so.3",
+    "/lib/x86_64-linux-gnu/libkeyutils.so.1",
+    "/lib/x86_64-linux-gnu/libkrb5.so.3",
+    "/lib/x86_64-linux-gnu/libkrb5support.so.0",
+    "/lib/x86_64-linux-gnu/liblz4.so.1",
+    "/lib/x86_64-linux-gnu/liblzma.so.5",
+    "/lib/x86_64-linux-gnu/libm.so.6",
+    "/lib/x86_64-linux-gnu/libmd.so.0",
+    "/lib/x86_64-linux-gnu/libmp3lame.so.0",
+    "/lib/x86_64-linux-gnu/libmpg123.so.0",
+    "/lib/x86_64-linux-gnu/libogg.so.0",
+    "/lib/x86_64-linux-gnu/libopus.so.0",
+    "/lib/x86_64-linux-gnu/libpcre2-8.so.0",
+    "/lib/x86_64-linux-gnu/libpcsclite.so.1",
+    "/lib/x86_64-linux-gnu/libpthread.so.0",
+    "/lib/x86_64-linux-gnu/libpulse.so.0",
+    "/lib/x86_64-linux-gnu/libresolv.so.2",
+    "/lib/x86_64-linux-gnu/libsndfile.so.1",
+    "/lib/x86_64-linux-gnu/libsystemd.so.0",
+    "/lib/x86_64-linux-gnu/libudev.so.1",
+    "/lib/x86_64-linux-gnu/libusb-1.0.so.0",
+    "/lib/x86_64-linux-gnu/libvorbis.so.0",
+    "/lib/x86_64-linux-gnu/libvorbisenc.so.2",
+    "/lib/x86_64-linux-gnu/libwayland-client.so.0",
+    "/lib/x86_64-linux-gnu/libwayland-egl.so.1",
+    "/lib/x86_64-linux-gnu/libxcb.so.1",
+    "/lib/x86_64-linux-gnu/libxkbcommon.so.0",
+    "/lib/x86_64-linux-gnu/libzstd.so.1",
+    "/lib64/ld-linux-x86-64.so.2",
+    "/usr/lib/x86_64-linux-gnu/pulseaudio/libpulsecommon-16.1.so"
+  ],
+  "missing_dt_needed_by_module": {
+    "wpcap.so": [
+      "libpcap.so.1 => not found"
+    ],
+    "capi2032.so": [
+      "libcapi20.so.3 => not found"
+    ],
+    "sane.so": [
+      "libsane.so.1 => not found"
+    ],
+    "winegstreamer.so": [
+      "libgstvideo-1.0.so.0 => not found",
+      "libgstaudio-1.0.so.0 => not found",
+      "libgsttag-1.0.so.0 => not found",
+      "libgstreamer-1.0.so.0 => not found"
+    ],
+    "gphoto2.so": [
+      "libgphoto2.so.6 => not found",
+      "libgphoto2_port.so.12 => not found"
+    ],
+    "winedmo.so": [
+      "libavutil.so.56 => not found",
+      "libavformat.so.58 => not found",
+      "libavcodec.so.58 => not found"
+    ],
+    "winewayland.so": [
+      "libxkbregistry.so.0 => not found"
+    ]
+  },
+  "embedded_library_names": {
+    "ws2_32.so": [
+      "libc.so.6",
+      "libpthread.so.0"
+    ],
+    "netapi32.so": [
+      "libc.so.6",
+      "libdl.so.2",
+      "libnetapi.so.0"
+    ],
+    "wpcap.so": [
+      "libc.so.6",
+      "libpcap.so.1"
+    ],
+    "winspool.so": [
+      "libc.so.6",
+      "libcups.so.2",
+      "libdl.so.2"
+    ],
+    "capi2032.so": [
+      "libcapi20.so.3"
+    ],
+    "dnsapi.so": [
+      "libc.so.6",
+      "libresolv.so.2"
+    ],
+    "opencl.so": [
+      "libOpenCL.so.1",
+      "libc.so.6"
+    ],
+    "mountmgr.so": [
+      "libc.so.6",
+      "libdbus-1.so.3",
+      "libdl.so.2"
+    ],
+    "sane.so": [
+      "libc.so.6",
+      "libsane.so.1"
+    ],
+    "winegstreamer.so": [
+      "libc.so.6",
+      "libglib-2.0.so.0",
+      "libgobject-2.0.so.0",
+      "libgstaudio-1.0.so.0",
+      "libgstreamer-1.0.so.0",
+      "libgsttag-1.0.so.0",
+      "libgstvideo-1.0.so.0",
+      "libpthread.so.0"
+    ],
+    "gphoto2.so": [
+      "libc.so.6",
+      "libgphoto2.so.6",
+      "libgphoto2_port.so.12"
+    ],
+    "avicap32.so": [
+      "libc.so.6"
+    ],
+    "odbc32.so": [
+      "libc.so.6",
+      "libdl.so.2",
+      "libodbc.so.2"
+    ],
+    "winex11.so": [
+      "libGL.so.1",
+      "libX11.so.6",
+      "libXcomposite.so.1",
+      "libXcursor.so.1",
+      "libXext.so.6",
+      "libXfixes.so.3",
+      "libXi.so.6",
+      "libXinerama.so.1",
+      "libXrandr.so.2",
+      "libXrender.so.1",
+      "libXxf86vm.so.1",
+      "libc.so.6",
+      "libdl.so.2",
+      "libm.so.6",
+      "libpthread.so.0",
+      "libvulkan.so.1",
+      "libxkbregistry.so.0"
+    ],
+    "winevulkan.so": [
+      "libc.so.6"
+    ],
+    "qcap.so": [
+      "libc.so.6",
+      "libdl.so.2",
+      "libv4l2.so.0"
+    ],
+    "crypt32.so": [
+      "libc.so.6",
+      "libdl.so.2",
+      "libgnutls.so.30"
+    ],
+    "winealsa.so": [
+      "libasound.so.2",
+      "libc.so.6",
+      "libpthread.so.0"
+    ],
+    "winebus.so": [
+      "libSDL2-2.0.so.0",
+      "libc.so.6",
+      "libdl.so.2",
+      "libpthread.so.0",
+      "libudev.so.1"
+    ],
+    "dwrite.so": [
+      "libc.so.6",
+      "libdl.so.2",
+      "libfreetype.so.6"
+    ],
+    "winepulse.so": [
+      "libc.so.6",
+      "libm.so.6",
+      "libpthread.so.0",
+      "libpulse.so.0"
+    ],
+    "winebth.so": [
+      "libc.so.6",
+      "libdbus-1.so.3",
+      "libdl.so.2",
+      "libpthread.so.0"
+    ],
+    "wineusb.so": [
+      "libc.so.6",
+      "libpthread.so.0",
+      "libusb-1.0.so.0"
+    ],
+    "nsiproxy.so": [
+      "libc.so.6",
+      "libpthread.so.0"
+    ],
+    "localspl.so": [
+      "libc.so.6",
+      "libcups.so.2",
+      "libdl.so.2"
+    ],
+    "opengl32.so": [
+      "libc.so.6",
+      "libpthread.so.0"
+    ],
+    "winedmo.so": [
+      "libavcodec.so.58",
+      "libavformat.so.58",
+      "libavutil.so.56",
+      "libc.so.6"
+    ],
+    "ntdll.so": [
+      "libc.so.6",
+      "libdl.so.2",
+      "libgcc_s.so.1",
+      "libpthread.so.0"
+    ],
+    "ctapi32.so": [
+      "libdl.so.2"
+    ],
+    "winewayland.so": [
+      "libc.so.6",
+      "libm.so.6",
+      "libpthread.so.0",
+      "libwayland-client.so.0",
+      "libwayland-egl.so.1",
+      "libxkbcommon.so.0",
+      "libxkbregistry.so.0"
+    ],
+    "win32u.so": [
+      "libEGL.so.1",
+      "libc.so.6",
+      "libdl.so.2",
+      "libfontconfig.so.1",
+      "libfreetype.so.6",
+      "libm.so.6",
+      "libpthread.so.0",
+      "libvulkan.so.1"
+    ],
+    "wineps.so": [
+      "libc.so.6",
+      "libm.so.6"
+    ],
+    "winscard.so": [
+      "libpcsclite.so.1"
+    ],
+    "wined3d.so": [],
+    "kerberos.so": [
+      "libc.so.6",
+      "libgssapi_krb5.so.2",
+      "libkrb5.so.3"
+    ],
+    "secur32.so": [
+      "libc.so.6",
+      "libdl.so.2",
+      "libgnutls.so.30"
+    ],
+    "msv1_0.so": [
+      "libc.so.6"
+    ],
+    "wine": [
+      "libc.so.6",
+      "libdl.so.2"
+    ],
+    "wine-preloader": [],
+    "wineserver": [
+      "libc.so.6"
+    ]
+  },
+  "glibc_versions": [
+    "GLIBC_2.2.5",
+    "GLIBC_2.3",
+    "GLIBC_2.3.2",
+    "GLIBC_2.3.3",
+    "GLIBC_2.3.4",
+    "GLIBC_2.4",
+    "GLIBC_2.6",
+    "GLIBC_2.9",
+    "GLIBC_2.12",
+    "GLIBC_2.14",
+    "GLIBC_2.15",
+    "GLIBC_2.16",
+    "GLIBC_2.17",
+    "GLIBC_2.25"
+  ],
+  "note": "SONAME extraction is a hint. Missing optional providers do not prove safe degradation; GUI tests are required."
+}

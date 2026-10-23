@@ -15,4 +15,4 @@ export WINEDLLOVERRIDES='mscoree,mshtml,winemenubuilder.exe='
 export DISPLAY=:0
 export LD_LIBRARY_PATH=/work/vm-root/usr/lib/x86_64-linux-gnu:/work/vm-root/lib/x86_64-linux-gnu
 Xvfb :0 -screen 0 1280x800x24 -nolisten tcp -ac -extension GLX >/work/evidence/guest-xvfb.log 2>&1 &
-exec sh /work/sandbox/faststone/vm/worker.sh
+exec sh /work/patch-export/faststone/vm/worker.sh

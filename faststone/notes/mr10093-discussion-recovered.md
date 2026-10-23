@@ -74,11 +74,18 @@ x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -o label-regression64.exe \
 ```
 
 Native cc580 requires the 32-bit executable, no v6 manifest, app-local native
-`comctl32.dll`, `WINEDLLOVERRIDES=comctl32=n` (no fallback), and the
-`--require-native-cc580` flag. The flag refuses builtin 5.81 as a reference;
-stderr also records the loaded module path and version. The same executable must be
-run with builtin comctl32 for comparison. Each of the four `--view` values and
-two `--font` values can be independently sharded in its own display and prefix.
+`comctl32.dll`, and a **per-executable** native-only override under
+`HKCU\Software\Wine\AppDefaults\PROBE-NAME.exe\DllOverrides`. Do not globally
+replace system comctl32: Wine's explorer/shell32 can depend on newer exports
+absent in cc580. The `run-label-probes-guest.sh` runner configures this override.
+
+The `--require-native-cc580` flag refuses builtin 5.81 as a reference and checks
+that the ListView class belongs to the measured module; stderr also records
+the loaded DLL, class-module and window-procedure module paths. The same binary
+must be run with builtin comctl32 for comparison. This establishes native
+comctl32 hosted by Wine as a control-library reference; it is not a native
+Windows-system run. Each of the four `--view` values and two `--font` values can
+be independently sharded in its own display and prefix.
 
 The reconstructed probe adds GdiFlush before reading DIB pixels, and records
 `has_focus` explicitly. This version therefore needs compiling and execution

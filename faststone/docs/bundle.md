@@ -147,3 +147,13 @@ starts and offline preparation of both pinned archives with unchanged vendor
 executables. Current logs are `evidence/bundle-smoke-build.json` and
 `evidence/bundle-smoke-tests.txt`. This is packaging verification with a fake
 Wine command, not evidence of a working FastStone GUI or a complete real runtime.
+
+### Current interrupted v2 work
+
+The current source proposes relative DT_RPATH on every dynamic ELF object and
+removes global LD_LIBRARY_PATH/GCONV_PATH injection to avoid affecting native
+host applications launched from Wine. Optional provider omissions and prebuilt
+runtime provenance can be recorded. Only compilation/syntax checks have been
+performed for this revision; the earlier packaging passes do not validate it.
+See `notes/prebuilt-runtime-investigation.md` for exact retrieved runtime hashes,
+known startup failure and remaining verification work.

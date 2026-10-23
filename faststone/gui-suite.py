@@ -82,6 +82,7 @@ def run_job(version, app, scenario, plan, args):
     artifacts.mkdir()
     shutil.copytree(app.parent, root / "app")
     shutil.copytree(args.fixtures, root / "images")
+    shutil.copytree(args.golden_prefix, root / "prefix", symlinks=True)
     (root / "runtime").mkdir(mode=0o700)
     env = os.environ.copy()
     env.update(WINEPREFIX=str(root / "prefix"), WINEDEBUG="-all",
@@ -92,7 +93,7 @@ def run_job(version, app, scenario, plan, args):
     start = time.monotonic()
     result = {"version": version, "scenario": scenario, "artifacts": str(artifacts),
               "input_source": args.input_source}
-    status, xvfb = "error", None
+    status, xvfb, window_manager = "error", None, None
     with (root / "xvfb.log").open("wb") as xlog:
         try:
             xvfb = subprocess.Popen([args.xvfb, "-displayfd", "1", "-screen", "0", args.screen,
@@ -105,9 +106,14 @@ def run_job(version, app, scenario, plan, args):
             if not number.isdigit():
                 raise RuntimeError("Xvfb did not allocate a display")
             env["DISPLAY"] = ":" + number
-            boot = logged([str(args.wine), "wineboot.exe", "-u"], env, root / "wineboot.log", args.timeout)
-            if boot:
-                raise RuntimeError(f"wineboot failed: {boot}; inspect wineboot.log")
+            with (root / "window-manager.log").open("wb") as wm_log:
+                window_manager = subprocess.Popen([args.wm, "--sm-disable"], env=env,
+                                                   stdout=wm_log, stderr=subprocess.STDOUT)
+            time.sleep(0.5)
+            if window_manager.poll() is not None:
+                raise RuntimeError("Openbox exited; inspect window-manager.log")
+            result["prefix_initialization"] = "initialized-template clone; wineboot update skipped"
+            result["golden_prefix"] = str(args.golden_prefix)
             command = [str(args.wine), str(args.driver), "--app", winepath(root / "app" / app.name),
                        "--image", winepath(root / "images" / "image-000.jpg"),
                        "--out", winepath(artifacts), "--scenario", scenario,
@@ -134,6 +140,15 @@ def run_job(version, app, scenario, plan, args):
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
             except (OSError, subprocess.TimeoutExpired):
                 pass
+            if not args.keep_prefix:
+                shutil.rmtree(root / "prefix", ignore_errors=True)
+            if window_manager:
+                window_manager.terminate()
+                try:
+                    window_manager.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    window_manager.kill()
+                    window_manager.wait()
             if xvfb:
                 xvfb.terminate()
                 try:
@@ -158,22 +173,28 @@ def main():
     p.add_argument("--scenario", choices=SCENARIOS, action="append")
     p.add_argument("--plan", action="append", default=[], metavar="[VERSION:]NAME=/PATH/observed-plan.tsv")
     p.add_argument("--fixtures", type=Path)
+    p.add_argument("--golden-prefix", type=Path,
+                   help="fully initialized Wine prefix for this exact Wine build; copied privately per job")
     p.add_argument("--results", type=Path)
     p.add_argument("--jobs", type=int, default=4)
     p.add_argument("--timeout", type=int, default=240)
     p.add_argument("--xvfb", default="Xvfb")
+    p.add_argument("--wm", default="openbox")
+    p.add_argument("--keep-prefix", action="store_true")
     p.add_argument("--screen", default="1280x800x24")
     p.add_argument("--input-source", choices=("win32", "x11"), default="x11")
     args = p.parse_args()
     if args.fixtures_only:
         fixtures(args.fixtures_only.resolve())
         return 0
-    if not args.wine or not args.version or not args.results or args.jobs < 1:
-        p.error("--wine, --version and --results are required; --jobs must be positive")
-    for name in ("wine", "driver", "bridge", "results", "wineserver"):
+    if not args.wine or not args.version or not args.results or not args.golden_prefix or not 1 <= args.jobs <= 4:
+        p.error("--wine, --version, --results and --golden-prefix are required; --jobs must be 1..4")
+    for name in ("wine", "driver", "bridge", "results", "wineserver", "golden_prefix"):
         if getattr(args, name):
             setattr(args, name, getattr(args, name).resolve())
     args.results.mkdir(parents=True, exist_ok=True)
+    if not (args.golden_prefix / "system.reg").is_file():
+        p.error("--golden-prefix must be fully initialized before parallel tests")
     if args.fixtures:
         args.fixtures = args.fixtures.resolve()
     else:
@@ -207,7 +228,9 @@ def main():
         if not path.is_file():
             p.error(f"plan does not exist: {path}")
         plans.append((only_version, "e2e-" + name, path))
-    scenarios = args.scenario or (() if plans else SCENARIOS)
+    # Initial runs establish the edges and concrete tool controls. The broader
+    # shortcuts matrix is opt-in until those E2E paths have been validated.
+    scenarios = args.scenario or (() if plans else ("edges",))
     if len(set(scenarios)) != len(scenarios):
         p.error("duplicate scenarios would overwrite a job directory")
     jobs = [(v, app, scenario, None) for v, app in versions for scenario in scenarios]

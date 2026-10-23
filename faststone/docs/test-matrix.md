@@ -77,6 +77,23 @@ Every job gets a separate Xvfb, Wine prefix, application copy, image copy and
 results directory. `--jobs` bounds concurrency. Jobs therefore cannot fight
 for the pointer, share a FastStone mutex or overwrite each other's settings.
 All input must target the disposable test display, never the user's desktop.
+Focus tests require a live Openbox window manager. Missing or exited Openbox
+is an infrastructure failure, never an unmanaged-desktop pass.
+
+Initialize one golden prefix for the **same Wine build** before these jobs.
+The guest wrapper stores each private clone under `/work/guest-state/jobs`;
+a full prefix can exceed the guest's RAM-backed `/tmp`. Registries are copied,
+not shared or hardlinked. Neither wrapper runs an explicit `wineboot -u` on a
+fully initialized clone: that needlessly re-registers DLLs before every test.
+The disposable prefix is removed after stopping its own wineserver, retaining
+the screenshots/logs. The Python runner offers `--keep-prefix` for diagnosis.
+
+`gui-suite-initial.sh` runs exactly four independent jobs: 5.6/8.5 edge checks,
+and 5.6/8.5 actual left-panel Crop Board → parent → Draw Board → parent checks.
+It captures concrete tool controls for subsequent nested-dialog plans. Labels
+must actually be present; an inaccessible owner-drawn label fails and leaves a
+screenshot for a version-specific observed coordinate map. There is no hotkey
+substitution. The broad 20-scenario shortcut matrix is opt-in, not the default.
 
 ## Existing independent scenarios
 
@@ -123,6 +140,7 @@ python3 gui-suite.py --wine /absolute/path/wine \
   --bridge /absolute/path/gui-suite-x11-bridge \
   --version 5.6=/absolute/path/FastStone56/FSViewer.exe \
   --version 8.5=/absolute/path/FastStone85/FSViewer.exe \
+  --golden-prefix /absolute/path/initialized-prefix \
   --fixtures /absolute/path/fixtures --results /absolute/path/results \
   --scenario edges --scenario top \
   --plan 5.6:draw-nested=/absolute/path/observed-56.tsv \
@@ -139,3 +157,16 @@ Version-qualified plans prevent an observed 5.6 coordinate map from being
 silently replayed against 8.5. A plan without a version applies to all selected
 versions and should therefore use labels known to be shared. The exact plan is
 copied into its job directory and its SHA-256 is recorded in `result.json`.
+
+For a minimal guest without Python, compile the drivers first and run:
+
+```sh
+GUI_SUITE_WINE=/work/installed-wine/bin/wine \
+GUI_SUITE_WINESERVER=/work/installed-wine/bin/wineserver \
+GUI_SUITE_GOLDEN_PREFIX=/work/guest-state/golden-prefix \
+  sh /work/patch-export/faststone/gui-suite-initial.sh
+```
+
+Set Wine paths to the actual tested build. Source-tree layouts can instead set
+`GUI_SUITE_WINE_ROOT=/work/wine-image-build`. No prebuilt Wine version is
+implicitly treated as the patched build.

@@ -3,6 +3,8 @@
  *       -lcomctl32 -lgdi32 -luser32
  * Output: NDJSON. --measure keeps assertions but always returns exit status 0.
  * Fixture positions are checked: no scroll conclusions from a failed layout.
+ * Native reference: --dll Z:\work\test-bin\native\comctl32.dll --expect-comctl 5.80
+ * The DLL is loaded explicitly; the executable has no comctl32 import.
  */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -16,6 +18,10 @@ static BOOL measure_only;
 static HIMAGELIST normal_images, small_images;
 static unsigned expected_major,expected_minor;
 static BOOL expect_version;
+static HMODULE test_module;
+static HIMAGELIST (WINAPI *pImageList_Create)(int,int,UINT,int,int);
+static int (WINAPI *pImageList_Add)(HIMAGELIST,HBITMAP,HBITMAP);
+static BOOL (WINAPI *pImageList_Destroy)(HIMAGELIST);
 
 static void check(const char *test,const char *name,BOOL success)
 {
@@ -38,12 +44,12 @@ static void pump(void)
 
 static HIMAGELIST make_images(int size)
 {
-    HIMAGELIST images=ImageList_Create(size,size,ILC_COLOR32|ILC_MASK,1,0);
+    HIMAGELIST images=pImageList_Create(size,size,ILC_COLOR32|ILC_MASK,1,0);
     HDC dc=GetDC(NULL),mem=CreateCompatibleDC(dc);
     HBITMAP bmp=CreateCompatibleBitmap(dc,size,size),old=SelectObject(mem,bmp);
     RECT r={0,0,size,size};
     FillRect(mem,&r,(HBRUSH)GetStockObject(BLACK_BRUSH));
-    ImageList_Add(images,bmp,NULL);
+    pImageList_Add(images,bmp,NULL);
     SelectObject(mem,old); DeleteObject(bmp); DeleteDC(mem); ReleaseDC(NULL,dc);
     return images;
 }
@@ -60,10 +66,11 @@ static HWND make_list(HWND parent,DWORD style,unsigned columns,unsigned rows,con
     DLLVERSIONINFO version;
     HRESULT (CALLBACK *class_getver)(DLLVERSIONINFO *);
     lv=CreateWindowExA(0,WC_LISTVIEWA,"",WS_CHILD|WS_VISIBLE|LVS_SHAREIMAGELISTS|style,
-                       0,0,380,220,parent,NULL,GetModuleHandleA(NULL),NULL);
+                       0,0,380,220,parent,NULL,test_module,NULL);
     check(test,"create",lv!=NULL);
     if (!lv) return NULL;
     class_module=(HMODULE)GetClassLongPtrA(lv,GCLP_HMODULE);
+    check(test,"class-module-is-selected-module",class_module==test_module);
     GetModuleFileNameA(class_module,module_path,sizeof(module_path));
     fprintf(stderr,"ListView class module (%s): %s\n",test,module_path);
     memset(&version,0,sizeof(version)); version.cbSize=sizeof(version);
@@ -253,6 +260,8 @@ int main(int argc,char **argv)
     UINT lines=0;
     char module[MAX_PATH];
     HMODULE dll;
+    BOOL (WINAPI *pInitCommonControlsEx)(const INITCOMMONCONTROLSEX *);
+    const char *selected_dll="comctl32.dll";
     int arg;
     for(arg=1;arg<argc;arg++)
     {
@@ -262,10 +271,22 @@ int main(int argc,char **argv)
             if (sscanf(argv[++arg],"%u.%u",&expected_major,&expected_minor)!=2) return 2;
             expect_version=TRUE;
         }
+        else if (!strcmp(argv[arg],"--dll") && arg+1<argc) selected_dll=argv[++arg];
         else return 2;
     }
-    if (!InitCommonControlsEx(&init)) return 2;
-    dll=GetModuleHandleA("comctl32.dll");
+    /* An explicit module and its function pointers prevent an implicit import
+     * or GetModuleHandle basename collision from silently selecting builtin
+     * controls in a native-reference run. Use this same module for the control
+     * class lookup and verify GCLP_HMODULE in every fixture. */
+    test_module=LoadLibraryA(selected_dll);
+    if (!test_module) { fprintf(stderr,"LoadLibrary(%s) failed: %lu\n",selected_dll,GetLastError()); return 2; }
+    pInitCommonControlsEx=(void *)GetProcAddress(test_module,"InitCommonControlsEx");
+    pImageList_Create=(void *)GetProcAddress(test_module,"ImageList_Create");
+    pImageList_Add=(void *)GetProcAddress(test_module,"ImageList_Add");
+    pImageList_Destroy=(void *)GetProcAddress(test_module,"ImageList_Destroy");
+    if (!pInitCommonControlsEx || !pImageList_Create || !pImageList_Add || !pImageList_Destroy) return 2;
+    if (!pInitCommonControlsEx(&init)) return 2;
+    dll=test_module;
     memset(&v,0,sizeof(v)); v.cbSize=sizeof(v);
     getver=(void *)GetProcAddress(dll,"DllGetVersion");
     if (getver) getver(&v);
@@ -286,7 +307,7 @@ int main(int argc,char **argv)
     test_wheel(parent,LVS_SMALLICON,1,80,"small-icon-vertical-wheel",FALSE);
     test_wheel_both(parent,LVS_ICON,"icon-both-axis-wheel");
     test_wheel_both(parent,LVS_SMALLICON,"small-icon-both-axis-wheel");
-    ImageList_Destroy(normal_images); ImageList_Destroy(small_images); DestroyWindow(parent);
+    pImageList_Destroy(normal_images); pImageList_Destroy(small_images); DestroyWindow(parent);
     printf("{\"type\":\"summary\",\"checks\":%u,\"failures\":%u}\n",checks,failures);
     return measure_only?0:!!failures;
 }
