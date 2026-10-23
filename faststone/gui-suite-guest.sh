@@ -52,13 +52,22 @@ cleanup() {
   test -z "$xpid" || kill "$xpid" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
-Xvfb "$DISPLAY" -screen 0 1280x800x24 -nolisten tcp -ac -extension GLX >"$artifacts/xvfb.log" 2>&1 &
+Xvfb "$DISPLAY" -displayfd 3 -screen 0 1280x800x24 -nolisten tcp -ac -extension GLX \
+  3>"$state/x-ready" >"$artifacts/xvfb.log" 2>&1 &
 xpid=$!
-sleep 1
+ready_attempt=0
+while test ! -s "$state/x-ready"; do
+  kill -0 "$xpid" 2>/dev/null || { echo 'Xvfb exited before readiness' >&2; exit 1; }
+  ready_attempt=$((ready_attempt+1))
+  test "$ready_attempt" -lt 150 || { echo 'Xvfb startup timed out' >&2; exit 1; }
+  sleep 0.2
+done
 if command -v openbox >/dev/null 2>&1; then
   openbox --sm-disable >"$artifacts/wm.log" 2>&1 &
   wmpid=$!
-  echo openbox >"$artifacts/window-manager.txt"
+  sleep 1
+  kill -0 "$wmpid" 2>/dev/null || { echo 'Openbox failed; inspect wm.log' >&2; exit 1; }
+  openbox --version >"$artifacts/window-manager.txt" 2>&1
 else
   echo 'none: focus/z-order results apply to unmanaged Xvfb only' >"$artifacts/window-manager.txt"
 fi

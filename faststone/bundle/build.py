@@ -8,6 +8,7 @@ import argparse
 import glob
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -38,9 +39,11 @@ def is_elf(path):
         return False
 
 
-def dependencies(path):
+def dependencies(path, runtime):
     # ldd is used only on trusted, locally built/runtime package binaries.
-    p = subprocess.run(["ldd", str(path)], text=True, capture_output=True)
+    wine_unix = [runtime / "wine/lib/wine/x86_64-unix", runtime / "wine/lib64/wine/x86_64-unix"]
+    env = dict(os.environ, LD_LIBRARY_PATH=":".join(str(p) for p in wine_unix))
+    p = subprocess.run(["ldd", str(path)], text=True, capture_output=True, env=env)
     text = p.stderr + p.stdout
     if p.returncode and ("not a dynamic executable" in text or "statically linked" in text):
         return []
@@ -123,7 +126,7 @@ def build(args):
             if identity in seen:
                 continue
             seen.add(identity)
-            queue.extend(dependencies(path))
+            queue.extend(dependencies(path, root))
             if not path.is_relative_to(root):
                 dest = root / "lib" / path.name
                 if dest.exists() and hashlib.sha256(dest.read_bytes()).digest() != hashlib.sha256(path.read_bytes()).digest():
