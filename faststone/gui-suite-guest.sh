@@ -49,7 +49,14 @@ cp -a /work/test-fixtures "$state/images"
 golden_prefix=${GUI_SUITE_GOLDEN_PREFIX-/work/guest-state/golden-prefix}
 # Bootstrap once outside this wrapper. Every job receives private registries.
 # Re-running wineboot -u here re-registers the complete DLL set unnecessarily.
-if test -d "$golden_prefix"; then
+if test -n "${GUI_SUITE_PRECLONED_PREFIX_ROOT-}"; then
+  prepared_prefix=$GUI_SUITE_PRECLONED_PREFIX_ROOT/$version-$scenario
+  case "$prepared_prefix" in /work/guest-state/*) ;; *) echo 'Prepared prefixes must be under /work/guest-state' >&2; exit 2 ;; esac
+  test -f "$prepared_prefix/system.reg"
+  test -d "$prepared_prefix/drive_c"
+  mv "$prepared_prefix" "$WINEPREFIX"
+  printf '%s\n' "$prepared_prefix" >"$artifacts/precloned-prefix-source.txt"
+elif test -d "$golden_prefix"; then
   test -f "$golden_prefix/system.reg" || { echo 'Golden prefix is not initialized' >&2; exit 2; }
   mkdir -p "$WINEPREFIX"
   cp -a "$golden_prefix"/. "$WINEPREFIX"/
@@ -63,7 +70,7 @@ else
   exit 2
 fi
 test -f "$WINEPREFIX/system.reg"
-export WINEDEBUG=-all
+export WINEDEBUG=${GUI_SUITE_WINEDEBUG:--all,err+all}
 export WINEDLLOVERRIDES='mscoree,mshtml=;winemenubuilder.exe=d'
 export XDG_RUNTIME_DIR=$state/runtime
 export DISPLAY=:$display_number

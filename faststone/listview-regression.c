@@ -297,7 +297,10 @@ int main(int argc,char **argv)
            (unsigned)(sizeof(void *)*8),v.dwMajorVersion,v.dwMinorVersion,v.dwBuildNumber,lines,measure_only?"true":"false");
     parent=CreateWindowExA(0,"STATIC","ListView API regression tests",WS_OVERLAPPEDWINDOW|WS_VISIBLE,
                            20,20,640,480,NULL,NULL,GetModuleHandleA(NULL),NULL);
-    if (!parent) return 2;
+    if (!parent) {
+        fprintf(stderr,"CreateWindow(parent STATIC) failed: %lu\n",GetLastError());
+        return 2;
+    }
     normal_images=make_images(32); small_images=make_images(16);
     test_coordinates(parent,LVS_ICON,"icon-coordinates");
     test_coordinates(parent,LVS_SMALLICON,"small-icon-coordinates");

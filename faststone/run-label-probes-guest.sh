@@ -22,8 +22,23 @@ case "$LABEL_PREFIX" in /work/guest-state/*) ;; *) echo 'Prefix must be under /w
 [ -f "$LABEL_GOLDEN/user.reg" ] || { echo 'Golden prefix is not initialized' >&2; exit 2; }
 [ -f "$(dirname "$LABEL_NATIVE_PROBE")/comctl32.dll" ] || { echo 'Missing app-local native comctl32.dll' >&2; exit 2; }
 mkdir -p "$LABEL_OUTPUT"
-cp -a "$LABEL_GOLDEN" "$LABEL_PREFIX"
-export DISPLAY="$LABEL_DISPLAY" WINEPREFIX="$LABEL_PREFIX" WINEDEBUG=+loaddll
+if [ -n "${LABEL_PRECLONED_PREFIX_SOURCE:-}" ]; then
+    prepared=$(cd "$LABEL_PRECLONED_PREFIX_SOURCE" && pwd -P)
+    golden=$(cd "$LABEL_GOLDEN" && pwd -P)
+    mkdir -p "$(dirname "$LABEL_PREFIX")"
+    destination=$(cd "$(dirname "$LABEL_PREFIX")" && pwd -P)/$(basename "$LABEL_PREFIX")
+    case "$destination" in /work/guest-state/*) ;; *) echo 'Destination must be under /work/guest-state' >&2; exit 2;; esac
+    case "$prepared" in /work/guest-state/*) ;; *) echo 'Prepared clone must be under /work/guest-state' >&2; exit 2;; esac
+    case "$prepared/" in "$golden/"*|"$destination/"*) echo 'Prepared clone overlaps golden/destination' >&2; exit 2;; esac
+    case "$golden/" in "$prepared/"*) echo 'Prepared clone contains golden' >&2; exit 2;; esac
+    case "$destination/" in "$prepared/"*) echo 'Prepared clone contains destination' >&2; exit 2;; esac
+    test -f "$prepared/user.reg"
+    mv "$prepared" "$LABEL_PREFIX"
+else
+    cp -a "$LABEL_GOLDEN" "$LABEL_PREFIX"
+fi
+export DISPLAY="$LABEL_DISPLAY" WINEPREFIX="$LABEL_PREFIX" WINESERVER="$LABEL_WINESERVER"
+export WINEDEBUG=${LABEL_WINEDEBUG:--all,err+all,+loaddll}
 export WINEDLLOVERRIDES='mscoree,mshtml='
 xpid= wmpid=
 

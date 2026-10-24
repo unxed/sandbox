@@ -32,9 +32,16 @@ run_one()
     prefix="$STATE_DIR/listview-$RUN_ID-$mode"
     log="$RESULTS_DIR/$mode.log"
     test ! -e "$prefix" || { echo "Prefix already exists: $prefix" >&2; exit 2; }
-    cp -a "$GOLDEN_PREFIX" "$prefix"
-    export WINEPREFIX="$prefix" DISPLAY=:$display
-    export WINEDEBUG=${PROBE_WINEDEBUG:--all,+loaddll}
+    if [ -n "${PREFIX_POOL:-}" ]; then
+        prepared="$PREFIX_POOL/$mode"
+        case "$prepared" in /work/guest-state/*) ;; *) echo 'Prefix pool must be under /work/guest-state' >&2; exit 2;; esac
+        test -f "$prepared/system.reg"
+        mv "$prepared" "$prefix"
+    else
+        cp -a "$GOLDEN_PREFIX" "$prefix"
+    fi
+    export WINEPREFIX="$prefix" DISPLAY=:$display WINESERVER="$WINE_SERVER"
+    export WINEDEBUG=${PROBE_WINEDEBUG:--all,err+all,+loaddll}
     unset WINEBOOTSTRAPMODE
     xpid=
     cleanup()
