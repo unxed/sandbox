@@ -1,3 +1,13 @@
+# Current checkpoint: 2026-10-24
+See [HANDOFF.md](../HANDOFF.md) for the authoritative status and recovery recipe.
+The real hybrid Wine11.20 bundle passed packaging checks and was saved as
+`faststone-wine-hybrid-baseline.run` (213306017 bytes,
+SHA256 `bb611d31ab79e016e2bb5144504b2988ebe4a9e17b7def47480c356bfcea563b`).
+It is a diagnostic baseline, not a verified bugfix release. The later GUI
+attempt reached an infrastructure failure; no FastStone GUI pass is claimed.
+RPATH v2 avoids exporting LD_LIBRARY_PATH/GCONV_PATH into host child processes.
+Historical synthetic-only statements below describe earlier checkpoints.
+
 # FastStone with a private Wine runtime
 
 `faststone-wine.run` is one Linux x86_64 executable. Default: FastStone Image

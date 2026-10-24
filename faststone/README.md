@@ -2,6 +2,11 @@
 
 Work in progress. This checkpoint is **not a verified Wine fix or a release**.
 
+**Start with [HANDOFF.md](HANDOFF.md).** It contains the complete user request,
+current measured blockers, pinned downloads, clean-room recovery instructions,
+saved artifact identity, next actions and acceptance criteria. It supersedes
+older contradictory status statements below and in historical notes.
+
 Primary application: FastStone Image Viewer 5.6. Additional target: current 8.5;
 7.5 is included in the validation plan for Wine bug 48872. Video is optional.
 Wine baseline: `840a939ee526137639665ff5f587224d6a36403f` (11.20),
