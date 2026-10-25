@@ -12,6 +12,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* IDC_ARROW's documented resource ID; old MinGW headers omit OCR_NORMAL. */
+#define GUI_BOOTSTRAP_ARROW_CURSOR_ID 32512
+
 static int hold_seconds = 20;
 
 static int parse_args(int argc, char **argv)
@@ -45,7 +48,8 @@ int main(int argc, char **argv)
     }
     memset(&cls, 0, sizeof(cls));
     cls.hInstance = GetModuleHandleW(NULL);
-    cls.hCursor = LoadCursorW(NULL, MAKEINTRESOURCEW(OCR_NORMAL));
+    cls.hCursor = LoadCursorW(NULL,
+                              MAKEINTRESOURCEW(GUI_BOOTSTRAP_ARROW_CURSOR_ID));
     cls.lpfnWndProc = DefWindowProcW;
     cls.lpszClassName = L"FastStoneWineGuiBootstrapProbe";
     if (!RegisterClassW(&cls))
