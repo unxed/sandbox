@@ -1,0 +1,191 @@
+name: FastStone Wine GUI bootstrap
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faststone-gui-bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  static-window:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: patch-export
+
+      - name: Check out the pinned Wine source
+        uses: actions/checkout@v4
+        with:
+          repository: unxed/wine
+          ref: 840a939ee526137639665ff5f587224d6a36403f
+          path: wine
+          fetch-depth: 1
+
+      - name: Install the source-build and disposable-VM toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture i386
+          sudo apt-get -o APT::Sandbox::User=root update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install --no-install-recommends -y \
+            gcc-mingw-w64-i686-posix gcc-mingw-w64-x86-64-posix \
+            g++-mingw-w64-i686-posix g++-mingw-w64-x86-64-posix \
+            gcc-multilib g++-multilib libc6-dev-i386 flex bison \
+            libx11-dev libfreetype-dev libxext-dev libxrender-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libxinerama-dev libxcomposite-dev \
+            libxfixes-dev libfontconfig1-dev libgnutls28-dev libdbus-1-dev \
+            libudev-dev libxkbcommon-dev libxtst-dev xvfb openbox p7zip-full \
+            zstd patchelf busybox-static qemu-system-x86 seabios
+          mkdir -p evidence downloads test-bin guest-state vm-queue-live
+          {
+            uname -a
+            qemu-system-x86_64 --version | head -1
+            i686-w64-mingw32-gcc --version | head -1
+          } > evidence/host-toolchain.txt
+
+      - name: Build the pinned Wine source without GL backends
+        shell: bash
+        run: |
+          set -euo pipefail
+          JOBS=4 sh patch-export/faststone/build-wine.sh
+          make -C wine-image-build install DESTDIR="$PWD/wine-stage"
+          cp wine-image-build/configure.log evidence/wine-configure.log
+          tail -n 1200 wine-image-build/build.log > evidence/wine-build-tail.log
+          test -x wine-stage/opt/faststone-wine/bin/wine
+          wine-stage/opt/faststone-wine/bin/wine --version > evidence/wine-version.txt
+
+      - name: Preserve Wine source-build logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          for log in wine-image-build/configure.log wine-image-build/build.log; do
+            if [ -f "$log" ]; then
+              tail -n 1200 "$log" > "evidence/$(basename "$log").tail"
+            fi
+          done
+
+      - name: Compile the static-window and X11 evidence helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          i686-w64-mingw32-gcc -O2 -Wall -Wextra -Werror \
+            patch-export/faststone/gui-bootstrap-probe.c -o test-bin/gui-bootstrap-probe32.exe -luser32
+          cc -O2 -Wall -Wextra -Werror patch-export/faststone/gui-suite-x11-snapshot.c \
+            -o test-bin/gui-suite-x11-snapshot -lX11
+
+      - name: Fetch and verify the fixed guest kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=downloads/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          modules=downloads/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output "$image" \
+            https://snapshot.ubuntu.com/ubuntu/20260828T000000Z/pool/main/l/linux-signed/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          curl --fail --location --retry 3 --retry-all-errors \
+            --output "$modules" \
+            https://snapshot.ubuntu.com/ubuntu/20260828T000000Z/pool/main/l/linux/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          printf '%s  %s\n' \
+            7093879c9dad61fb24bb5a0247d8dd1ea444c4854492a9b3669175624cd04bda "$image" \
+            2b6108dba87947e4cb7d79759fd85dfe39d431466d745d1b6ec75b4bdabe866d "$modules" | sha256sum -c -
+          test "$(stat -c %s "$image")" = 14815182
+          test "$(stat -c %s "$modules")" = 39127232
+          mkdir vm-kernel-verified
+          dpkg-deb -x "$image" vm-kernel-verified
+          dpkg-deb -x "$modules" vm-kernel-verified
+          kernel=vm-kernel-verified/boot/vmlinuz-6.8.0-138-generic
+          test "$(stat -c %s "$kernel")" = 15055240
+          printf '%s  %s\n' \
+            d74be574189057a036866309fd5546724a92390a4f6ba086e93ddab2f6e0e01d "$kernel" | sha256sum -c -
+
+      - name: Boot the offline guest and capture the first visible STATIC window
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="$PWD/wine-stage/opt/faststone-wine"
+          sh patch-export/faststone/vm/prepare-prefix-host.sh "$runtime" "$PWD/guest-state/golden-prefix"
+          VM_WINE_ROOT="$runtime" python3 patch-export/faststone/vm/prepare.py
+          sh patch-export/faststone/vm/run.sh > evidence/guest-console.log 2>&1 &
+          vm_pid=$!
+          wait_for_request() {
+            local name="$1" timeout="$2" elapsed=0
+            while [ ! -f "vm-queue-live/${name}.done" ]; do
+              if [ -f "vm-queue-live/${name}.exit" ] && [ "$(cat "vm-queue-live/${name}.exit")" != 0 ]; then
+                cat "vm-queue-live/${name}.response" >&2 || true
+                return 1
+              fi
+              if ! kill -0 "$vm_pid" 2>/dev/null; then
+                tail -n 300 evidence/guest-console.log >&2 || true
+                return 1
+              fi
+              if [ "$elapsed" -ge "$timeout" ]; then
+                echo "timed out waiting for ${name}" >&2
+                return 1
+              fi
+              sleep 2
+              elapsed=$((elapsed + 2))
+            done
+            test "$(cat "vm-queue-live/${name}.exit")" = 0
+          }
+          cat > vm-queue-live/01-bootstrap.request <<'EOF'
+          VM_WINE_ROOT=/work/wine-stage/opt/faststone-wine \
+          VM_GOLDEN_PREFIX=/work/guest-state/golden-prefix \
+          VM_WINEDEBUG=-all,err+all \
+          sh /work/patch-export/faststone/vm/bootstrap-prefix.sh
+          EOF
+          wait_for_request 01-bootstrap 900
+          test -f guest-state/golden-prefix/.initialized
+          cp -a --reflink=auto guest-state/golden-prefix guest-state/gui-bootstrap-prefix
+          cat > vm-queue-live/02-static-window.request <<'EOF'
+          set -eu
+          export DISPLAY=:0
+          export WINEPREFIX=/work/guest-state/gui-bootstrap-prefix
+          export WINESERVER=/work/wine-stage/opt/faststone-wine/bin/wineserver
+          export WINEDEBUG=-all,err+all
+          export WINEDLLOVERRIDES='mscoree,mshtml,winemenubuilder.exe='
+          openbox --sm-disable >/work/evidence/gui-bootstrap-openbox.log 2>&1 &
+          wm_pid=$!
+          trap 'kill "$wm_pid" 2>/dev/null || true' EXIT
+          /work/wine-stage/opt/faststone-wine/bin/wine /work/test-bin/gui-bootstrap-probe32.exe \
+            --hold-seconds 30 >/work/evidence/gui-bootstrap-probe.log 2>&1 &
+          probe_pid=$!
+          ready=0
+          for attempt in $(seq 1 30); do
+            if grep -q GUI_BOOTSTRAP_READY /work/evidence/gui-bootstrap-probe.log; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" = 1
+          /work/test-bin/gui-suite-x11-snapshot /work/evidence/gui-bootstrap.ppm \
+            >/work/evidence/gui-bootstrap-window-tree.log
+          grep -q 'name=Wine GUI bootstrap probe' /work/evidence/gui-bootstrap-window-tree.log
+          test -s /work/evidence/gui-bootstrap.ppm
+          wait "$probe_pid"
+          EOF
+          wait_for_request 02-static-window 180
+          printf 'stop\n' > vm-queue-live/control
+          wait "$vm_pid"
+
+      - name: Upload GUI bootstrap evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faststone-gui-bootstrap-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            evidence/**
+            vm-queue-live/**
+            guest-state/**/*.initialized
+            test-bin/gui-bootstrap-probe32.exe
+            test-bin/gui-suite-x11-snapshot
