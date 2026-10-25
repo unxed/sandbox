@@ -157,7 +157,7 @@ static void run_case(HWND parent, DWORD view, BOOL unicode, BOOL large, BOOL ima
     LVITEMA a;
     LVITEMW w;
     LVCOLUMNA col;
-    HIMAGELIST normal = NULL, small = NULL;
+    HIMAGELIST normal = NULL, small_images = NULL;
     HFONT font = large ? CreateFontW(-24, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                     DEFAULT_QUALITY, DEFAULT_PITCH, L"Arial") : GetStockObject(DEFAULT_GUI_FONT);
@@ -195,9 +195,9 @@ static void run_case(HWND parent, DWORD view, BOOL unicode, BOOL large, BOOL ima
     ListView_InsertColumn(lv, 0, &col);
     if (images)
     {
-        normal = make_images(32); small = make_images(16);
+        normal = make_images(32); small_images = make_images(16);
         ListView_SetImageList(lv, normal, LVSIL_NORMAL);
-        ListView_SetImageList(lv, small, LVSIL_SMALL);
+        ListView_SetImageList(lv, small_images, LVSIL_SMALL);
     }
     memset(&a, 0, sizeof(a)); memset(&w, 0, sizeof(w));
     a.mask = w.mask = LVIF_TEXT | LVIF_IMAGE;
@@ -223,7 +223,7 @@ static void run_case(HWND parent, DWORD view, BOOL unicode, BOOL large, BOOL ima
     measure(lv, view, unicode, large, images, TRUE, font);
     DestroyWindow(lv);
     if (normal) ImageList_Destroy(normal);
-    if (small) ImageList_Destroy(small);
+    if (small_images) ImageList_Destroy(small_images);
     if (large) DeleteObject(font);
 }
 
