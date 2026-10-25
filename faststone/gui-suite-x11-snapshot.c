@@ -12,11 +12,28 @@ static unsigned char component(unsigned long pixel,unsigned long mask)
     while(!(mask&1)){mask>>=1;shift++;}
     return (unsigned char)(((pixel>>shift)&mask)*255/mask);
 }
+/* Wine's managed toplevels publish their UTF-8 captions through EWMH rather
+ * than the legacy WM_NAME property.  Keep the latter as a fallback so the
+ * diagnostic remains useful with simpler X11 clients and window managers. */
+static char *window_name(Display *d,Window w)
+{
+    Atom property,type;int format;unsigned long items,after;unsigned char *value=NULL;
+    property=XInternAtom(d,"_NET_WM_NAME",False);
+    if(property!=None&&XGetWindowProperty(d,w,property,0,1024,False,AnyPropertyType,
+                                           &type,&format,&items,&after,&value)==Success&&
+       format==8&&value)return (char *)value;
+    if(value)XFree(value);
+    {
+        char *legacy=NULL;
+        XFetchName(d,w,&legacy);
+        return legacy;
+    }
+}
 static void tree(Display *d,Window w,int depth)
 {
-    XWindowAttributes a;Window root,parent,*children=NULL,owner=0;unsigned int count=0,i;char *name=NULL;
+    XWindowAttributes a;Window root,parent,*children=NULL,owner=0;unsigned int count=0,i;char *name;
     if(depth>12||!XGetWindowAttributes(d,w,&a))return;
-    XFetchName(d,w,&name);XGetTransientForHint(d,w,&owner);
+    name=window_name(d,w);XGetTransientForHint(d,w,&owner);
     printf("depth=%d xid=0x%lx transient=0x%lx mapped=%d rect=%d,%d,%d,%d name=%s\n",
            depth,w,owner,a.map_state,a.x,a.y,a.width,a.height,name?name:"");
     if(name)XFree(name);
