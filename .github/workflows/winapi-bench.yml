@@ -1,0 +1,36 @@
+name: winapi-bench
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'winapi-bench/**'
+      - '.github/workflows/winapi-bench.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build
+        shell: bash
+        working-directory: winapi-bench
+        run: |
+          go version
+          gcc --version | head -1
+          go build -buildmode=c-shared -o gobench.dll lib.go
+          gcc -O2 bench.c -o bench.exe
+      - name: Run (3 times, to see variance)
+        shell: bash
+        working-directory: winapi-bench
+        run: |
+          systeminfo | grep -E "OS Name|OS Version|Processor" || true
+          for i in 1 2 3; do echo "=== run $i ==="; ./bench.exe; done | tee result.txt
+          { echo '```'; cat result.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
