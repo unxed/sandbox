@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     }
     memset(&cls, 0, sizeof(cls));
     cls.hInstance = GetModuleHandleW(NULL);
-    cls.hCursor = LoadCursorW(NULL, IDC_ARROW);
+    cls.hCursor = LoadCursorW(NULL, MAKEINTRESOURCEW(OCR_NORMAL));
     cls.lpfnWndProc = DefWindowProcW;
     cls.lpszClassName = L"FastStoneWineGuiBootstrapProbe";
     if (!RegisterClassW(&cls))
