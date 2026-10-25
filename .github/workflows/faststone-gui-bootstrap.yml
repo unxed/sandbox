@@ -2,6 +2,11 @@ name: FastStone Wine GUI bootstrap
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'faststone/**'
+      - '.github/workflows/faststone-gui-bootstrap.yml'
 
 permissions:
   contents: read
