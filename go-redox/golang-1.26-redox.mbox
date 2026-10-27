@@ -246,7 +246,7 @@ index 465ccc7c..71600bbc 100644
  	{"ios", "amd64"}:       {CgoSupported: true},
  	{"ios", "arm64"}:       {CgoSupported: true},
 -- 
-2.55.0
+2.56.0
 
 
 From 724f3fec5aa532ccc18e0cd21729c12a689690e1 Mon Sep 17 00:00:00 2001
@@ -2571,7 +2571,7 @@ index 5fdb5dd0..d1005ed7 100644
  package runtime
  
 -- 
-2.55.0
+2.56.0
 
 
 From 20defb489df6637dd2148629e53786a93bb55e4c Mon Sep 17 00:00:00 2001
@@ -2690,7 +2690,7 @@ index 00000000..aa6413db
 +          path: /tmp/redoxer-exec.log
 +          if-no-files-found: ignore
 -- 
-2.55.0
+2.56.0
 
 
 From 82dcb5daee3fdb5d0120ae360b41c055fb35063d Mon Sep 17 00:00:00 2001
@@ -2787,7 +2787,7 @@ index 5533594e..345e7a58 100644
  }
  
 -- 
-2.55.0
+2.56.0
 
 
 From 354780097ca6bbe693fe0bee05a64a3951e7d900 Mon Sep 17 00:00:00 2001
@@ -2832,7 +2832,7 @@ index aa6413db..a909c1a9 100644
        - name: Upload redoxer exec log (if any)
          if: always()
 -- 
-2.55.0
+2.56.0
 
 
 From dad14394d588518e8f7eeaf25fd2b39ca83b1f8a Mon Sep 17 00:00:00 2001
@@ -2902,7 +2902,7 @@ index a909c1a9..0b354438 100644
 +            /tmp/redoxer-control.log
            if-no-files-found: ignore
 -- 
-2.55.0
+2.56.0
 
 
 From f2038faaf7fb29e719264e559d283cfb9e00935b Mon Sep 17 00:00:00 2001
@@ -2929,7 +2929,7 @@ index 0b354438..a66aacfe 100644
          continue-on-error: true
          timeout-minutes: 10
 -- 
-2.55.0
+2.56.0
 
 
 From f9c88acae7938d57baa19e2195e173984eb3431c Mon Sep 17 00:00:00 2001
@@ -2975,7 +2975,7 @@ index a66aacfe..1eeb100c 100644
              /tmp/redoxer-control.log
            if-no-files-found: ignore
 -- 
-2.55.0
+2.56.0
 
 
 From fcef6ab56a813fbb958da3cb8fc64f078ade4214 Mon Sep 17 00:00:00 2001
@@ -3024,7 +3024,7 @@ index 1eeb100c..d5773b1c 100644
        - name: Upload redoxer exec logs (if any)
          if: always()
 -- 
-2.55.0
+2.56.0
 
 
 From 3a729a9fc1057f1f4c423c6a43f1a076a15a787d Mon Sep 17 00:00:00 2001
@@ -3077,7 +3077,7 @@ index d5773b1c..09754e28 100644
        # Control: with -f the previous step got as far as "redoxerd: Failed
        # to spawn ... /root/redoxhello.bin" -- the VM found and tried to exec
 -- 
-2.55.0
+2.56.0
 
 
 From f2d9743cdca96f206b0e6aa9d14f3239b75ff10c Mon Sep 17 00:00:00 2001
@@ -3143,7 +3143,7 @@ index 09754e28..63238dee 100644
        # Control: with -f the previous step got as far as "redoxerd: Failed
        # to spawn ... /root/redoxhello.bin" -- the VM found and tried to exec
 -- 
-2.55.0
+2.56.0
 
 
 From d4b67c934260ad6382a1cc2b2ec936bcf99e7c80 Mon Sep 17 00:00:00 2001
@@ -3244,7 +3244,7 @@ index 705afa01..477a227e 100644
  
  // Called from dropm to undo the effect of an minit.
 -- 
-2.55.0
+2.56.0
 
 
 From b13f3b503305470d9c049ff9f67fdcc079be5a1d Mon Sep 17 00:00:00 2001
@@ -3924,7 +3924,7 @@ index fcdc69c7..a5a751de 100644
  TEXT _rt0_amd64_redox_lib(SB),NOSPLIT,$0
  	JMP	_rt0_amd64_lib(SB)
 -- 
-2.55.0
+2.56.0
 
 
 From 1958c5efa25fe590691b99f64f37804bbb614f8b Mon Sep 17 00:00:00 2001
@@ -4030,7 +4030,7 @@ index 417fe6a0..0c717832 100644
  
  type itimerval struct {
 -- 
-2.55.0
+2.56.0
 
 
 From faed18386fe77badd4136989f7edd9e796326a58 Mon Sep 17 00:00:00 2001
@@ -4120,7 +4120,7 @@ index 18e68488..1e7413fa 100644
  
  // Called from dropm to undo the effect of an minit.
 -- 
-2.55.0
+2.56.0
 
 
 From 69127201d65495f8a0bc87a44b6ab882ad672a40 Mon Sep 17 00:00:00 2001
@@ -7191,7 +7191,7 @@ index 00000000..b5378a94
 +
 +type Termios C.struct_termios
 -- 
-2.55.0
+2.56.0
 
 
 From 0b6d852e7a0db2e2ddab064dedab2cf6e28bb769 Mon Sep 17 00:00:00 2001
@@ -7286,7 +7286,7 @@ index 2add5216..37fc2c6d 100644
 +// exec_unix.go's default branch mentions it.
 +const SYS_EXECVE = 59
 -- 
-2.55.0
+2.56.0
 
 
 From 9771af51a64a5aef6382ab2df47d59217ac78cd8 Mon Sep 17 00:00:00 2001
@@ -7504,7 +7504,7 @@ index 1e7413fa..45b8738a 100644
  		}
  		throw("sem_wait")
 -- 
-2.55.0
+2.56.0
 
 
 From eef6967184b3b2d2bb0a1b1d3d23ff284cc2cf06 Mon Sep 17 00:00:00 2001
@@ -7545,7 +7545,7 @@ index 7d0f4c3a..8e23df94 100644
  package os
  
 -- 
-2.55.0
+2.56.0
 
 
 From b1e9e9e32aa9f5f2575f12b463fbdf49b3c3d5c7 Mon Sep 17 00:00:00 2001
@@ -7594,7 +7594,7 @@ index 9a7cea61..5020db79 100644
  			if readErr != nil && readErr != io.EOF {
  				file.Close()
 -- 
-2.55.0
+2.56.0
 
 
 From 556c60f24422f5aa57e65c2bef9884b19958bc56 Mon Sep 17 00:00:00 2001
@@ -7882,7 +7882,7 @@ index c3efc4ac..1e1a4deb 100644
  
        - name: Upload redoxer exec log
 -- 
-2.55.0
+2.56.0
 
 
 From 57459b737ff12b3666e6a9cb877affb65db29b60 Mon Sep 17 00:00:00 2001
@@ -8093,7 +8093,7 @@ index 1e1a4deb..4671c3b8 100644
  
        - name: Upload redoxer exec log
 -- 
-2.55.0
+2.56.0
 
 
 From 22f9cd2bbe44df485fefa487a827bfa91a48171f Mon Sep 17 00:00:00 2001
@@ -8205,7 +8205,7 @@ index 4671c3b8..ca04205b 100644
            ls -la out
  
 -- 
-2.55.0
+2.56.0
 
 
 From ba3a9eda5ee9b8fb27548586b92272227b286cf5 Mon Sep 17 00:00:00 2001
@@ -8323,7 +8323,7 @@ index 965ff8ab..a58270ea 100644
  	parsegodebug(godebugDefault, nil)
  
 -- 
-2.55.0
+2.56.0
 
 
 From 5a740508bc6a1ce49889dcbae7deeb113adea0cd Mon Sep 17 00:00:00 2001
@@ -8436,7 +8436,7 @@ index 5020db79..e9be5a9a 100644
 +	return err.Error()
 +}
 -- 
-2.55.0
+2.56.0
 
 
 From 1687fd924a246aa9c3d99eec8d17e1811463b7e4 Mon Sep 17 00:00:00 2001
@@ -8564,7 +8564,7 @@ index e8805871..043b94d3 100644
  			err = checkSymlink(parent, name, err)
  		} else if err == syscall.ENOTSUP || err == syscall.EOPNOTSUPP {
 -- 
-2.55.0
+2.56.0
 
 
 From c40fafb0f933f78ad75eec067ad56683b827ad11 Mon Sep 17 00:00:00 2001
@@ -10687,7 +10687,7 @@ index 00000000..c6977e2d
 +	Cc	[32]uint8
 +}
 -- 
-2.55.0
+2.56.0
 
 
 From 50e6a644f1d2d871ff7a0832e6490917f2aa8233 Mon Sep 17 00:00:00 2001
@@ -10819,7 +10819,7 @@ index a58270ea..3532ee29 100644
  	}
  	// apply compile-time GODEBUG settings
 -- 
-2.55.0
+2.56.0
 
 
 From 05b0e99896e05d36ebed37be8e1b485d1978dd98 Mon Sep 17 00:00:00 2001
@@ -11100,7 +11100,7 @@ index 00000000..30fca79c
 +        if: always()
 +        run: python3 .github/redox/relibc_verify_summary.py
 -- 
-2.55.0
+2.56.0
 
 
 From d3193b80bf97d6c986fbf00a2ce7579f5019a9cd Mon Sep 17 00:00:00 2001
@@ -11143,7 +11143,7 @@ index 30fca79c..76483e58 100644
  
    go-bins:
 -- 
-2.55.0
+2.56.0
 
 
 From 5a8ee449b24f5e0f6e22ea6fc51f983f044a097c Mon Sep 17 00:00:00 2001
@@ -11181,7 +11181,7 @@ index 45b8738a..eb76a682 100644
  //go:cgo_import_dynamic libc_getrlimit getrlimit "libc.so.6"
  //go:cgo_import_dynamic libc_malloc malloc "libc.so.6"
 -- 
-2.55.0
+2.56.0
 
 
 From 2167a589090fa6a3bdb82d2c6b26881d506e901f Mon Sep 17 00:00:00 2001
@@ -11209,7 +11209,7 @@ index 76483e58..ddaf4a48 100644
            run_one() {
              v="$1"; prog="$2"; n="$3"
 -- 
-2.55.0
+2.56.0
 
 
 From 4d86b9038deac8624d2475b3778a9f9776793481 Mon Sep 17 00:00:00 2001
@@ -11351,7 +11351,7 @@ index 680b5532..3906b440 100644
  print(text)
  if os.environ.get("GITHUB_STEP_SUMMARY"):
 -- 
-2.55.0
+2.56.0
 
 
 From 0b626e48026052bd4342ea869c6fe1700729ebb8 Mon Sep 17 00:00:00 2001
@@ -11497,7 +11497,7 @@ index c84b2f39..06aa9028 100644
  	for {
  		var x *int32
 -- 
-2.55.0
+2.56.0
 
 
 From 047f612ee684eaa0e71927a106fdcc9b9a40539a Mon Sep 17 00:00:00 2001
@@ -11528,7 +11528,7 @@ index 00000000..6cdcac7f
 +// TEMPORARY (redox exit-hang investigation): no-op on every other GOOS.
 +func dbgmsg(s string) {}
 -- 
-2.55.0
+2.56.0
 
 
 From b633a35167d4fc4f3c17512129494f089bb20184 Mon Sep 17 00:00:00 2001
@@ -11583,7 +11583,7 @@ index fa274b2c..ac548ad1 100644
            EOF
            ls -la out
 -- 
-2.55.0
+2.56.0
 
 
 From cfaa31e9f1dd161a1fad5bf0b60e431adaab8074 Mon Sep 17 00:00:00 2001
@@ -12608,7 +12608,7 @@ index ac548ad1..0e2c2e13 100644
 -        run: python3 .github/redox/ladder_summary.py
 +        run: python3 .github/redox/ladder_summary.py /tmp/redoxer-exit.log exit || true
 -- 
-2.55.0
+2.56.0
 
 
 From cc73e7b3557ba1fec2458e96769728637704a45b Mon Sep 17 00:00:00 2001
@@ -12676,7 +12676,7 @@ index 00000000..6c4a1285
 +          cat /tmp/k/rust-toolchain.toml 2>/dev/null; ls /tmp/k | head -30
 +          grep -n "kernel\|redoxfs\|img" /tmp/k/Makefile | head -20
 -- 
-2.55.0
+2.56.0
 
 
 From e4c72eb40db098ca6a6e2177fd845a724de14584 Mon Sep 17 00:00:00 2001
@@ -12958,7 +12958,7 @@ index 00000000..3f8de579
 +          open(os.environ['GITHUB_STEP_SUMMARY'], 'a').write("### kernel A/B\n```\n" + out + "\n```\n")
 +          PY
 -- 
-2.55.0
+2.56.0
 
 
 From 7da89f6926e7337069c84dbe0a2cf7872bf9fc93 Mon Sep 17 00:00:00 2001
@@ -13141,7 +13141,7 @@ index 3f8de579..28a71698 100644
            for m in re.finditer(r"=== BEGIN \S*?/(\w+)\.bin variant=(\w+) run=\d+\n(.*?)=== END", t, re.S):
                k = (m.group(1), m.group(2)); c[k][0] += 1
 -- 
-2.55.0
+2.56.0
 
 
 From bcf3be8e6ae284569127ea02ab2281c342ffad23 Mon Sep 17 00:00:00 2001
@@ -13317,7 +13317,7 @@ index 0e2c2e13..d4305d6e 100644
 +        if: always()
 +        run: python3 .github/redox/test_summary.py /tmp/redoxer-tests.log
 -- 
-2.55.0
+2.56.0
 
 
 From 1701b7025aee36c78b6c6aaf2c40f3d88c1ce23f Mon Sep 17 00:00:00 2001
@@ -13345,7 +13345,7 @@ index 28a71698..8f7bcd5f 100644
            cp $GITHUB_WORKSPACE/.github/redox/kernel/run_kernel_ab.sh /tmp/pkg/out/
  
 -- 
-2.55.0
+2.56.0
 
 
 From 5aa455a63414734e8a166b31d6a0b667eae93ac0 Mon Sep 17 00:00:00 2001
@@ -13772,7 +13772,7 @@ index 06aa9028..c84b2f39 100644
  	for {
  		var x *int32
 -- 
-2.55.0
+2.56.0
 
 
 From 4866bdfa171c6f54eace1dbbdaddb3977c05fc81 Mon Sep 17 00:00:00 2001
@@ -14270,7 +14270,7 @@ index 8f7bcd5f..10aee3e9 100644
        - uses: actions/upload-artifact@v4
          if: always()
 -- 
-2.55.0
+2.56.0
 
 
 From 079063cf8fcbdec8f6b2ae5ad962f674508e6504 Mon Sep 17 00:00:00 2001
@@ -14790,7 +14790,7 @@ index 10aee3e9..72f6903a 100644
          run: |
            k=""
 -- 
-2.55.0
+2.56.0
 
 
 From 674e4bc3cc67dbdbabf316f76339eec2ae8a2dce Mon Sep 17 00:00:00 2001
@@ -14992,7 +14992,7 @@ index c6977e2d..a4aa4d31 100644
  	Size	int64
  	Blksize	int64
 -- 
-2.55.0
+2.56.0
 
 
 From b49214246488e7ec806337378905c5481e8f9282 Mon Sep 17 00:00:00 2001
@@ -15304,7 +15304,7 @@ index 00000000..fe5b45a4
 +	return int(cpid), 0, true
 +}
 -- 
-2.55.0
+2.56.0
 
 
 From c80beb1f4be3e37ffdb5e0586b4924d62552bd0c Mon Sep 17 00:00:00 2001
@@ -15434,7 +15434,7 @@ index a5a751de..68fbe2f1 100644
  
  TEXT _rt0_amd64_redox_lib(SB),NOSPLIT,$0
 -- 
-2.55.0
+2.56.0
 
 
 From 9be1d4ee6a0ca439558abbb3aecab0426716d1a4 Mon Sep 17 00:00:00 2001
@@ -15554,7 +15554,7 @@ index 93101835..55b73c2b 100644
              else
                echo "$n TESTBUILD_FAIL"; head -40 /tmp/pkgt/test-build-$n.log
 -- 
-2.55.0
+2.56.0
 
 
 From d88d94b30af6caa6e3dbfbd54a2543117d77009e Mon Sep 17 00:00:00 2001
@@ -15693,7 +15693,7 @@ index e6b35f9d..d1f6cc0f 100644
  func ForkExec(argv0 string, argv []string, attr *ProcAttr) (pid int, err error) {
  	return forkExec(argv0, argv, attr)
 -- 
-2.55.0
+2.56.0
 
 
 From d9a3dbc760001fd8e37d5c0b1c42a4c30c74ca39 Mon Sep 17 00:00:00 2001
@@ -15743,7 +15743,7 @@ index 402b596d..2c4a2d26 100644
  	var saptr uintptr
  	if sys.Setpgid {
 -- 
-2.55.0
+2.56.0
 
 
 From ad31ed369dbd929e807b2bd9bb1db70f0cf72d87 Mon Sep 17 00:00:00 2001
@@ -15813,7 +15813,7 @@ index ef8803d0..830e4653 100644
 -    open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("\n### std package tests on Redox (go test -c, -short)\n\n" + text + "\n")
 +    open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("\n### std package tests on Redox (go test -c, -short)\n\n" + text + "\n" + "".join(f"\n<details><summary>failing tests of {n}</summary>\n\n```\n{d}\n```\n</details>\n" for n, d in details))
 -- 
-2.55.0
+2.56.0
 
 
 From b71bd985b1e522091581732ad3079e822105e12e Mon Sep 17 00:00:00 2001
@@ -15942,7 +15942,7 @@ index 2c4a2d26..49106c5f 100644
  		len(attr.Files) > 3 || len(argv) == 0 || len(envv) == 0 {
  		// Fds >= 3 would need care: relibc closes, in the child, every fd number that is
 -- 
-2.55.0
+2.56.0
 
 
 From 9adc5fe1685cf20e56f875f7aa7924363089c4f1 Mon Sep 17 00:00:00 2001
@@ -15967,7 +15967,7 @@ index 10910b51..0dc983b5 100644
  run_test() {
    n=$1; limit=${2:-60}; label=${3:-$1}
 -- 
-2.55.0
+2.56.0
 
 
 From db2b7eece70115d32bf1c2c5f3e25edb01c49297 Mon Sep 17 00:00:00 2001
@@ -16011,7 +16011,7 @@ index 00000000..fc0ec280
 +	}
 +}
 -- 
-2.55.0
+2.56.0
 
 
 From 7068327f5407bb87214f4263d2f2228a00c2401f Mon Sep 17 00:00:00 2001
@@ -16193,7 +16193,7 @@ index b5060a50..bde3069c 100644
  run_one /root/mnt/x22_forkpar_c.bin default 1
  run_one /root/mnt/x20_execpar.bin default 1
 -- 
-2.55.0
+2.56.0
 
 
 From fd8d8ad99def5f53d57f0fdf482fa0e874430ec5 Mon Sep 17 00:00:00 2001
@@ -16435,7 +16435,7 @@ index d1f6cc0f..d55079bd 100644
  	// Read child error status from pipe.
  	Close(p[1])
 -- 
-2.55.0
+2.56.0
 
 
 From a49d1c3dd2258782b352fc99c40fb0d90dfd2bfa Mon Sep 17 00:00:00 2001
@@ -16648,7 +16648,7 @@ index 00000000..b6678464
 +	return nil;
 +}
 -- 
-2.55.0
+2.56.0
 
 
 From 154567520cb65776f22b4d462d90163e3a80b833 Mon Sep 17 00:00:00 2001
@@ -16696,7 +16696,7 @@ index 49106c5f..f76019eb 100644
  // expressed that way; ok == false means the caller must fall back to
  // fork+exec. Unlike fork+exec, the child's argv[0] is always the program path
 -- 
-2.55.0
+2.56.0
 
 
 From c6fbbabdbcd077ce557b7992f513206eb639e2f7 Mon Sep 17 00:00:00 2001
@@ -16779,7 +16779,7 @@ index b07b2e29..07a83765 100644
  	}
  	return 0
 -- 
-2.55.0
+2.56.0
 
 
 From 3698497d6108b7c57251de8cf086f62b2b1421d7 Mon Sep 17 00:00:00 2001
@@ -16830,7 +16830,7 @@ index f76019eb..efaf3cbb 100644
  	}
  	forkExecSpawned = true // read by forkExec while it still holds ForkLock
 -- 
-2.55.0
+2.56.0
 
 
 From e96263e71a99f14da0f2e0a4eafbb0e2028fba91 Mon Sep 17 00:00:00 2001
@@ -17217,7 +17217,7 @@ index efaf3cbb..0af28d78 100644
  	}
  	forkExecSpawned = true // read by forkExec while it still holds ForkLock
 -- 
-2.55.0
+2.56.0
 
 
 From 88c37a38d6d0804444d60d142898f36e7a3a47a3 Mon Sep 17 00:00:00 2001
@@ -17242,7 +17242,7 @@ index 0af28d78..ab0c58ae 100644
  // expressed that way; ok == false means the caller must fall back to
  // fork+exec. Unlike fork+exec, the child's argv[0] is always the program path
 -- 
-2.55.0
+2.56.0
 
 
 From b16a4e6efa9cf65db82bcd90d029cd2139b3b4c1 Mon Sep 17 00:00:00 2001
@@ -17439,7 +17439,7 @@ index 3532ee29..2116cc7a 100644
  }
  
 -- 
-2.55.0
+2.56.0
 
 
 From 1e93c38fc870b8396cee9858409917e86f95ec35 Mon Sep 17 00:00:00 2001
@@ -17526,7 +17526,7 @@ index 00000000..3fbfb31e
 +`usr/lib/boot/kernel` inside it. Kernel: `make ARCH=x86_64 OBJCOPY=objcopy` from the pinned source
 +(nightly-2026-05-24, `nasm`). Workflow: `.github/workflows/redox-kernel-verify.yml`.
 -- 
-2.55.0
+2.56.0
 
 
 From 84e3d83df3c920c9224966a6906e59a5893b632b Mon Sep 17 00:00:00 2001
@@ -17608,7 +17608,7 @@ index 3fbfb31e..d375c6e1 100644
  Not a bug, but easy to trip over: a process created by `posix_spawn` starts with all-zero FPU
  control state. relibc's `crt0` sets MXCSR/x87 CW (`src/crt0`), so C programs are fine; an ELF entry
 -- 
-2.55.0
+2.56.0
 
 
 From a6090eeec502d706cc7dca1056faade04df4a0fc Mon Sep 17 00:00:00 2001
@@ -17643,7 +17643,7 @@ index f1d5c27f..e63364bd 100644
        # Bulk compile check of the std packages we care about, reporting ALL
        # errors (-e) across independent packages in one round.
 -- 
-2.55.0
+2.56.0
 
 
 From dbba295a171e75646363366bf0caae7baaa98224 Mon Sep 17 00:00:00 2001
@@ -17669,7 +17669,7 @@ index e63364bd..3602ee25 100644
        - name: Cache the go build cache
          uses: actions/cache@v4
 -- 
-2.55.0
+2.56.0
 
 
 From bda8891f5e780751e7d9219250d550e524028cff Mon Sep 17 00:00:00 2001
@@ -17753,7 +17753,7 @@ index acdf6731..194888b9 100644
  run_one /root/mnt/x22_forkpar_c.bin default 1
  run_one /root/mnt/x20_execpar.bin default 1
 -- 
-2.55.0
+2.56.0
 
 
 From e5d7eaed8eb6b1b11225bfdc2acdf9323da882e6 Mon Sep 17 00:00:00 2001
@@ -17791,7 +17791,7 @@ index d375c6e1..e1f2051f 100644
  Not a bug, but easy to trip over: a process created by `posix_spawn` starts with all-zero FPU
  control state. relibc's `crt0` sets MXCSR/x87 CW (`src/crt0`), so C programs are fine; an ELF entry
 -- 
-2.55.0
+2.56.0
 
 
 From c9530d4d9b060f152a6a0415a4f1a1942df74007 Mon Sep 17 00:00:00 2001
@@ -17850,7 +17850,7 @@ index 72f6903a..96945a41 100644
              /tmp/kab.log
              /tmp/kbuild/kernel
 -- 
-2.55.0
+2.56.0
 
 
 From ed01d4ecb12d7db834ebda22d908d52e3d633406 Mon Sep 17 00:00:00 2001
@@ -18177,7 +18177,7 @@ index 96945a41..cdb18c93 100644
            fi
            make ARCH=x86_64 OBJCOPY=objcopy BUILD=/tmp/kbuild all 2>&1 | tail -15
 -- 
-2.55.0
+2.56.0
 
 
 From 20cabdc19c998499bd57911972f9cce5109fb2f3 Mon Sep 17 00:00:00 2001
@@ -18232,7 +18232,7 @@ index 51346862..5042f301 100644
      _exit(0);
  }
 -- 
-2.55.0
+2.56.0
 
 
 From 2713b7e86e784363c7fd6089cb5d0deb7ef9a8db Mon Sep 17 00:00:00 2001
@@ -18278,7 +18278,7 @@ index adafe26f..feede8f4 100644
  
        # Bulk compile check of the std packages we care about, reporting ALL
 -- 
-2.55.0
+2.56.0
 
 
 From df997364d4b31ca1abadb45a0e87de9636cb3be4 Mon Sep 17 00:00:00 2001
@@ -18335,7 +18335,7 @@ index ff461e44..63fc7d8d 100644
  
  Checked and *not* a bug: `poll()` on a pty slave (C `x29_pty_c` and f4-redox's pollprobe both get POLLIN correctly, canonical and raw). The Go port still ticks terminals every 10 ms as a precaution (`netpoll_redox.go`).
 -- 
-2.55.0
+2.56.0
 
 
 From 68421b0232adefc26568948e5779885c383a53b7 Mon Sep 17 00:00:00 2001
@@ -18363,7 +18363,7 @@ index 63fc7d8d..40640b38 100644
  | 7 | relibc | `sigentry` clobbers RCX of the interrupted code | `x10_sigstorm` | (earlier) | fixed upstream: unxed/relibc `fix-sigentry-rcx-clobber` (8022058e); Go still keeps async preemption off by default until the image has the fix |
  | 8 | relibc | `poll()` fails the *whole call* (EPERM) when one descriptor cannot be watched, e.g. a regular file | found by f4-redox, unxed/sandbox run 35399359761; no C repro yet | | worked around in Go (`netpollopen` probes each fd) |
 -- 
-2.55.0
+2.56.0
 
 
 From b788255bb36e1b253e33711f9c39e033c20e3689 Mon Sep 17 00:00:00 2001
@@ -18953,7 +18953,7 @@ index 00000000..4ae249e3
 +        if: always()
 +        run: python3 .github/redox/relibc_ab_summary.py /tmp/relibc-ab.log
 -- 
-2.55.0
+2.56.0
 
 
 From 84af31710dfcf75ae04a3e79d4f0342ad1640d4c Mon Sep 17 00:00:00 2001
@@ -19025,7 +19025,7 @@ index 4ae249e3..55a03ffa 100644
          if: always()
          run: python3 .github/redox/relibc_ab_summary.py /tmp/relibc-ab.log
 -- 
-2.55.0
+2.56.0
 
 
 From 8468ac1e0ff273324c8196fdaa9fa0542db36729 Mon Sep 17 00:00:00 2001
@@ -19349,7 +19349,7 @@ index 55a03ffa..9f38fbec 100644
        - name: Run in a Redox VM
          timeout-minutes: 8
 -- 
-2.55.0
+2.56.0
 
 
 From 480731e15a4c5aa2fc2857c3895580e73ed7bb11 Mon Sep 17 00:00:00 2001
@@ -19542,7 +19542,7 @@ index cdb18c93..52f92de2 100644
            docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
              -o /tmp/pkg/out/x27_spawnpar_c.bin /tmp/x27.c
 -- 
-2.55.0
+2.56.0
 
 
 From 877c2c771d78f8fa242c82e6c08a7ef8b10553cb Mon Sep 17 00:00:00 2001
@@ -19577,7 +19577,7 @@ index 40640b38..841a0ec7 100644
  | 10 | QEMU TCG only | CLOCK_MONOTONIC / CLOCK_REALTIME read on different vCPUs go backwards by up to ~4 ms | `x21_clock_c` | 35392788829 | gone with KVM |
  
 -- 
-2.55.0
+2.56.0
 
 
 From 0d95f428431c045f374a5c7c962e0a70c4555477 Mon Sep 17 00:00:00 2001
@@ -19626,7 +19626,7 @@ index 52f92de2..0a45b036 100644
      steps:
        - uses: actions/checkout@v4
 -- 
-2.55.0
+2.56.0
 
 
 From a328940d4947ab43d7888c96b0dd3030eac305d8 Mon Sep 17 00:00:00 2001
@@ -19654,7 +19654,7 @@ index 841a0ec7..ad1b744f 100644
  | 4 | relibc | `posix_spawn` does not close the parent's close-on-exec descriptors in the child (a `cat` child keeps the write end of its own stdin pipe open and never sees EOF). Cause: the close list is sent to the filetable `Close` verb in one call, the kernel's `bulk_remove_files` is all-or-nothing, and the list names fds the child's table lacks, so it fails with EBADF, ignored | `x26_spawn_cloexec_c` | 35428002403 (unpatched 4/4 FAIL, patched 4/4 OK) | **patch verified**: unxed/sandbox `relibc-spawn-cloexec/` |
  | 5 | relibc | `posix_spawn` fails with EBADF when other threads close/open descriptors at the same time, and a failed spawn leaves a half-built child process (holding copies of every fd, so pipes never reach EOF; a never-started child that is later killed runs with all registers zero and can wedge the kernel, #9). Narrowed down with a debug build (run 35428330310): 122 of 124 failures are the call in `Sys::spawn` that hands the child's filetable over (`new_file_table.call_wo(<its own fd>, FD \| FD_CLONE)`, base line 1330), the rest a `Close` action; it happens only while other threads close descriptors (`x27_spawnpar_c` rounds "scan=no close=unlocked"). Suspect: the fd number is no longer valid in the caller's table at that moment, i.e. a race between `close()` (kernel close first, userspace `FILETABLE` bookkeeping after) and descriptor allocation | `x27_spawnpar_c` (pure C); not changed by patch #4 | 35428330310 | open: cause narrowed, no fix yet |
 -- 
-2.55.0
+2.56.0
 
 
 From 504b13879c9bc601c9b7123a5116278e6dc33bc9 Mon Sep 17 00:00:00 2001
@@ -20062,7 +20062,7 @@ index 9f38fbec..3f9c4f5f 100644
              [ -n "$d" ] && cp -r "$d" vm/$v || echo "no libc for $v"
            done
 -- 
-2.55.0
+2.56.0
 
 
 From 621f5e6cc8f0118c4f4a2c07d8b5d870aff83629 Mon Sep 17 00:00:00 2001
@@ -20304,7 +20304,7 @@ index 0a45b036..052b4c21 100644
            docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 -pthread \
              -o /tmp/pkg/out/x27_spawnpar_c.bin /tmp/x27.c
 -- 
-2.55.0
+2.56.0
 
 
 From e8295c59b9d76773714ec563bb9ec2ce612a006d Mon Sep 17 00:00:00 2001
@@ -20431,7 +20431,7 @@ index 3f9c4f5f..dd7aa412 100644
              [ -n "$d" ] && cp -r "$d" vm/$v || echo "no libc for $v"
            done
 -- 
-2.55.0
+2.56.0
 
 
 From 07e9e70fa79981874934a0ca4f4cb19f211f8ff7 Mon Sep 17 00:00:00 2001
@@ -20587,7 +20587,7 @@ index 052b4c21..c830d6fa 100644
        - uses: actions/upload-artifact@v4
          if: always()
 -- 
-2.55.0
+2.56.0
 
 
 From 0a8f440e573b6f13c8acb872a4db3ce070047ad4 Mon Sep 17 00:00:00 2001
@@ -20615,7 +20615,7 @@ index ad1b744f..54397f9d 100644
  | 7 | relibc | `sigentry` clobbers RCX of the interrupted code | `x10_sigstorm` | (earlier) | fixed upstream: unxed/relibc `fix-sigentry-rcx-clobber` (8022058e); Go still keeps async preemption off by default until the image has the fix |
  | 8 | relibc | `poll()` fails the *whole call* (EPERM) when one descriptor is a regular file (epoll_ctl refuses it) | `x32_poll_regular_c` | 35428002403 (unpatched 4/4 FAIL, patched 4/4 OK) | **patch verified**: unxed/sandbox `relibc-poll-regular-files/` |
 -- 
-2.55.0
+2.56.0
 
 
 From be40806f390f87cfa2448ae0e60ff5fc90e97343 Mon Sep 17 00:00:00 2001
@@ -20813,7 +20813,7 @@ index dd7aa412..dc03e564 100644
              [ -n "$d" ] && cp -r "$d" vm/$v || echo "no libc for $v"
            done
 -- 
-2.55.0
+2.56.0
 
 
 From 873d850385b6ff5696837d325b5fbc7fcf9a12ee Mon Sep 17 00:00:00 2001
@@ -20965,7 +20965,7 @@ index dc03e564..8324d9f8 100644
        - uses: actions/checkout@v4
        - uses: actions/download-artifact@v4
 -- 
-2.55.0
+2.56.0
 
 
 From 7c504a3f6d9b5721c253c62d3455aa690d78a35b Mon Sep 17 00:00:00 2001
@@ -21006,7 +21006,7 @@ index 75225477..69b642e0 100644
        - uses: actions/checkout@v4
  
 -- 
-2.55.0
+2.56.0
 
 
 From 50dba6833f5ecb0a72dce10b4aed9dbee2fd11e1 Mon Sep 17 00:00:00 2001
@@ -21097,7 +21097,7 @@ index 69b642e0..c35a6e52 100644
        - uses: actions/checkout@v4
  
 -- 
-2.55.0
+2.56.0
 
 
 From f61600259732c794cc077bb8f0c59ecadf9dae63 Mon Sep 17 00:00:00 2001
@@ -21142,7 +21142,7 @@ index c35a6e52..39b8141a 100644
        - uses: actions/checkout@v4
  
 -- 
-2.55.0
+2.56.0
 
 
 From 9c3d783cead48add44dd59ec9f8ca72d05bdb37f Mon Sep 17 00:00:00 2001
@@ -21634,7 +21634,7 @@ index 39b8141a..3d14adba 100644
            docker run --rm -v /tmp:/tmp -w /tmp redoxos/redoxer redoxer cc -O1 \
              -o /tmp/pkg/out/x36_heartbeat_c.bin /tmp/x36.c
 -- 
-2.55.0
+2.56.0
 
 
 From 009853400cf787a64eebfec94633f69cd7526a1b Mon Sep 17 00:00:00 2001
@@ -21808,7 +21808,7 @@ index 3d14adba..8b5512e1 100644
            git log --oneline -3; git diff --stat 2d2eef7 | tail -3
            make ARCH=x86_64 OBJCOPY=objcopy BUILD=/tmp/kbuild all 2>&1 | tail -15
 -- 
-2.55.0
+2.56.0
 
 
 From 6e4851e2694eacc880e40fc09dbfed775d00ed51 Mon Sep 17 00:00:00 2001
@@ -21974,7 +21974,7 @@ index 8b5512e1..440dd42e 100644
        - uses: actions/checkout@v4
  
 -- 
-2.55.0
+2.56.0
 
 
 From 38f7ed24e02a6889fb115100d5747f1bd1a7517a Mon Sep 17 00:00:00 2001
@@ -22026,7 +22026,7 @@ index 440dd42e..47e82277 100644
              all)     git am -3 $K/0001-*.patch $K/0002-*.patch $K/0003-*.patch ;;
            esac
 -- 
-2.55.0
+2.56.0
 
 
 From 686f78cec7c438bb33628f8e42326d13f932086a Mon Sep 17 00:00:00 2001
@@ -22089,7 +22089,7 @@ index 47e82277..2139a4a5 100644
        - uses: actions/upload-artifact@v4
          if: always()
 -- 
-2.55.0
+2.56.0
 
 
 From 042cb1ef5e1de1b3f24500d8a02f492ec22f292f Mon Sep 17 00:00:00 2001
@@ -22119,7 +22119,7 @@ index 2139a4a5..bcdf2a7c 100644
        - uses: actions/checkout@v4
  
 -- 
-2.55.0
+2.56.0
 
 
 From 7b83cb1b9d5ec9e97390b97e823d7fcc681d1c2b Mon Sep 17 00:00:00 2001
@@ -22149,7 +22149,7 @@ index 3ece8dd8..0d6e1842 100644
  
  Checked and *not* a bug: `poll()` on a pty slave (C `x29_pty_c` and f4-redox's pollprobe both get POLLIN correctly, canonical and raw). The Go port still ticks terminals every 10 ms as a precaution (`netpoll_redox.go`).
 -- 
-2.55.0
+2.56.0
 
 
 From 8fc79fc4f3dde9fb8d680e11bd2327f740bc3941 Mon Sep 17 00:00:00 2001
@@ -22705,7 +22705,7 @@ index bcdf2a7c..d6ded77a 100644
        - uses: actions/upload-artifact@v4
          if: always()
 -- 
-2.55.0
+2.56.0
 
 
 From 22a42adaacb4f94e46ba59f171f073eb21afd602 Mon Sep 17 00:00:00 2001
@@ -22802,7 +22802,7 @@ index dcae6456..90eb0795 100644
 +n=1; while [ $n -le 40 ]; do run $v x27_spawnpar_c $n 30; n=$((n+1)); done
  echo "=== LADDER DONE"
 -- 
-2.55.0
+2.56.0
 
 
 From 785ddac93c1ff93d57ac4a9efeb1b8fcdca4167a Mon Sep 17 00:00:00 2001
@@ -22868,7 +22868,7 @@ index 8324d9f8..98be1fed 100644
              [ -n "$d" ] && cp -r "$d" vm/$v || echo "no libc for $v"
            done
 -- 
-2.55.0
+2.56.0
 
 
 From a161a4028ccb1918f4dee554b25961b044fcbc5a Mon Sep 17 00:00:00 2001
@@ -22896,7 +22896,7 @@ index 44e9f05f..92451d2a 100755
    rustup toolchain install nightly-2026-05-24 --profile minimal -c rust-src
    if redoxer env make -j2 PROFILE=release CARGO="rustup run nightly-2026-05-24 cargo" libs > /src/build2.log 2>&1; then
 -- 
-2.55.0
+2.56.0
 
 
 From e07df85fb2ae5aec09e96babd145d3797e60fb54 Mon Sep 17 00:00:00 2001
@@ -22994,7 +22994,7 @@ index 98be1fed..9c4780d7 100644
            cp .github/redox/run_relibc_ab.sh vm/
        - name: Run in a Redox VM
 -- 
-2.55.0
+2.56.0
 
 
 From 9f9c8d57011141fe48fb96aeea49cab68fc38c81 Mon Sep 17 00:00:00 2001
@@ -23073,7 +23073,7 @@ index 9c4780d7..bb108f69 100644
        - uses: actions/checkout@v4
        - uses: actions/download-artifact@v4
 -- 
-2.55.0
+2.56.0
 
 
 From a85a0f4d44e6071c8dcbbd888b682323618c516a Mon Sep 17 00:00:00 2001
@@ -23103,5 +23103,5 @@ index 0d6e1842..976481d4 100644
  
  Checked and *not* a bug: `poll()` on a pty slave (C `x29_pty_c` and f4-redox's pollprobe both get POLLIN correctly, canonical and raw). The Go port still ticks terminals every 10 ms as a precaution (`netpoll_redox.go`).
 -- 
-2.55.0
+2.56.0
 
