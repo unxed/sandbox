@@ -553,7 +553,10 @@ static void plan(const char *path)
 {
     FILE *f=fopen(path,"rb");char line[1024],*action,*arg,*arg2;HWND stack[24];int depth=0,line_no=0;
     Frame remembered={0,0,NULL};RECT remembered_region={0,0,0,0};HWND remembered_window=NULL;char remembered_name[80]="";
-    check("E2E plan opens",f!=NULL,f!=NULL,1);if(!f)return;stack[0]=fullscreen_window;
+    check("E2E plan opens",f!=NULL,f!=NULL,1);if(!f)return;
+    /* FastStone replaces its window when entering fullscreen (TForm -> TFullScreenWindow, run 40718260593):
+       the stored handle is stale, use the current main window as the stack base. */
+    {HWND current=main_window();if(current)fullscreen_window=current;}stack[0]=fullscreen_window;
     while(fgets(line,sizeof(line),f)&&alive()){
         int prior=failures;line_no++;line[strcspn(line,"\r\n")]=0;if(!line[0]||line[0]=='#')continue;
         action=strtok(line,"\t");arg=strtok(NULL,"\t");arg2=strtok(NULL,"\t");
