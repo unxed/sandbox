@@ -66,7 +66,11 @@ run_one()
     test -f "$executable"
     if [ "$mode" = native32 ]; then
         test -f "$NATIVE_DLL"
-        dll_win=$(printf 'Z:%s' "$NATIVE_DLL" | tr '/' '\\')
+        # Known-DLL lookup wins over an explicit Z: path for class registration
+        # (CI run 40649390375: the ListView stayed builtin). Replace the 32-bit
+        # system comctl32 inside this private, discarded prefix instead.
+        cp "$NATIVE_DLL" "$prefix/drive_c/windows/syswow64/comctl32.dll"
+        dll_win='C:\windows\syswow64\comctl32.dll'
         export WINEDLLOVERRIDES='mscoree,mshtml=;comctl32=n,b'
         sha256sum "$NATIVE_DLL" > "$RESULTS_DIR/native-reference-sha256.txt"
         timeout 180 "$WINE" "$executable" --dll "$dll_win" --expect-comctl 5.80 --measure > "$log" 2>&1 || status=$?

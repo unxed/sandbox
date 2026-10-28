@@ -170,6 +170,7 @@ jobs:
           export GOLDEN_PREFIX=/work/guest-state/golden-prefix
           export PREFIX_POOL=/work/guest-state/lvpool
           export RUN_ID=baseline1 MODE=all MAX_JOBS=2
+          export PROBE_WINEDEBUG=err+all,+loaddll,+class
           export RESULTS_DIR=/work/evidence/listview-baseline1
           sh /work/patch-export/faststone/listview-suite-guest.sh
           EOF
