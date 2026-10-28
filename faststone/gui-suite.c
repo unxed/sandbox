@@ -291,7 +291,8 @@ static void wait_no_processing_dialog(void)
     DWORD start=GetTickCount();HWND w=NULL;int seen=0;
     for(;;){
         w=NULL;EnumWindows(find_processing,(LPARAM)&w);
-        if(!w)break;seen=1;
+        if(!w){break;}
+        seen=1;
         if(GetTickCount()-start>240000){fprintf(logfile,"{\"event\":\"processing-dialog-timeout\"}\n");break;}
         Sleep(500);
     }
