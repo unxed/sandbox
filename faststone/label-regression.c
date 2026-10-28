@@ -9,6 +9,21 @@
 #include <windows.h>
 #include <commctrl.h>
 #include <shlwapi.h>
+
+/* LABEL_DYNAMIC: no import of comctl32. The measured DLL is loaded by explicit path
+ * (--dll PATH) because Wine rejects an app-local native COMCTL32.dll import (known-DLL
+ * lookup, status c0000135), while an explicit full-path load works. */
+#ifdef LABEL_DYNAMIC
+static BOOL (WINAPI *pInitCommonControlsEx)(const INITCOMMONCONTROLSEX *);
+static HIMAGELIST (WINAPI *pImageList_Create)(int, int, UINT, int, int);
+static int (WINAPI *pImageList_Add)(HIMAGELIST, HBITMAP, HBITMAP);
+static BOOL (WINAPI *pImageList_Destroy)(HIMAGELIST);
+#define InitCommonControlsEx pInitCommonControlsEx
+#define ImageList_Create pImageList_Create
+#define ImageList_Add pImageList_Add
+#define ImageList_Destroy pImageList_Destroy
+#endif
+static HMODULE measured_module;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -177,13 +192,19 @@ static void run_case(HWND parent, DWORD view, BOOL unicode, BOOL large, BOOL ima
         HMODULE class_module = (HMODULE)GetClassLongPtrA(lv, GCLP_HMODULE), proc_module = NULL;
         ULONG_PTR proc = (ULONG_PTR)GetClassLongPtrA(lv, GCLP_WNDPROC);
         char class_path[MAX_PATH] = "", proc_path[MAX_PATH] = "";
+        WNDCLASSEXW class_info;
+        /* GCLP_WNDPROC of an ANSI-created window may be a conversion handle, not code
+           inside the implementing module; prefer the registered wide procedure. */
+        memset(&class_info, 0, sizeof(class_info)); class_info.cbSize = sizeof(class_info);
+        if (GetClassInfoExW(class_module, L"SysListView32", &class_info) && class_info.lpfnWndProc)
+            proc = (ULONG_PTR)class_info.lpfnWndProc;
         GetModuleFileNameA(class_module, class_path, sizeof(class_path));
         GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                           (LPCSTR)proc, &proc_module);
         if (proc_module) GetModuleFileNameA(proc_module, proc_path, sizeof(proc_path));
         fprintf(stderr, "listview_class_module=%s listview_proc_module=%s\n", class_path, proc_path);
         if (require_native_cc580)
-            check(class_module == GetModuleHandleA("comctl32.dll"), "listview class belongs to measured native module",
+            check(proc_module && proc_module == measured_module, "listview class belongs to measured native module",
                   view, unicode, large, images, FALSE);
         class_reported = TRUE;
     }
@@ -235,12 +256,14 @@ int main(int argc, char **argv)
     HRESULT (CALLBACK *get_version)(DLLVERSIONINFO *);
     HWND parent;
     HMODULE comctl;
+    const char *dll_path = NULL;
     char module_path[MAX_PATH];
     int only_view = -1, only_font = -1, i, view, unicode, large, images, c;
     for (i = 1; i < argc; i++)
     {
         if (!strcmp(argv[i], "--measure-only")) measure_only = TRUE;
         else if (!strcmp(argv[i], "--require-native-cc580")) require_native_cc580 = TRUE;
+        else if (!strcmp(argv[i], "--dll") && i + 1 < argc) dll_path = argv[++i];
         else if (!strcmp(argv[i], "--view") && i + 1 < argc)
         {
             ++i;
@@ -254,12 +277,26 @@ int main(int argc, char **argv)
             else if (!strcmp(argv[i], "large")) only_font = 1;
             else return 2;
         }
-        else { fprintf(stderr, "usage: label-regression [--measure-only] [--require-native-cc580] [--view icon|smallicon|report|list] [--font default|large]\n"); return 2; }
+        else { fprintf(stderr, "usage: label-regression [--measure-only] [--require-native-cc580] [--dll PATH] [--view icon|smallicon|report|list] [--font default|large]\n"); return 2; }
     }
     setvbuf(stdout, NULL, _IONBF, 0);
+#ifdef LABEL_DYNAMIC
+    if (!dll_path) { fprintf(stderr, "LABEL_DYNAMIC build requires --dll PATH\n"); return 2; }
+    comctl = LoadLibraryA(dll_path);
+    if (!comctl) { fprintf(stderr, "LoadLibrary(%s) failed: %lu\n", dll_path, GetLastError()); return 3; }
+    pInitCommonControlsEx = (void *)GetProcAddress(comctl, "InitCommonControlsEx");
+    pImageList_Create = (void *)GetProcAddress(comctl, "ImageList_Create");
+    pImageList_Add = (void *)GetProcAddress(comctl, "ImageList_Add");
+    pImageList_Destroy = (void *)GetProcAddress(comctl, "ImageList_Destroy");
+    if (!pInitCommonControlsEx || !pImageList_Create || !pImageList_Add || !pImageList_Destroy) return 3;
+#endif
     if (!InitCommonControlsEx(&init)) return 3;
     memset(&ver, 0, sizeof(ver)); ver.cbSize = sizeof(ver);
+#ifndef LABEL_DYNAMIC
+    (void)dll_path;
     comctl = GetModuleHandleA("comctl32.dll");
+#endif
+    measured_module = comctl;
     module_path[0] = 0;
     GetModuleFileNameA(comctl, module_path, sizeof(module_path));
     fprintf(stderr, "comctl32_module=%s\n", module_path);

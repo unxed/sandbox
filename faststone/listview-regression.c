@@ -69,7 +69,19 @@ static HWND make_list(HWND parent,DWORD style,unsigned columns,unsigned rows,con
                        0,0,380,220,parent,NULL,test_module,NULL);
     check(test,"create",lv!=NULL);
     if (!lv) return NULL;
-    class_module=(HMODULE)GetClassLongPtrA(lv,GCLP_HMODULE);
+    /* GCLP_HMODULE is not an identity oracle: Wine's builtin comctl32 registers its
+       classes with hInstance NULL (so the executable is reported). Identify the
+       implementation by the module that contains the class window procedure. */
+    {
+        WNDCLASSEXW wc;HMODULE impl=NULL,reported=(HMODULE)GetClassLongPtrA(lv,GCLP_HMODULE);
+        memset(&wc,0,sizeof(wc));wc.cbSize=sizeof(wc);
+        if (GetClassInfoExW(reported,L"SysListView32",&wc) && wc.lpfnWndProc)
+            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               (LPCWSTR)wc.lpfnWndProc,&impl);
+        printf("{\"type\":\"class-identity\",\"test\":\"%s\",\"hmodule_reported\":\"%p\",\"wndproc_module\":\"%p\",\"selected\":\"%p\"}\n",
+               test,(void *)reported,(void *)impl,(void *)test_module);
+        class_module=impl?impl:reported;
+    }
     check(test,"class-module-is-selected-module",class_module==test_module);
     GetModuleFileNameA(class_module,module_path,sizeof(module_path));
     fprintf(stderr,"ListView class module (%s): %s\n",test,module_path);
@@ -188,6 +200,25 @@ static void test_coordinates(HWND parent,DWORD style,const char *test)
            "\"anchor_selected\":%d,\"neighbor_selected\":%d}\n",test,selected,
            ListView_GetNextItem(lv,-1,LVNI_FOCUSED),
            !!ListView_GetItemState(lv,index,LVIS_SELECTED),!!ListView_GetItemState(lv,index+1,LVIS_SELECTED));
+    /* Diagnostic for the small-icon extra selection: geometry of every selected item. */
+    {
+        int n,count_items=ListView_GetItemCount(lv);
+        for(n=0;n<count_items;n++)
+            if(ListView_GetItemState(lv,n,LVIS_SELECTED)||n==index||n==index+1||n==index+2)
+            {
+                RECT b,ic,lb;POINT pos={0,0},org={0,0};
+                b.left=LVIR_BOUNDS;ic.left=LVIR_ICON;lb.left=LVIR_LABEL;
+                SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&b);SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&ic);
+                SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&lb);SendMessageA(lv,LVM_GETITEMPOSITION,n,(LPARAM)&pos);
+                SendMessageA(lv,LVM_GETORIGIN,0,(LPARAM)&org);
+                printf("{\"type\":\"shift-geometry\",\"test\":\"%s\",\"item\":%d,\"selected\":%d,"
+                       "\"position\":[%ld,%ld],\"origin\":[%ld,%ld],\"bounds\":[%ld,%ld,%ld,%ld],"
+                       "\"icon\":[%ld,%ld,%ld,%ld],\"label\":[%ld,%ld,%ld,%ld]}\n",test,n,
+                       !!ListView_GetItemState(lv,n,LVIS_SELECTED),pos.x,pos.y,org.x,org.y,
+                       b.left,b.top,b.right,b.bottom,ic.left,ic.top,ic.right,ic.bottom,
+                       lb.left,lb.top,lb.right,lb.bottom);
+            }
+    }
     check(test,"shift-right-focus",ListView_GetNextItem(lv,-1,LVNI_FOCUSED)==index+1);
     check(test,"shift-right-selects-anchor-and-neighbor-only",selected==2 &&
           ListView_GetItemState(lv,index,LVIS_SELECTED) && ListView_GetItemState(lv,index+1,LVIS_SELECTED));

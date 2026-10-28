@@ -1,0 +1,72 @@
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -3678,6 +3678,21 @@
+ 	     return;
+ 	}
+ 	UnionRect(&rcSel, &rcItem, &rcSelMark);
++	/* The selected items are tested by position below. Item bounds can be wider
++	 * than the grid step (small icons with long labels), so the union of bounds
++	 * would also cover the position of the next item. Select the positions
++	 * between the selection mark and the item instead. */
++	{
++	    POINT ptMark;
++	    if (LISTVIEW_GetItemPosition(infoPtr, nItem, &ptItem) &&
++	        LISTVIEW_GetItemPosition(infoPtr, infoPtr->nSelectionMark, &ptMark))
++	    {
++	        rcSel.left = min(ptItem.x, ptMark.x);
++	        rcSel.right = max(ptItem.x, ptMark.x) + 1;
++	        rcSel.top = min(ptItem.y, ptMark.y);
++	        rcSel.bottom = max(ptItem.y, ptMark.y) + 1;
++	    }
++	}
+ 	iterator_frameditems(&i, infoPtr, &rcSel);
+ 	while(iterator_next(&i))
+ 	{
+@@ -10024,13 +10039,23 @@
+     {
+     case LV_VIEW_ICON:
+     case LV_VIEW_SMALLICON:
++    {
++        DWORD style = GetWindowLongW(infoPtr->hwndSelf, GWL_STYLE);
++        INT step = (wheelDelta > 0) ? -LISTVIEW_SCROLL_ICON_LINE_SIZE : LISTVIEW_SCROLL_ICON_LINE_SIZE;
++
+        /*
+         *  listview should be scrolled by a multiple of 37 dependently on its dimension or its visible item number
+         *  should be fixed in the future.
+         */
+-        LISTVIEW_VScroll(infoPtr, SB_INTERNAL, (wheelDelta > 0) ?
+-                -LISTVIEW_SCROLL_ICON_LINE_SIZE : LISTVIEW_SCROLL_ICON_LINE_SIZE);
++        /* A view that can only scroll horizontally, such as a one-row thumbnail
++         * strip, follows the wheel along that axis. With both scroll bars the
++         * vertical axis keeps priority. */
++        if ((style & WS_HSCROLL) && !(style & WS_VSCROLL))
++            LISTVIEW_HScroll(infoPtr, SB_INTERNAL, step);
++        else
++            LISTVIEW_VScroll(infoPtr, SB_INTERNAL, step);
+         break;
++    }
+ 
+     case LV_VIEW_DETAILS:
+         SystemParametersInfoW(SPI_GETWHEELSCROLLLINES,0, &pulScrollLines, 0);
+@@ -11548,7 +11573,20 @@
+     return infoPtr->nItemCount;
+ 
+   case LVM_GETITEMPOSITION:
+-    return LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, (LPPOINT)lParam);
++  {
++    POINT *position = (POINT *)lParam, origin;
++
++    if (!LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, position)) return FALSE;
++    /* Public icon positions are in view coordinates. Internal selection and
++     * directional-navigation helpers continue to use client coordinates. */
++    if (infoPtr->uView == LV_VIEW_ICON || infoPtr->uView == LV_VIEW_SMALLICON)
++    {
++        LISTVIEW_GetOrigin(infoPtr, &origin);
++        position->x -= origin.x;
++        position->y -= origin.y;
++    }
++    return TRUE;
++  }
+ 
+   case LVM_GETITEMRECT:
+     return LISTVIEW_GetItemRect(infoPtr, (INT)wParam, (LPRECT)lParam);

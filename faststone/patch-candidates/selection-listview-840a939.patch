@@ -1,0 +1,24 @@
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -3678,6 +3678,21 @@
+ 	     return;
+ 	}
+ 	UnionRect(&rcSel, &rcItem, &rcSelMark);
++	/* The selected items are tested by position below. Item bounds can be wider
++	 * than the grid step (small icons with long labels), so the union of bounds
++	 * would also cover the position of the next item. Select the positions
++	 * between the selection mark and the item instead. */
++	{
++	    POINT ptMark;
++	    if (LISTVIEW_GetItemPosition(infoPtr, nItem, &ptItem) &&
++	        LISTVIEW_GetItemPosition(infoPtr, infoPtr->nSelectionMark, &ptMark))
++	    {
++	        rcSel.left = min(ptItem.x, ptMark.x);
++	        rcSel.right = max(ptItem.x, ptMark.x) + 1;
++	        rcSel.top = min(ptItem.y, ptMark.y);
++	        rcSel.bottom = max(ptItem.y, ptMark.y) + 1;
++	    }
++	}
+ 	iterator_frameditems(&i, infoPtr, &rcSel);
+ 	while(iterator_next(&i))
+ 	{
