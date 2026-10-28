@@ -81,7 +81,8 @@ static void chord(WORD mod,WORD vk){key_state(mod,1);key(vk);key_state(mod,0);}
 static void move(int x,int y)
 {
     INPUT in;UINT sent;
-    if(external){check("external pointer input",bridge("MOVE",x,y),x,y);return;}
+    if(external){POINT pt={-1,-1};int ok=bridge("MOVE",x,y);check("external pointer input",ok,x,y);
+        Sleep(120);GetCursorPos(&pt);check("wine cursor follows XTEST motion",pt.x==x&&pt.y==y,pt.x*10000+pt.y,x*10000+y);return;}
     memset(&in,0,sizeof(in));in.type=INPUT_MOUSE;
     in.mi.dx=x*65535/(GetSystemMetrics(SM_CXSCREEN)-1);in.mi.dy=y*65535/(GetSystemMetrics(SM_CYSCREEN)-1);
     in.mi.dwFlags=MOUSEEVENTF_MOVE|MOUSEEVENTF_ABSOLUTE;
@@ -283,7 +284,14 @@ static void edge(const char *side)
     else if(!strcmp(side,"top"))move(sw/2,0);
     else if(!strcmp(side,"bottom"))move(sw/2,sh-1);
     else check("known screen edge",0,0,1);
-    Sleep(1000);
+    Sleep(300);
+    /* Real users approach an edge with several motion events; a single jump and
+       dwell is not the same stimulus. Nudge inside the edge zone, then dwell. */
+    if(!strcmp(side,"left")){move(2,sh/2);move(0,sh/2);}
+    else if(!strcmp(side,"right")){move(sw-3,sh/2);move(sw-1,sh/2);}
+    else if(!strcmp(side,"top")){move(sw/2,2);move(sw/2,0);}
+    else if(!strcmp(side,"bottom")){move(sw/2,sh-3);move(sw/2,sh-1);}
+    Sleep(1500);
 }
 static int setup_fullscreen(void)
 {
