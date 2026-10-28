@@ -287,10 +287,19 @@ static void edge(const char *side)
     Sleep(300);
     /* Real users approach an edge with several motion events; a single jump and
        dwell is not the same stimulus. Nudge inside the edge zone, then dwell. */
-    if(!strcmp(side,"left")){move(2,sh/2);move(0,sh/2);}
-    else if(!strcmp(side,"right")){move(sw-3,sh/2);move(sw-1,sh/2);}
-    else if(!strcmp(side,"top")){move(sw/2,2);move(sw/2,0);}
-    else if(!strcmp(side,"bottom")){move(sw/2,sh-3);move(sw/2,sh-1);}
+    /* Many small motion events inside the edge zone (observed need: a single approach
+       did not open the 8.5 panel while repeated posted moves did). */
+    {
+        int k;
+        for(k=0;k<16;k++){
+            int d=(k&1)?0:6;
+            if(!strcmp(side,"left"))move(d,sh/2+(k&2?1:0));
+            else if(!strcmp(side,"right"))move(sw-1-d,sh/2+(k&2?1:0));
+            else if(!strcmp(side,"top"))move(sw/2+(k&2?1:0),d);
+            else if(!strcmp(side,"bottom"))move(sw/2+(k&2?1:0),sh-1-d);
+            Sleep(50);
+        }
+    }
     Sleep(1500);
 }
 static int setup_fullscreen(void)
