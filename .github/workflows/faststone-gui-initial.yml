@@ -142,6 +142,8 @@ jobs:
             -o test-bin/gui-suite-x11-bridge -lX11 -ldl
           cc -O2 -Wall -Wextra -Werror patch-export/faststone/gui-suite-x11-snapshot.c \
             -o test-bin/gui-suite-x11-snapshot -lX11
+          i686-w64-mingw32-gcc -O2 -Wall -Wextra -Werror \
+            patch-export/faststone/pointer-delivery-probe.c -o test-bin/pointer-delivery-probe.exe -luser32
           python3 -I patch-export/faststone/gui-suite.py --fixtures-only test-fixtures
           test -f test-fixtures/image-000.jpg
 
@@ -204,7 +206,7 @@ jobs:
           wait_for_request 01-bootstrap 1200
           test -f guest-state/golden-prefix/.initialized
           mkdir -p guest-state/preclone
-          for job in 5.6-edges 8.5-edges 5.6-lefttools 8.5-lefttools; do
+          for job in 5.6-edges 8.5-edges 5.6-lefttools 8.5-lefttools probe-openbox probe-nowm; do
             cp -a --reflink=auto guest-state/golden-prefix "guest-state/preclone/$job"
           done
           cat > vm-queue-live/02-gui-initial.request <<'EOF'
@@ -220,6 +222,20 @@ jobs:
           set +e
           wait_for_request 02-gui-initial 6000
           gui_status=$?
+          set -e
+          # Pointer-delivery probe (isolates Wine's XTEST->WM_MOUSEMOVE path from FastStone logic).
+          for variant in openbox nowm; do
+            cat > "vm-queue-live/03-pointer-$variant.request" <<EOF2
+          set -eu
+          chown -R "\$(id -u):\$(id -g)" /work/guest-state/preclone/probe-$variant
+          export GUI_SUITE_WINE=/work/wine-stage/opt/faststone-wine/bin/wine
+          export GUI_SUITE_WINESERVER=/work/wine-stage/opt/faststone-wine/bin/wineserver
+          POINTER_PROBE_WM=$variant sh /work/patch-export/faststone/pointer-probe-guest.sh /work/evidence/pointer-$variant /work/guest-state/preclone/probe-$variant $([ "$variant" = openbox ] && echo 30 || echo 31)
+          EOF2
+          done
+          set +e
+          wait_for_request 03-pointer-openbox 900
+          wait_for_request 03-pointer-nowm 900
           set -e
           printf 'stop\n' > vm-queue-live/control
           wait "$vm_pid" || true
