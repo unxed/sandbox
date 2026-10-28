@@ -560,16 +560,18 @@ static void plan(const char *path)
         fprintf(logfile,"{\"event\":\"plan-step\",\"line\":%d,\"action\":",line_no);quoted(logfile,action);fprintf(logfile,"}\n");
         if(!strcmp(action,"edge")&&arg)edge(arg);
         else if(!strcmp(action,"click-text")&&arg)click_control(arg,depth?stack[depth]:NULL);
-        else if(!strcmp(action,"click-at")&&arg&&arg2){int cx=atoi(arg),cy=atoi(arg2),k;
-            /* Owner-drawn toolbar items track hover from several motion events before a press
-               (the press after one jump was ignored and the panel closed, run 40687736869). */
-            for(k=6;k>=0;k-=2){move(cx-k,cy-(k/2));Sleep(60);}
-            Sleep(400);
-            /* Time series of Xlib snapshots (the display went white around the click in run
-               40700133847): 4 before the press, 8 after, 1.5 s apart. */
-            {int q;char nm[64];for(q=0;q<4;q++){sprintf(nm,"hover-%d-%d-t%d",cx,cy,q);x11_snapshot(nm);Sleep(1000);}}
+        else if(!strcmp(action,"click-at")&&arg&&arg2){int cx=atoi(arg),cy=atoi(arg2),k;POINT cur;char nm[64];
+            /* Run 40713928345: the panel was gone (white repaint for ~3 s) by the first frame after
+               the approach jump. Glide from the current pointer position in small steps and sample
+               the display before, during and after to see when the panel closes. */
+            GetCursorPos(&cur);
+            sprintf(nm,"before-glide-%d-%d",cx,cy);x11_snapshot(nm);
+            for(k=1;k<=16;k++){move(cur.x+(cx-cur.x)*k/16,cur.y+(cy-cur.y)*k/16);Sleep(80);
+                if(k==4||k==8||k==12){sprintf(nm,"glide-%d-%d-s%d",cx,cy,k);x11_snapshot(nm);}}
+            Sleep(800);
+            {int q;for(q=0;q<3;q++){sprintf(nm,"hover-%d-%d-t%d",cx,cy,q);x11_snapshot(nm);Sleep(700);}}
             click();
-            {int q;char nm[64];for(q=0;q<8;q++){Sleep(1500);sprintf(nm,"after-click-%d-%d-t%d",cx,cy,q);x11_snapshot(nm);}}}
+            {int q;for(q=0;q<8;q++){Sleep(1500);sprintf(nm,"after-click-%d-%d-t%d",cx,cy,q);x11_snapshot(nm);}}}
         else if(!strcmp(action,"expect")&&arg){HWND w=expect_dialog(arg,stack[depth]);
             if(w&&depth<23)stack[++depth]=w;else if(depth>=23)check("plan nesting bound",0,depth,23);}
         else if(!strcmp(action,"edit")&&arg)edit_marker(stack[depth],arg);
