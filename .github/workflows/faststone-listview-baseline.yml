@@ -40,6 +40,8 @@ jobs:
             patch: ''
           - variant: coordinates
             patch: faststone/patch-candidates/coordinates-listview-840a939.patch
+          - variant: wheel
+            patch: faststone/patch-candidates/wheel-listview-840a939.patch
     steps:
       - uses: actions/checkout@v4
         with:
