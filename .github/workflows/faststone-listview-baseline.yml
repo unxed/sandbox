@@ -29,18 +29,63 @@ env:
 
 jobs:
   measure:
+    name: measure (${{ matrix.variant }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: base
+            patch: ''
+          - variant: coordinates
+            patch: faststone/patch-candidates/coordinates-candidate.patch
     steps:
       - uses: actions/checkout@v4
         with:
           path: patch-export
-      - name: Restore the pinned Wine runtime built by faststone-gui-initial.yml
-        uses: actions/cache/restore@v4
+      - name: Restore the Wine runtime for this variant (built here on a cache miss)
+        id: cache
+        uses: actions/cache@v4
         with:
           path: wine-stage.tar.zst
-          key: faststone-wine-stage-${{ env.WINE_REF }}-${{ hashFiles('patch-export/faststone/build-wine.sh') }}
-          fail-on-cache-miss: true
+          key: faststone-wine-stage-${{ env.WINE_REF }}-${{ hashFiles('patch-export/faststone/build-wine.sh') }}${{ matrix.patch != '' && format('-{0}', hashFiles(format('patch-export/{0}', matrix.patch))) || '' }}
+      - name: Check out the pinned Wine source
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: unxed/wine
+          ref: ${{ env.WINE_REF }}
+          path: wine
+          fetch-depth: 1
+      - name: Apply the variant patch to the Wine source
+        if: steps.cache.outputs.cache-hit != 'true' && matrix.patch != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C wine apply --check --recount "$PWD/patch-export/${{ matrix.patch }}"
+          git -C wine apply --recount "$PWD/patch-export/${{ matrix.patch }}"
+          git -C wine diff --stat | tee evidence-patch-stat.txt
+      - name: Build the pinned Wine without GL backends
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture i386
+          sudo apt-get -o APT::Sandbox::User=root update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install --no-install-recommends -y \
+            gcc-mingw-w64-i686-posix gcc-mingw-w64-x86-64-posix \
+            g++-mingw-w64-i686-posix g++-mingw-w64-x86-64-posix \
+            gcc-multilib g++-multilib libc6-dev-i386 flex bison zstd \
+            libx11-dev libfreetype-dev libxext-dev libxrender-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libxinerama-dev libxcomposite-dev \
+            libxfixes-dev libfontconfig1-dev libgnutls28-dev libdbus-1-dev \
+            libudev-dev libxkbcommon-dev libxtst-dev
+          JOBS=4 sh patch-export/faststone/build-wine.sh
+          make -C wine-image-build install DESTDIR="$PWD/wine-stage"
+          test -x wine-stage/opt/faststone-wine/bin/wine
+          tar -C wine-stage -cf - opt | zstd -T0 -3 -o wine-stage.tar.zst
+          rm -rf wine-stage
       - name: Install the disposable-VM and test toolchain
         shell: bash
         run: |
@@ -54,6 +99,7 @@ jobs:
             libxkbcommon0 libxtst-dev xvfb openbox p7zip-full zstd busybox-static \
             qemu-system-x86 seabios
           mkdir -p evidence downloads test-bin/native guest-state vm-queue-live
+          rm -rf wine-stage
           tar -I zstd -xf wine-stage.tar.zst
           mkdir -p wine-stage && mv opt wine-stage/
           sha256sum wine-stage.tar.zst | tee evidence/wine-stage.sha256
@@ -207,7 +253,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: faststone-listview-baseline-${{ github.sha }}
+          name: faststone-listview-${{ matrix.variant }}-${{ github.sha }}
           if-no-files-found: warn
           retention-days: 30
           path: |

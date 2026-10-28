@@ -87,16 +87,21 @@ run_probe()
     printf '%s=%s\n' "$kind" "$probe_rc"
 }
 
-# Evidence (CI run 40649390375): Wine resolves COMCTL32.dll from its known-DLL
-# entry in the prefix before looking beside the executable, so an app-local native
-# DLL is rejected (c0000135) even with an AppDefaults native override. Use the
-# 32-bit system directory of THIS private prefix for the native run and restore
-# the builtin afterwards; the prefix is discarded and never shared.
+# Evidence (CI runs 40649390375 and 40650602103): for a 32-bit import of COMCTL32.dll
+# the loader takes the known-DLL entry that names C:\windows\system32\COMCTL32.dll,
+# then, under the AppDefaults native override, finds no native file there (c0000135)
+# although a copy in syswow64 loads fine by explicit path. Put the native DLL in BOTH
+# system directories of THIS private, discarded prefix for the native run only; other
+# processes keep the default builtin-first order, which does not read these files.
+sys64="$LABEL_PREFIX/drive_c/windows/system32"
 sys32="$LABEL_PREFIX/drive_c/windows/syswow64"
-if [ "${LABEL_NATIVE_IN_SYSTEM:-1}" = 1 ] && [ -f "$sys32/comctl32.dll" ]; then
+restore_builtin=0
+if [ "${LABEL_NATIVE_IN_SYSTEM:-1}" = 1 ] && [ -f "$sys32/comctl32.dll" ] && [ -f "$sys64/comctl32.dll" ]; then
     cp -p "$sys32/comctl32.dll" "$LABEL_OUTPUT/builtin-syswow64-comctl32.dll.saved"
+    cp -p "$sys64/comctl32.dll" "$LABEL_OUTPUT/builtin-system32-comctl32.dll.saved"
     cp "$(dirname "$LABEL_NATIVE_PROBE")/comctl32.dll" "$sys32/comctl32.dll"
-    printf 'native comctl32 placed in %s for the native probe\n' "$sys32" >"$LABEL_OUTPUT/native-in-system.log"
+    cp "$(dirname "$LABEL_NATIVE_PROBE")/comctl32.dll" "$sys64/comctl32.dll"
+    printf 'native comctl32 placed in %s and %s for the native probe\n' "$sys32" "$sys64" >"$LABEL_OUTPUT/native-in-system.log"
     restore_builtin=1
 fi
 run_probe native32 "$LABEL_NATIVE_PROBE" --require-native-cc580
@@ -104,6 +109,7 @@ if [ "${restore_builtin:-0}" = 1 ]; then
     "$LABEL_WINESERVER" -k >/dev/null 2>&1 || true
     timeout 30 "$LABEL_WINESERVER" -w >/dev/null 2>&1 || true
     cp "$LABEL_OUTPUT/builtin-syswow64-comctl32.dll.saved" "$sys32/comctl32.dll"
+    cp "$LABEL_OUTPUT/builtin-system32-comctl32.dll.saved" "$sys64/comctl32.dll"
 fi
 # Environment load order precedes the per-executable registry entry. These
 # comparisons must use builtin controls even if the executable names coincide.
