@@ -275,7 +275,29 @@ static int click_control(const char *text,HWND scope)
     fprintf(logfile,",\"label\":");quoted(logfile,text);fprintf(logfile,",\"rect\":[%ld,%ld,%ld,%ld]}\n",r.left,r.top,r.right,r.bottom);
     move((r.left+r.right)/2,(r.top+r.bottom)/2);click();Sleep(600);return 1;
 }
-static void edge(const char *side)
+static BOOL CALLBACK find_processing(HWND w,LPARAM lp)
+{
+    char t[128];
+    if(!ours(w)||!IsWindowVisible(w))return TRUE;
+    GetWindowTextA(w,t,sizeof(t));
+    if(strstr(t,"Processing")){*(HWND *)lp=w;return FALSE;}
+    return TRUE;
+}
+/* FastStone 5.6 shows a modal "Processing - Updating Database File" dialog on first
+   use of a folder (CI run 40674997715 screenshot); no panel can open while it is up.
+   Wait for the application to close it; never dismiss it with synthetic input. */
+static void wait_no_processing_dialog(void)
+{
+    DWORD start=GetTickCount();HWND w=NULL;int seen=0;
+    for(;;){
+        w=NULL;EnumWindows(find_processing,(LPARAM)&w);
+        if(!w)break;seen=1;
+        if(GetTickCount()-start>240000){fprintf(logfile,"{\"event\":\"processing-dialog-timeout\"}\n");break;}
+        Sleep(500);
+    }
+    if(seen)fprintf(logfile,"{\"event\":\"processing-dialog-closed\",\"ms\":%lu}\n",(unsigned long)(GetTickCount()-start));
+}
+static void edge_once(const char *side)
 {
     int sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN);
     center();
@@ -285,10 +307,8 @@ static void edge(const char *side)
     else if(!strcmp(side,"bottom"))move(sw/2,sh-1);
     else check("known screen edge",0,0,1);
     Sleep(300);
-    /* Real users approach an edge with several motion events; a single jump and
-       dwell is not the same stimulus. Nudge inside the edge zone, then dwell. */
-    /* Many small motion events inside the edge zone (observed need: a single approach
-       did not open the 8.5 panel while repeated posted moves did). */
+    /* Many small motion events inside the edge zone: one approach did not open the
+       8.5 panel while repeated moves did (run 40674997715). */
     {
         int k;
         for(k=0;k<16;k++){
@@ -301,6 +321,26 @@ static void edge(const char *side)
         }
     }
     Sleep(1500);
+}
+/* Approach an edge like a user would, retrying while nothing opened: the first
+   approach after startup can be ignored while the application is still busy. */
+static void edge(const char *side)
+{
+    int sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN),attempt;
+    RECT zone={0,0,sw,sh};
+    if(!strcmp(side,"top"))zone.bottom=sh/3;
+    else if(!strcmp(side,"right"))zone.left=sw*2/3;
+    else if(!strcmp(side,"bottom"))zone.top=sh*2/3;
+    else if(!strcmp(side,"left"))zone.right=sw/3;
+    wait_no_processing_dialog();
+    for(attempt=1;attempt<=6;attempt++){
+        Frame a,b;long n;
+        center();a=capture();edge_once(side);b=capture();n=difference(&a,&b,zone);
+        release(&a);release(&b);
+        fprintf(logfile,"{\"event\":\"edge-attempt\",\"side\":\"%s\",\"attempt\":%d,\"changed_pixels\":%ld}\n",side,attempt,n);
+        if(n>500)return;
+        wait_no_processing_dialog();
+    }
 }
 static int setup_fullscreen(void)
 {
