@@ -221,6 +221,8 @@ jobs:
           export GUI_SUITE_GOLDEN_PREFIX=/work/guest-state/golden-prefix
           export GUI_SUITE_PRECLONED_PREFIX_ROOT=/work/guest-state/preclone
           export GUI_SUITE_RUN_TAG=initial1
+          export GUI_SUITE_TIMEOUT=1500
+          export GUI_SUITE_PAIRS=1
           sh /work/patch-export/faststone/gui-suite-initial.sh
           EOF
           set +e

@@ -293,7 +293,7 @@ static void wait_no_processing_dialog(void)
         w=NULL;EnumWindows(find_processing,(LPARAM)&w);
         if(!w){break;}
         seen=1;
-        if(GetTickCount()-start>240000){fprintf(logfile,"{\"event\":\"processing-dialog-timeout\"}\n");break;}
+        if(GetTickCount()-start>600000){fprintf(logfile,"{\"event\":\"processing-dialog-timeout\"}\n");break;}
         Sleep(500);
     }
     if(seen)fprintf(logfile,"{\"event\":\"processing-dialog-closed\",\"ms\":%lu}\n",(unsigned long)(GetTickCount()-start));
@@ -621,7 +621,7 @@ int main(int argc,char **argv)
     else if(!strcmp(scenario,"settings"))smoke_dialog("Settings",VK_F12,0);
     else if(!strcmp(scenario,"properties"))smoke_dialog("Properties",'I',0);else check("known scenario",0,0,1);
 done:
-    snapshot("final");if(main_window()){DWORD_PTR r;check("application remains responsive",SendMessageTimeoutA(main_window(),WM_NULL,0,0,SMTO_ABORTIFHUNG,3000,&r)!=0,alive(),1);}
+    snapshot("final");if(main_window()){DWORD_PTR r;check("application remains responsive",SendMessageTimeoutA(main_window(),WM_NULL,0,0,SMTO_ABORTIFHUNG,30000,&r)!=0,alive(),1);}
     else check("application remains alive",0,alive(),1);
     fprintf(logfile,"{\"event\":\"summary\",\"checks\":%d,\"failures\":%d}\n",checks,failures);fclose(logfile);code=failures?1:0;
     if(alive())TerminateProcess(process,0);

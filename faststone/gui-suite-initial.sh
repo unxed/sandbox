@@ -22,16 +22,22 @@ run_one() {
   printf '%s %s exit=%s\n' "$job_version" "$job_scenario" "$job_status"
   return "$job_status"
 }
+failed=0
 run_one 5.6 edges 20 &
 pid_one=$!
 run_one 8.5 edges 21 &
 pid_two=$!
+if test "${GUI_SUITE_PAIRS-0}" = 1; then
+  # Four FastStone instances under TCG stalled each other (CI run 40679671563:
+  # SendMessageTimeout failures, white captures). Run the two pairs one after another.
+  for job_pid in "$pid_one" "$pid_two"; do wait "$job_pid" || failed=$((failed+1)); done
+  pid_one= pid_two=
+fi
 run_one 5.6 lefttools 22 "$script_dir/gui-suite-initial-lefttools.tsv" &
 pid_three=$!
 run_one 8.5 lefttools 23 "$script_dir/gui-suite-initial-lefttools.tsv" &
 pid_four=$!
-failed=0
-for job_pid in "$pid_one" "$pid_two" "$pid_three" "$pid_four"; do
+for job_pid in $pid_one $pid_two "$pid_three" "$pid_four"; do
   wait "$job_pid" || failed=$((failed+1))
 done
 printf 'INITIAL_SMOKE_FAILED_JOBS=%s\n' "$failed"
