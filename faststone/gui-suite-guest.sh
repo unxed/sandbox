@@ -106,7 +106,7 @@ else
   set --
 fi
 set +e
-timeout "${GUI_SUITE_TIMEOUT:-180}" /work/test-bin/gui-suite-x11-bridge "$wine_bin" /work/test-bin/gui-suite.exe \
+GUI_SUITE_SNAP_DIR="$artifacts" timeout "${GUI_SUITE_TIMEOUT:-180}" /work/test-bin/gui-suite-x11-bridge "$wine_bin" /work/test-bin/gui-suite.exe \
   --app "$win_app" --image "$win_image" --out "$win_artifacts" \
   --scenario "$scenario" --timeout-ms 60000 --external-input "$@" >"$artifacts/driver.log" 2>&1
 status=$?

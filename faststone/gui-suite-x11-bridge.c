@@ -36,6 +36,21 @@ static KeySym virtual_key(long vk)
 static int input(Display *d,const char *kind,long a,long b)
 {
     int result=0;
+    if(!strcmp(kind,"SNAP")){
+        /* Screenshot of the X root through Xlib: GDI capture inside Wine returned a white frame in
+           CI run 40695197192 while the application was busy. Written as PPM next to the driver log. */
+        const char *dir=getenv("GUI_SUITE_SNAP_DIR");char path[512];FILE *f;XImage *img;int w,h,x,y;
+        if(!dir)return 0;
+        w=DisplayWidth(d,DefaultScreen(d));h=DisplayHeight(d,DefaultScreen(d));
+        img=XGetImage(d,DefaultRootWindow(d),0,0,(unsigned)w,(unsigned)h,AllPlanes,ZPixmap);
+        if(!img)return 0;
+        snprintf(path,sizeof(path),"%s/x11-%ld.ppm",dir,a);f=fopen(path,"wb");
+        if(!f){XDestroyImage(img);return 0;}
+        fprintf(f,"P6\n%d %d\n255\n",w,h);
+        for(y=0;y<h;y++)for(x=0;x<w;x++){unsigned long px=XGetPixel(img,x,y);
+            fputc((int)((px>>16)&255),f);fputc((int)((px>>8)&255),f);fputc((int)(px&255),f);}
+        fclose(f);XDestroyImage(img);return 1;
+    }
     if(!strcmp(kind,"MOVE"))result=fake_motion(d,DefaultScreen(d),(int)a,(int)b,CurrentTime);
     else if(!strcmp(kind,"KEY")){
         KeyCode code=XKeysymToKeycode(d,virtual_key(a));
