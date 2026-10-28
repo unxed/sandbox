@@ -1,0 +1,159 @@
+From 98f8eb1a0da0f4ae34dd6b9a72142b37f6c8e172 Mon Sep 17 00:00:00 2001
+From: unxed <1151423+unxed@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:47:34 +0000
+Subject: [PATCH 1/3] comctl32/listview: Return view coordinates from
+ LVM_GETITEMPOSITION for icon views.
+
+LVM_GETITEMPOSITION reported client coordinates for LVS_ICON and
+LVS_SMALLICON, so the position of an item changed when the view scrolled.
+Native comctl32 5.80 keeps the position in view coordinates: it is stable
+while scrolling, and only LVM_GETITEMRECT follows the scroll origin.
+
+Convert only at the public message boundary. LISTVIEW_GetItemPosition() keeps
+returning client coordinates because selection and directional navigation
+use it internally.
+
+Measured with public-API probes against Wine 11.20 and Microsoft 5.80
+(see unxed/sandbox faststone/): the position-after-scroll checks fail for
+icon and small-icon views before this change and pass after it.
+
+Assisted-by: Claude Sonnet 5.5
+---
+ dlls/comctl32/listview.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/dlls/comctl32/listview.c b/dlls/comctl32/listview.c
+index f91e63f..3979b3d 100644
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -11548,7 +11548,20 @@ LISTVIEW_WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+     return infoPtr->nItemCount;
+ 
+   case LVM_GETITEMPOSITION:
+-    return LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, (LPPOINT)lParam);
++  {
++    POINT *position = (POINT *)lParam, origin;
++
++    if (!LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, position)) return FALSE;
++    /* Public icon positions are in view coordinates. Internal selection and
++     * directional-navigation helpers continue to use client coordinates. */
++    if (infoPtr->uView == LV_VIEW_ICON || infoPtr->uView == LV_VIEW_SMALLICON)
++    {
++        LISTVIEW_GetOrigin(infoPtr, &origin);
++        position->x -= origin.x;
++        position->y -= origin.y;
++    }
++    return TRUE;
++  }
+ 
+   case LVM_GETITEMRECT:
+     return LISTVIEW_GetItemRect(infoPtr, (INT)wParam, (LPRECT)lParam);
+-- 
+2.43.0
+
+
+From e8ff9405d35fed8b15fde861f2e38d596f29c9d8 Mon Sep 17 00:00:00 2001
+From: unxed <1151423+unxed@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:47:34 +0000
+Subject: [PATCH 2/3] comctl32/listview: Scroll icon views horizontally when
+ only a horizontal scroll bar exists.
+
+The mouse wheel in LVS_ICON and LVS_SMALLICON always scrolled vertically, so
+a one-row view that can only scroll horizontally, such as a thumbnail strip,
+ignored the wheel. Native comctl32 5.80 follows the wheel along the available
+axis. When both scroll bars exist the vertical axis keeps priority.
+
+Measured with public-API probes against Wine 11.20 and Microsoft 5.80: the
+horizontal-wheel checks fail for icon and small-icon views before this change
+and pass after it, with the vertical and both-axis cases unchanged.
+
+Assisted-by: Claude Sonnet 5.5
+---
+ dlls/comctl32/listview.c | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/comctl32/listview.c b/dlls/comctl32/listview.c
+index 3979b3d..246a5ec 100644
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -10024,13 +10024,23 @@ static LRESULT LISTVIEW_MouseWheel(LISTVIEW_INFO *infoPtr, INT wheelDelta)
+     {
+     case LV_VIEW_ICON:
+     case LV_VIEW_SMALLICON:
++    {
++        DWORD style = GetWindowLongW(infoPtr->hwndSelf, GWL_STYLE);
++        INT step = (wheelDelta > 0) ? -LISTVIEW_SCROLL_ICON_LINE_SIZE : LISTVIEW_SCROLL_ICON_LINE_SIZE;
++
+        /*
+         *  listview should be scrolled by a multiple of 37 dependently on its dimension or its visible item number
+         *  should be fixed in the future.
+         */
+-        LISTVIEW_VScroll(infoPtr, SB_INTERNAL, (wheelDelta > 0) ?
+-                -LISTVIEW_SCROLL_ICON_LINE_SIZE : LISTVIEW_SCROLL_ICON_LINE_SIZE);
++        /* A view that can only scroll horizontally, such as a one-row thumbnail
++         * strip, follows the wheel along that axis. With both scroll bars the
++         * vertical axis keeps priority. */
++        if ((style & WS_HSCROLL) && !(style & WS_VSCROLL))
++            LISTVIEW_HScroll(infoPtr, SB_INTERNAL, step);
++        else
++            LISTVIEW_VScroll(infoPtr, SB_INTERNAL, step);
+         break;
++    }
+ 
+     case LV_VIEW_DETAILS:
+         SystemParametersInfoW(SPI_GETWHEELSCROLLLINES,0, &pulScrollLines, 0);
+-- 
+2.43.0
+
+
+From 5e34f6b346d99f6b808ba815daddf70d317b5d94 Mon Sep 17 00:00:00 2001
+From: unxed <1151423+unxed@users.noreply.github.com>
+Date: Wed, 28 Oct 2026 10:47:34 +0000
+Subject: [PATCH 3/3] comctl32/listview: Select icon-view items between the
+ selection mark and the focus by position.
+
+Extending a selection with Shift in LVS_SMALLICON also selected the item
+after the new focus. The selection rectangle was the union of the two item
+bounds, but item bounds can be wider than the grid step when labels are long,
+so the position of the next item fell inside it.
+
+Build the rectangle from the positions of the selection mark and the item.
+Native comctl32 5.80 selects exactly the anchor and its neighbour.
+
+Measured with public-API probes against Wine 11.20 and Microsoft 5.80: the
+small-icon Shift+Right check fails before this change and passes after it.
+
+Assisted-by: Claude Sonnet 5.5
+---
+ dlls/comctl32/listview.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/dlls/comctl32/listview.c b/dlls/comctl32/listview.c
+index 246a5ec..0876200 100644
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -3678,6 +3678,21 @@ static void LISTVIEW_SetGroupSelection(LISTVIEW_INFO *infoPtr, INT nItem)
+ 	     return;
+ 	}
+ 	UnionRect(&rcSel, &rcItem, &rcSelMark);
++	/* The selected items are tested by position below. Item bounds can be wider
++	 * than the grid step (small icons with long labels), so the union of bounds
++	 * would also cover the position of the next item. Select the positions
++	 * between the selection mark and the item instead. */
++	{
++	    POINT ptMark;
++	    if (LISTVIEW_GetItemPosition(infoPtr, nItem, &ptItem) &&
++	        LISTVIEW_GetItemPosition(infoPtr, infoPtr->nSelectionMark, &ptMark))
++	    {
++	        rcSel.left = min(ptItem.x, ptMark.x);
++	        rcSel.right = max(ptItem.x, ptMark.x) + 1;
++	        rcSel.top = min(ptItem.y, ptMark.y);
++	        rcSel.bottom = max(ptItem.y, ptMark.y) + 1;
++	    }
++	}
+ 	iterator_frameditems(&i, infoPtr, &rcSel);
+ 	while(iterator_next(&i))
+ 	{
+-- 
+2.43.0
+
