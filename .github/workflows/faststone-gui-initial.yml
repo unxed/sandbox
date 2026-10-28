@@ -209,6 +209,10 @@ jobs:
           for job in 5.6-edges 8.5-edges 5.6-lefttools 8.5-lefttools probe-openbox probe-nowm; do
             cp -a --reflink=auto guest-state/golden-prefix "guest-state/preclone/$job"
           done
+          mkdir -p guest-state/preclone-msg
+          for job in 5.6-edges 8.5-edges; do
+            cp -a --reflink=auto guest-state/golden-prefix "guest-state/preclone-msg/$job"
+          done
           cat > vm-queue-live/02-gui-initial.request <<'EOF'
           set -eu
           chown -R "$(id -u):$(id -g)" /work/guest-state/preclone
@@ -233,9 +237,31 @@ jobs:
           POINTER_PROBE_WM=$variant sh /work/patch-export/faststone/pointer-probe-guest.sh /work/evidence/pointer-$variant /work/guest-state/preclone/probe-$variant $([ "$variant" = openbox ] && echo 30 || echo 31)
           EOF2
           done
+          cat > vm-queue-live/04-edges-message-trace.request <<'EOF'
+          set -eu
+          chown -R "$(id -u):$(id -g)" /work/guest-state/preclone-msg
+          export GUI_SUITE_WINE=/work/wine-stage/opt/faststone-wine/bin/wine
+          export GUI_SUITE_WINESERVER=/work/wine-stage/opt/faststone-wine/bin/wineserver
+          export GUI_SUITE_GOLDEN_PREFIX=/work/guest-state/golden-prefix
+          export GUI_SUITE_PRECLONED_PREFIX_ROOT=/work/guest-state/preclone-msg
+          export GUI_SUITE_RUN_TAG=msgtrace
+          export GUI_SUITE_WINEDEBUG=err+all,+message
+          sh /work/patch-export/faststone/gui-suite-guest.sh 5.6 edges 24 >/work/evidence/msgtrace-5.6.launch.log 2>&1 &
+          p1=$!
+          sh /work/patch-export/faststone/gui-suite-guest.sh 8.5 edges 25 >/work/evidence/msgtrace-8.5.launch.log 2>&1 &
+          p2=$!
+          wait $p1 || true
+          wait $p2 || true
+          # Keep only pointer-relevant message lines; the full +message trace is huge.
+          for log in /work/evidence/gui-msgtrace/*/driver.log; do
+            grep -a -E 'WM_MOUSEMOVE|WM_NCMOUSEMOVE|WM_SETCURSOR|WM_MOUSELEAVE|WM_NCHITTEST|^PASS|^FAIL|GUI_INPUT' "$log" | head -n 40000 > "${log%.log}.filtered.log" || true
+            rm -f "$log"
+          done
+          EOF
           set +e
           wait_for_request 03-pointer-openbox 900
           wait_for_request 03-pointer-nowm 900
+          wait_for_request 04-edges-message-trace 1500
           set -e
           printf 'stop\n' > vm-queue-live/control
           wait "$vm_pid" || true
