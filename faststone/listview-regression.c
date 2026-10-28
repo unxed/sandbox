@@ -200,6 +200,24 @@ static void test_coordinates(HWND parent,DWORD style,const char *test)
            "\"anchor_selected\":%d,\"neighbor_selected\":%d}\n",test,selected,
            ListView_GetNextItem(lv,-1,LVNI_FOCUSED),
            !!ListView_GetItemState(lv,index,LVIS_SELECTED),!!ListView_GetItemState(lv,index+1,LVIS_SELECTED));
+    /* Diagnostic for the small-icon extra selection: geometry of every selected item. */
+    {
+        int n,count_items=ListView_GetItemCount(lv);
+        for(n=0;n<count_items;n++)
+            if(ListView_GetItemState(lv,n,LVIS_SELECTED)||n==index||n==index+1||n==index+2)
+            {
+                RECT b={LVIR_BOUNDS},ic={LVIR_ICON},lb={LVIR_LABEL};POINT pos={0,0},org={0,0};
+                SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&b);SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&ic);
+                SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&lb);SendMessageA(lv,LVM_GETITEMPOSITION,n,(LPARAM)&pos);
+                SendMessageA(lv,LVM_GETORIGIN,0,(LPARAM)&org);
+                printf("{\"type\":\"shift-geometry\",\"test\":\"%s\",\"item\":%d,\"selected\":%d,"
+                       "\"position\":[%ld,%ld],\"origin\":[%ld,%ld],\"bounds\":[%ld,%ld,%ld,%ld],"
+                       "\"icon\":[%ld,%ld,%ld,%ld],\"label\":[%ld,%ld,%ld,%ld]}\n",test,n,
+                       !!ListView_GetItemState(lv,n,LVIS_SELECTED),pos.x,pos.y,org.x,org.y,
+                       b.left,b.top,b.right,b.bottom,ic.left,ic.top,ic.right,ic.bottom,
+                       lb.left,lb.top,lb.right,lb.bottom);
+            }
+    }
     check(test,"shift-right-focus",ListView_GetNextItem(lv,-1,LVNI_FOCUSED)==index+1);
     check(test,"shift-right-selects-anchor-and-neighbor-only",selected==2 &&
           ListView_GetItemState(lv,index,LVIS_SELECTED) && ListView_GetItemState(lv,index+1,LVIS_SELECTED));

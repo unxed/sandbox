@@ -192,6 +192,12 @@ static void run_case(HWND parent, DWORD view, BOOL unicode, BOOL large, BOOL ima
         HMODULE class_module = (HMODULE)GetClassLongPtrA(lv, GCLP_HMODULE), proc_module = NULL;
         ULONG_PTR proc = (ULONG_PTR)GetClassLongPtrA(lv, GCLP_WNDPROC);
         char class_path[MAX_PATH] = "", proc_path[MAX_PATH] = "";
+        WNDCLASSEXW class_info;
+        /* GCLP_WNDPROC of an ANSI-created window may be a conversion handle, not code
+           inside the implementing module; prefer the registered wide procedure. */
+        memset(&class_info, 0, sizeof(class_info)); class_info.cbSize = sizeof(class_info);
+        if (GetClassInfoExW(class_module, L"SysListView32", &class_info) && class_info.lpfnWndProc)
+            proc = (ULONG_PTR)class_info.lpfnWndProc;
         GetModuleFileNameA(class_module, class_path, sizeof(class_path));
         GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                           (LPCSTR)proc, &proc_module);
