@@ -206,7 +206,8 @@ static void test_coordinates(HWND parent,DWORD style,const char *test)
         for(n=0;n<count_items;n++)
             if(ListView_GetItemState(lv,n,LVIS_SELECTED)||n==index||n==index+1||n==index+2)
             {
-                RECT b={LVIR_BOUNDS},ic={LVIR_ICON},lb={LVIR_LABEL};POINT pos={0,0},org={0,0};
+                RECT b,ic,lb;POINT pos={0,0},org={0,0};
+                b.left=LVIR_BOUNDS;ic.left=LVIR_ICON;lb.left=LVIR_LABEL;
                 SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&b);SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&ic);
                 SendMessageA(lv,LVM_GETITEMRECT,n,(LPARAM)&lb);SendMessageA(lv,LVM_GETITEMPOSITION,n,(LPARAM)&pos);
                 SendMessageA(lv,LVM_GETORIGIN,0,(LPARAM)&org);
