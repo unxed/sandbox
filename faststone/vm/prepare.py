@@ -23,6 +23,9 @@ for binary in runtime.rglob('*.so'):
  if binary.is_file():
   sonames.update(re.findall(rb'lib[A-Za-z0-9_+.-]+\.so(?:\.[0-9]+)*',binary.read_bytes()))
 sonames={s.decode() if isinstance(s,bytes) else s for s in sonames}
+# The X11 test bridge dlopens libXtst at run time; ldd cannot see it.
+sonames.add('libXtst.so.6')
+for helper in (w/'test-bin').glob('gui-suite-x11-*'):copy(helper)
 cache=subprocess.run(['ldconfig','-p'],capture_output=True,text=True).stdout
 for soname in sonames:
  for line in cache.splitlines():
