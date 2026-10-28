@@ -1,0 +1,239 @@
+name: FastStone Wine GUI initial matrix
+
+# Real GUI baseline for faststone/HANDOFF.md: pinned Wine source build, pinned
+# Wayback FastStone archives, offline QEMU guest, four isolated Xvfb/Openbox
+# jobs (5.6/8.5 edges and left-panel tools). Evidence only; a green workflow
+# means the harness ran, the per-job driver.exit/assertions files are the result.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/faststone-gui-initial.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faststone-gui-initial-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  WINE_REF: 840a939ee526137639665ff5f587224d6a36403f
+
+jobs:
+  wine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: patch-export
+      - name: Restore a previously built runtime
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: wine-stage.tar.zst
+          key: faststone-wine-stage-${{ env.WINE_REF }}-${{ hashFiles('patch-export/faststone/build-wine.sh') }}
+      - name: Check out the pinned Wine source
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: unxed/wine
+          ref: ${{ env.WINE_REF }}
+          path: wine
+          fetch-depth: 1
+      - name: Build the pinned Wine without GL backends
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture i386
+          sudo apt-get -o APT::Sandbox::User=root update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install --no-install-recommends -y \
+            gcc-mingw-w64-i686-posix gcc-mingw-w64-x86-64-posix \
+            g++-mingw-w64-i686-posix g++-mingw-w64-x86-64-posix \
+            gcc-multilib g++-multilib libc6-dev-i386 flex bison zstd \
+            libx11-dev libfreetype-dev libxext-dev libxrender-dev libxi-dev \
+            libxcursor-dev libxrandr-dev libxinerama-dev libxcomposite-dev \
+            libxfixes-dev libfontconfig1-dev libgnutls28-dev libdbus-1-dev \
+            libudev-dev libxkbcommon-dev libxtst-dev
+          JOBS=4 sh patch-export/faststone/build-wine.sh
+          make -C wine-image-build install DESTDIR="$PWD/wine-stage"
+          test -x wine-stage/opt/faststone-wine/bin/wine
+          tar -C wine-stage -cf - opt | zstd -T0 -3 -o wine-stage.tar.zst
+      - name: Wine runtime identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum wine-stage.tar.zst | tee wine-stage.sha256
+          ls -l wine-stage.tar.zst
+      - uses: actions/upload-artifact@v4
+        with:
+          name: faststone-wine-stage-${{ github.sha }}
+          retention-days: 30
+          compression-level: 0
+          path: |
+            wine-stage.tar.zst
+            wine-stage.sha256
+
+  gui-initial:
+    needs: wine
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: patch-export
+      - uses: actions/download-artifact@v4
+        with:
+          name: faststone-wine-stage-${{ github.sha }}
+      - name: Install the disposable-VM and test toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo dpkg --add-architecture i386
+          sudo apt-get -o APT::Sandbox::User=root update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install --no-install-recommends -y \
+            gcc-mingw-w64-i686-posix gcc-mingw-w64-x86-64-posix \
+            libx11-dev libxext-dev libxrender-dev libxi-dev libxcursor-dev \
+            libxrandr-dev libxinerama-dev libxcomposite-dev libxfixes-dev \
+            libfontconfig1-dev libfreetype-dev libgnutls30t64 libdbus-1-3 libudev1 \
+            libxkbcommon0 libxtst-dev xvfb openbox p7zip-full zstd busybox-static \
+            qemu-system-x86 seabios python3-pil
+          mkdir -p evidence downloads test-bin guest-state vm-queue-live
+          sha256sum -c wine-stage.sha256
+          tar -C . -I zstd -xf wine-stage.tar.zst
+          mkdir -p wine-stage
+          mv opt wine-stage/
+          wine-stage/opt/faststone-wine/bin/wine --version | tee evidence/wine-version.txt
+
+      - name: Fetch and verify the pinned FastStone archives (Wayback only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          fetch() { # name url sha
+            local name=$1 url=$2 sha=$3
+            curl --fail --location --retry 5 --retry-all-errors --retry-delay 10 \
+              --output "downloads/$name.part" "$url"
+            printf '%s  %s\n' "$sha" "downloads/$name.part" | sha256sum -c -
+            mv "downloads/$name.part" "downloads/$name"
+          }
+          fetch FSViewerSetup56.exe https://web.archive.org/web/20261022225527id_/https://2g0.ru/fs/FSViewerSetup56.exe 1f6d5826d05046462ceec503812a89e8347a68bc382678db1d88baedc070c604
+          fetch FSViewer85.zip https://web.archive.org/web/20260624231629id_/https://www.faststonesoft.net/DN/FSViewer85.zip 685282a063b91daf4388b84be9e0daf3c5feed4073651137eb9fe9421cf39439
+          7z l downloads/FSViewerSetup56.exe | tee evidence/fs56-7z-list.txt | tail -n 40
+          7z l downloads/FSViewer85.zip | tee evidence/fs85-7z-list.txt | tail -n 20
+          7z x -y -odownloads/FastStone56 downloads/FSViewerSetup56.exe >/dev/null
+          7z x -y -odownloads/FastStone85 downloads/FSViewer85.zip >/dev/null
+          find downloads/FastStone56 downloads/FastStone85 -iname FSViewer.exe -print | tee evidence/fs-exe-paths.txt
+          test -f downloads/FastStone56/FSViewer.exe
+          test -f downloads/FastStone85/FSViewer85/FSViewer.exe
+          sha256sum downloads/FastStone56/FSViewer.exe downloads/FastStone85/FSViewer85/FSViewer.exe | tee evidence/fs-exe.sha256
+
+      - name: Compile the GUI driver, X11 helpers and fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          i686-w64-mingw32-gcc -O2 -Wall -Wextra -Werror \
+            patch-export/faststone/gui-suite.c -o test-bin/gui-suite.exe -lcomctl32 -lgdi32 -luser32
+          cc -O2 -Wall -Wextra -Werror patch-export/faststone/gui-suite-x11-bridge.c \
+            -o test-bin/gui-suite-x11-bridge -lX11 -ldl
+          cc -O2 -Wall -Wextra -Werror patch-export/faststone/gui-suite-x11-snapshot.c \
+            -o test-bin/gui-suite-x11-snapshot -lX11
+          python3 -I patch-export/faststone/gui-suite.py --fixtures-only test-fixtures
+          test -f test-fixtures/image-000.jpg
+
+      - name: Fetch and verify the fixed guest kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=downloads/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          modules=downloads/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          base=https://snapshot.ubuntu.com/ubuntu/20260828T000000Z/pool/main/l
+          curl --fail --location --retry 3 --retry-all-errors -o "$image" "$base/linux-signed/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb"
+          curl --fail --location --retry 3 --retry-all-errors -o "$modules" "$base/linux/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb"
+          printf '%s  %s\n' \
+            7093879c9dad61fb24bb5a0247d8dd1ea444c4854492a9b3669175624cd04bda "$image" \
+            2b6108dba87947e4cb7d79759fd85dfe39d431466d745d1b6ec75b4bdabe866d "$modules" | sha256sum -c -
+          mkdir vm-kernel-verified
+          dpkg-deb -x "$image" vm-kernel-verified
+          dpkg-deb -x "$modules" vm-kernel-verified
+          kernel=vm-kernel-verified/boot/vmlinuz-6.8.0-138-generic
+          test "$(stat -c %s "$kernel")" = 15055240
+          printf '%s  %s\n' d74be574189057a036866309fd5546724a92390a4f6ba086e93ddab2f6e0e01d "$kernel" | sha256sum -c -
+
+      - name: Boot the guest, bootstrap one golden prefix, run the four GUI jobs
+        shell: bash
+        env:
+          VM_MEM: '8192'
+        run: |
+          set -euo pipefail
+          runtime="$PWD/wine-stage/opt/faststone-wine"
+          sh patch-export/faststone/vm/prepare-prefix-host.sh "$runtime" "$PWD/guest-state/golden-prefix"
+          VM_WINE_ROOT="$runtime" python3 patch-export/faststone/vm/prepare.py
+          sh patch-export/faststone/vm/run.sh > evidence/guest-console.log 2>&1 &
+          vm_pid=$!
+          wait_for_request() {
+            local name="$1" timeout="$2" elapsed=0
+            while [ ! -f "vm-queue-live/${name}.done" ]; do
+              if [ -f "vm-queue-live/${name}.exit" ] && [ "$(cat "vm-queue-live/${name}.exit")" != 0 ]; then
+                tail -n 60 "vm-queue-live/${name}.response" >&2 || true
+                return 1
+              fi
+              if ! kill -0 "$vm_pid" 2>/dev/null; then
+                tail -n 300 evidence/guest-console.log >&2 || true
+                return 1
+              fi
+              if [ "$elapsed" -ge "$timeout" ]; then
+                echo "timed out waiting for ${name}" >&2
+                return 1
+              fi
+              sleep 2
+              elapsed=$((elapsed + 2))
+            done
+            test "$(cat "vm-queue-live/${name}.exit")" = 0
+          }
+          cat > vm-queue-live/01-bootstrap.request <<'EOF'
+          VM_WINE_ROOT=/work/wine-stage/opt/faststone-wine \
+          VM_GOLDEN_PREFIX=/work/guest-state/golden-prefix \
+          VM_WINEDEBUG=-all,err+all \
+          sh /work/patch-export/faststone/vm/bootstrap-prefix.sh
+          EOF
+          wait_for_request 01-bootstrap 1200
+          test -f guest-state/golden-prefix/.initialized
+          mkdir -p guest-state/preclone
+          for job in 5.6-edges 8.5-edges 5.6-lefttools 8.5-lefttools; do
+            cp -a --reflink=auto guest-state/golden-prefix "guest-state/preclone/$job"
+          done
+          cat > vm-queue-live/02-gui-initial.request <<'EOF'
+          set -eu
+          chown -R "$(id -u):$(id -g)" /work/guest-state/preclone
+          export GUI_SUITE_WINE=/work/wine-stage/opt/faststone-wine/bin/wine
+          export GUI_SUITE_WINESERVER=/work/wine-stage/opt/faststone-wine/bin/wineserver
+          export GUI_SUITE_GOLDEN_PREFIX=/work/guest-state/golden-prefix
+          export GUI_SUITE_PRECLONED_PREFIX_ROOT=/work/guest-state/preclone
+          export GUI_SUITE_RUN_TAG=initial1
+          sh /work/patch-export/faststone/gui-suite-initial.sh
+          EOF
+          set +e
+          wait_for_request 02-gui-initial 6000
+          gui_status=$?
+          set -e
+          printf 'stop\n' > vm-queue-live/control
+          wait "$vm_pid" || true
+          cp vm-queue-live/02-gui-initial.response evidence/gui-initial.response 2>/dev/null || true
+          echo "gui-initial request status: $gui_status"
+          # The harness result is archived either way; per-job driver.exit files decide pass/fail.
+          for f in evidence/gui-initial1/*.exit; do echo "$f=$(cat "$f")"; done || true
+
+      - name: Upload GUI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faststone-gui-initial-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 21
+          path: |
+            evidence/**
+            vm-queue-live/**
