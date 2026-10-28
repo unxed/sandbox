@@ -145,7 +145,9 @@ jobs:
             "$1-w64-mingw32-gcc" -O2 -Wall -Wextra -Werror \
               patch-export/faststone/label-regression.c -o "test-bin/label-regression$2.exe" -lcomctl32 -lgdi32 -luser32
           done
-          cp test-bin/label-regression32.exe test-bin/native/label-regression-cc580.exe
+          # Native reference probe: no comctl32 import, DLL loaded by explicit path (see label-regression.c).
+          i686-w64-mingw32-gcc -O2 -Wall -Wextra -Werror -DLABEL_DYNAMIC \
+            patch-export/faststone/label-regression.c -o test-bin/native/label-regression-cc580.exe -lgdi32 -luser32
 
       - name: Fetch and verify the fixed guest kernel
         shell: bash

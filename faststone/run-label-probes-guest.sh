@@ -104,7 +104,9 @@ if [ "${LABEL_NATIVE_IN_SYSTEM:-1}" = 1 ] && [ -f "$sys32/comctl32.dll" ] && [ -
     printf 'native comctl32 placed in %s and %s for the native probe\n' "$sys32" "$sys64" >"$LABEL_OUTPUT/native-in-system.log"
     restore_builtin=1
 fi
-run_probe native32 "$LABEL_NATIVE_PROBE" --require-native-cc580
+# The native probe has no comctl32 import (LABEL_DYNAMIC build): load the DLL by full path.
+export WINEDLLOVERRIDES='comctl32=n,b;mscoree,mshtml='
+run_probe native32 "$LABEL_NATIVE_PROBE" --require-native-cc580 --dll 'C:\windows\syswow64\comctl32.dll'
 if [ "${restore_builtin:-0}" = 1 ]; then
     "$LABEL_WINESERVER" -k >/dev/null 2>&1 || true
     timeout 30 "$LABEL_WINESERVER" -w >/dev/null 2>&1 || true
