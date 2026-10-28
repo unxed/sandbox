@@ -44,6 +44,10 @@ jobs:
             patch: faststone/patch-candidates/wheel-listview-840a939.patch
           - variant: label
             patch: faststone/patch-candidates/label-listview-840a939.patch
+          - variant: selection
+            patch: faststone/patch-candidates/selection-listview-840a939.patch
+          - variant: coordinates-wheel-selection
+            patch: faststone/patch-candidates/combined-listview-840a939.patch
     steps:
       - uses: actions/checkout@v4
         with:
