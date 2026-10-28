@@ -1,0 +1,213 @@
+name: FastStone ListView and label baseline (Wine vs native comctl32 5.80)
+
+# Measurement for Wine #59609/#59251/#48872 per faststone/HANDOFF.md: the same
+# public-API probes against Wine's builtin comctl32 (32 and 64 bit) and the
+# Microsoft 5.80 DLL loaded inside Wine. Records discovery only; strict
+# comparison comes after a fix exists. Reuses the Wine runtime cached by
+# faststone-gui-initial.yml (same ref scope); it never rebuilds Wine itself.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/faststone-listview-baseline.yml'
+      - 'faststone/listview-*'
+      - 'faststone/label-*'
+      - 'faststone/run-label-probes-guest.sh'
+      - 'faststone/compare-label-records.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: faststone-listview-baseline-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  WINE_REF: 840a939ee526137639665ff5f587224d6a36403f
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: patch-export
+      - name: Restore the pinned Wine runtime built by faststone-gui-initial.yml
+        uses: actions/cache/restore@v4
+        with:
+          path: wine-stage.tar.zst
+          key: faststone-wine-stage-${{ env.WINE_REF }}-${{ hashFiles('patch-export/faststone/build-wine.sh') }}
+          fail-on-cache-miss: true
+      - name: Install the disposable-VM and test toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get -o APT::Sandbox::User=root update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get -o APT::Sandbox::User=root install --no-install-recommends -y \
+            gcc-mingw-w64-i686-posix gcc-mingw-w64-x86-64-posix \
+            libx11-dev libxext-dev libxrender-dev libxi-dev libxcursor-dev \
+            libxrandr-dev libxinerama-dev libxcomposite-dev libxfixes-dev \
+            libfontconfig1-dev libfreetype-dev libgnutls30t64 libdbus-1-3 libudev1 \
+            libxkbcommon0 libxtst-dev xvfb openbox p7zip-full zstd busybox-static \
+            qemu-system-x86 seabios
+          mkdir -p evidence downloads test-bin/native guest-state vm-queue-live
+          tar -I zstd -xf wine-stage.tar.zst
+          mkdir -p wine-stage && mv opt wine-stage/
+          sha256sum wine-stage.tar.zst | tee evidence/wine-stage.sha256
+          wine-stage/opt/faststone-wine/bin/wine --version | tee evidence/wine-version.txt
+
+      - name: Fetch the native Microsoft comctl32 5.80 reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 5 --retry-all-errors --retry-delay 10 \
+            -o downloads/CC32inst.exe.part \
+            'https://downloads.sourceforge.net/project/pocmin/Win%2095_98%20Controls/Win%2095_98%20Controls/CC32inst.exe'
+          printf '%s  %s\n' d68c0cca721870aed39f5f2efd80dfb74f3db66d5f9a49e7578b18279edfa4a7 downloads/CC32inst.exe.part | sha256sum -c -
+          mv downloads/CC32inst.exe.part downloads/CC32inst.exe
+          mkdir -p downloads/cc1 downloads/cc2 downloads/cc3
+          7z l downloads/CC32inst.exe | tee evidence/cc32inst-list.txt | tail -n 15
+          7z x -y -odownloads/cc1 downloads/CC32inst.exe >/dev/null
+          find downloads/cc1 -type f | tee evidence/cc1-files.txt
+          inner=$(find downloads/cc1 -iname comctl32.exe | head -n 1)
+          test -n "$inner"
+          7z x -y -odownloads/cc2 "$inner" >/dev/null
+          find downloads/cc2 -type f | tee evidence/cc2-files.txt
+          upd=$(find downloads/cc2 -iname 50ComUpd.Exe | head -n 1)
+          test -n "$upd"
+          7z x -y -odownloads/cc3 "$upd" >/dev/null
+          find downloads/cc3 -type f | tee evidence/cc3-files.txt
+          dll=$(find downloads/cc3 -iname comcnt.dll | head -n 1)
+          test -n "$dll"
+          cp "$dll" test-bin/native/comctl32.dll
+          sha256sum test-bin/native/comctl32.dll | tee evidence/native-comctl32.sha256
+          printf '%s  %s\n' 5353fdd5f9cd0fa265b52a8fe9fc206b146ac21c659086db1968086965a9f567 test-bin/native/comctl32.dll | sha256sum -c -
+
+      - name: Compile the API probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pair in 'i686 32' 'x86_64 64'; do
+            set -- $pair
+            "$1-w64-mingw32-gcc" -O2 -Wall -Wextra -Werror \
+              patch-export/faststone/listview-regression.c -o "test-bin/listview-regression$2.exe" -lgdi32 -luser32
+            "$1-w64-mingw32-gcc" -O2 -Wall -Wextra -Werror \
+              patch-export/faststone/label-regression.c -o "test-bin/label-regression$2.exe" -lcomctl32 -lgdi32 -luser32
+          done
+          cp test-bin/label-regression32.exe test-bin/native/label-regression-cc580.exe
+
+      - name: Fetch and verify the fixed guest kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=downloads/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          modules=downloads/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb
+          base=https://snapshot.ubuntu.com/ubuntu/20260828T000000Z/pool/main/l
+          curl --fail --location --retry 3 --retry-all-errors -o "$image" "$base/linux-signed/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb"
+          curl --fail --location --retry 3 --retry-all-errors -o "$modules" "$base/linux/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb"
+          printf '%s  %s\n' \
+            7093879c9dad61fb24bb5a0247d8dd1ea444c4854492a9b3669175624cd04bda "$image" \
+            2b6108dba87947e4cb7d79759fd85dfe39d431466d745d1b6ec75b4bdabe866d "$modules" | sha256sum -c -
+          mkdir vm-kernel-verified
+          dpkg-deb -x "$image" vm-kernel-verified
+          dpkg-deb -x "$modules" vm-kernel-verified
+          kernel=vm-kernel-verified/boot/vmlinuz-6.8.0-138-generic
+          test "$(stat -c %s "$kernel")" = 15055240
+          printf '%s  %s\n' d74be574189057a036866309fd5546724a92390a4f6ba086e93ddab2f6e0e01d "$kernel" | sha256sum -c -
+
+      - name: Boot the guest, bootstrap a golden prefix, run ListView and label probes
+        shell: bash
+        env:
+          VM_MEM: '6144'
+        run: |
+          set -euo pipefail
+          runtime="$PWD/wine-stage/opt/faststone-wine"
+          sh patch-export/faststone/vm/prepare-prefix-host.sh "$runtime" "$PWD/guest-state/golden-prefix"
+          VM_WINE_ROOT="$runtime" python3 patch-export/faststone/vm/prepare.py
+          sh patch-export/faststone/vm/run.sh > evidence/guest-console.log 2>&1 &
+          vm_pid=$!
+          wait_for_request() {
+            local name="$1" timeout="$2" elapsed=0
+            while [ ! -f "vm-queue-live/${name}.done" ]; do
+              if [ -f "vm-queue-live/${name}.exit" ] && [ "$(cat "vm-queue-live/${name}.exit")" != 0 ]; then
+                tail -n 60 "vm-queue-live/${name}.response" >&2 || true
+                return 1
+              fi
+              if ! kill -0 "$vm_pid" 2>/dev/null; then
+                tail -n 300 evidence/guest-console.log >&2 || true
+                return 1
+              fi
+              if [ "$elapsed" -ge "$timeout" ]; then
+                echo "timed out waiting for ${name}" >&2
+                return 1
+              fi
+              sleep 2
+              elapsed=$((elapsed + 2))
+            done
+            test "$(cat "vm-queue-live/${name}.exit")" = 0
+          }
+          cat > vm-queue-live/01-bootstrap.request <<'EOF'
+          VM_WINE_ROOT=/work/wine-stage/opt/faststone-wine \
+          VM_GOLDEN_PREFIX=/work/guest-state/golden-prefix \
+          VM_WINEDEBUG=-all,err+all \
+          sh /work/patch-export/faststone/vm/bootstrap-prefix.sh
+          EOF
+          wait_for_request 01-bootstrap 1500
+          test -f guest-state/golden-prefix/.initialized
+          mkdir -p guest-state/lvpool
+          for m in builtin64 builtin32 native32; do
+            cp -a --reflink=auto guest-state/golden-prefix "guest-state/lvpool/$m"
+          done
+          cp -a --reflink=auto guest-state/golden-prefix guest-state/label-clone
+          cat > vm-queue-live/02-listview.request <<'EOF'
+          set -eu
+          chown -R "$(id -u):$(id -g)" /work/guest-state/lvpool
+          export WINE=/work/wine-stage/opt/faststone-wine/bin/wine
+          export WINE_SERVER=/work/wine-stage/opt/faststone-wine/bin/wineserver
+          export GOLDEN_PREFIX=/work/guest-state/golden-prefix
+          export PREFIX_POOL=/work/guest-state/lvpool
+          export RUN_ID=baseline1 MODE=all MAX_JOBS=2
+          export RESULTS_DIR=/work/evidence/listview-baseline1
+          sh /work/patch-export/faststone/listview-suite-guest.sh
+          EOF
+          cat > vm-queue-live/03-label.request <<'EOF'
+          set -eu
+          chown -R "$(id -u):$(id -g)" /work/guest-state/label-clone
+          export LABEL_WINE=/work/wine-stage/opt/faststone-wine/bin/wine
+          export LABEL_WINESERVER=/work/wine-stage/opt/faststone-wine/bin/wineserver
+          export LABEL_GOLDEN=/work/guest-state/golden-prefix
+          export LABEL_PRECLONED_PREFIX_SOURCE=/work/guest-state/label-clone
+          export LABEL_PREFIX=/work/guest-state/label-run1
+          export LABEL_OUTPUT=/work/evidence/label-baseline1
+          export LABEL_PROBE32=/work/test-bin/label-regression32.exe
+          export LABEL_PROBE64=/work/test-bin/label-regression64.exe
+          export LABEL_NATIVE_PROBE=/work/test-bin/native/label-regression-cc580.exe
+          export LABEL_DISPLAY=:11 LABEL_VIEW=icon LABEL_FONT=default
+          sh /work/patch-export/faststone/run-label-probes-guest.sh
+          EOF
+          set +e
+          wait_for_request 02-listview 3000
+          lv=$?
+          wait_for_request 03-label 3000
+          lb=$?
+          set -e
+          printf 'stop\n' > vm-queue-live/control
+          wait "$vm_pid" || true
+          echo "listview request status: $lv, label request status: $lb"
+          for f in evidence/listview-baseline1/*.status evidence/listview-baseline1/*.program-exit evidence/label-baseline1/*.exit; do
+            [ -f "$f" ] && echo "$f=$(cat "$f")"
+          done || true
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faststone-listview-baseline-${{ github.sha }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            evidence/**
+            vm-queue-live/**
