@@ -1,0 +1,12 @@
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -7120,6 +7120,9 @@
+         break;
+ 
+     case LVIR_LABEL:
++        /* An empty icon label has queryable bounds, but no painted label. */
++        if (infoPtr->uView == LV_VIEW_ICON && is_text(lvItem.pszText) && !*lvItem.pszText)
++            lvItem.pszText = (WCHAR *)L" ";
+ 	LISTVIEW_GetItemMetrics(infoPtr, &lvItem, NULL, NULL, NULL, NULL, lprc);
+         break;
+ 

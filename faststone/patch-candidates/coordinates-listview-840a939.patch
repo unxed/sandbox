@@ -1,0 +1,24 @@
+--- a/dlls/comctl32/listview.c
++++ b/dlls/comctl32/listview.c
+@@ -11548,7 +11548,20 @@
+     return infoPtr->nItemCount;
+ 
+   case LVM_GETITEMPOSITION:
+-    return LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, (LPPOINT)lParam);
++  {
++    POINT *position = (POINT *)lParam, origin;
++
++    if (!LISTVIEW_GetItemPosition(infoPtr, (INT)wParam, position)) return FALSE;
++    /* Public icon positions are in view coordinates. Internal selection and
++     * directional-navigation helpers continue to use client coordinates. */
++    if (infoPtr->uView == LV_VIEW_ICON || infoPtr->uView == LV_VIEW_SMALLICON)
++    {
++        LISTVIEW_GetOrigin(infoPtr, &origin);
++        position->x -= origin.x;
++        position->y -= origin.y;
++    }
++    return TRUE;
++  }
+ 
+   case LVM_GETITEMRECT:
+     return LISTVIEW_GetItemRect(infoPtr, (INT)wParam, (LPRECT)lParam);
