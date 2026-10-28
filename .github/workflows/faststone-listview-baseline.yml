@@ -39,7 +39,7 @@ jobs:
           - variant: base
             patch: ''
           - variant: coordinates
-            patch: faststone/patch-candidates/coordinates-candidate.patch
+            patch: faststone/patch-candidates/coordinates-listview-840a939.patch
     steps:
       - uses: actions/checkout@v4
         with:
