@@ -186,6 +186,7 @@ jobs:
           export LABEL_PROBE64=/work/test-bin/label-regression64.exe
           export LABEL_NATIVE_PROBE=/work/test-bin/native/label-regression-cc580.exe
           export LABEL_DISPLAY=:11 LABEL_VIEW=icon LABEL_FONT=default
+          export LABEL_WINEDEBUG=err+all,+loaddll,+module
           sh /work/patch-export/faststone/run-label-probes-guest.sh
           EOF
           set +e

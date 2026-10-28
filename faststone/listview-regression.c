@@ -69,7 +69,19 @@ static HWND make_list(HWND parent,DWORD style,unsigned columns,unsigned rows,con
                        0,0,380,220,parent,NULL,test_module,NULL);
     check(test,"create",lv!=NULL);
     if (!lv) return NULL;
-    class_module=(HMODULE)GetClassLongPtrA(lv,GCLP_HMODULE);
+    /* GCLP_HMODULE is not an identity oracle: Wine's builtin comctl32 registers its
+       classes with hInstance NULL (so the executable is reported). Identify the
+       implementation by the module that contains the class window procedure. */
+    {
+        WNDCLASSEXW wc;HMODULE impl=NULL,reported=(HMODULE)GetClassLongPtrA(lv,GCLP_HMODULE);
+        memset(&wc,0,sizeof(wc));wc.cbSize=sizeof(wc);
+        if (GetClassInfoExW(reported,L"SysListView32",&wc) && wc.lpfnWndProc)
+            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               (LPCWSTR)wc.lpfnWndProc,&impl);
+        printf("{\"type\":\"class-identity\",\"test\":\"%s\",\"hmodule_reported\":\"%p\",\"wndproc_module\":\"%p\",\"selected\":\"%p\"}\n",
+               test,(void *)reported,(void *)impl,(void *)test_module);
+        class_module=impl?impl:reported;
+    }
     check(test,"class-module-is-selected-module",class_module==test_module);
     GetModuleFileNameA(class_module,module_path,sizeof(module_path));
     fprintf(stderr,"ListView class module (%s): %s\n",test,module_path);
