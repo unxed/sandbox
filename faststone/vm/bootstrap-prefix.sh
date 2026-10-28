@@ -30,7 +30,15 @@ while ! timeout 420 "$wine_root/bin/wine" wineboot -i; do
   attempt=$((attempt+1))
   test "$attempt" -le 3 || { echo 'wineboot failed three times' >&2; exit 1; }
 done
-timeout 60 "$WINESERVER" -w
+# The 60 s wait for wineserver shutdown was the actual stall in failed CI runs
+# (busybox timeout returns 143 and set -e aborts): services linger under TCG.
+# Allow a long wait, then ask wineserver to shut down cleanly (registry is saved
+# on exit) and require it to be gone.
+if ! timeout 240 "$WINESERVER" -w; then
+  echo 'wineserver still running after 240 s; requesting clean shutdown' >&2
+  "$WINESERVER" -k || true
+  timeout 180 "$WINESERVER" -w
+fi
 test -f "$WINEPREFIX/system.reg"
 test -f "$WINEPREFIX/drive_c/windows/system32/kernel32.dll"
 touch "$WINEPREFIX/.initialized"
