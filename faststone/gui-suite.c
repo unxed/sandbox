@@ -559,7 +559,10 @@ static void plan(const char *path)
             /* Owner-drawn toolbar items track hover from several motion events before a press
                (the press after one jump was ignored and the panel closed, run 40687736869). */
             for(k=6;k>=0;k-=2){move(cx-k,cy-(k/2));Sleep(60);}
-            Sleep(400);click();Sleep(700);}
+            Sleep(400);
+            {char nm[64];sprintf(nm,"hover-%d-%d",cx,cy);snapshot(nm);}
+            click();Sleep(700);
+            {char nm[64];sprintf(nm,"after-click-%d-%d",cx,cy);snapshot(nm);}}
         else if(!strcmp(action,"expect")&&arg){HWND w=expect_dialog(arg,stack[depth]);
             if(w&&depth<23)stack[++depth]=w;else if(depth>=23)check("plan nesting bound",0,depth,23);}
         else if(!strcmp(action,"edit")&&arg)edit_marker(stack[depth],arg);
