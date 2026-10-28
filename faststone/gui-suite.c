@@ -301,6 +301,25 @@ static int setup_fullscreen(void)
     start=GetTickCount();while(GetTickCount()-start<deadline&&alive()){
         if(fullscreen()){fullscreen_window=main_window();return 1;}Sleep(100);}return 0;
 }
+/* Diagnostic: if XTEST motion did not reveal the panel, ask which window Wine
+   believes is under the pointer and whether message-driven logic reacts to
+   posted WM_MOUSEMOVE. Separates "Wine did not deliver motion to the window"
+   from "the application does not react to edge approach at all". */
+static void diagnose_edge(const char *side,const Frame *before,RECT zone)
+{
+    int sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN),x=sw/2,y=sh/2,k;
+    POINT pt;HWND under;char cls[128]="",title[128]="";DWORD upid=0;Frame d;long n;
+    if(!strcmp(side,"left")){x=0;}else if(!strcmp(side,"right")){x=sw-1;}else if(!strcmp(side,"top")){y=0;}else if(!strcmp(side,"bottom")){y=sh-1;}
+    pt.x=x;pt.y=y;under=WindowFromPoint(pt);
+    if(under){GetClassNameA(under,cls,sizeof(cls));GetWindowTextA(under,title,sizeof(title));GetWindowThreadProcessId(under,&upid);}
+    fprintf(logfile,"{\"event\":\"edge-diagnostic\",\"side\":\"%s\",\"under\":\"%p\",\"our_process\":%d,\"class\":",side,under,(int)(upid==pid));
+    quoted(logfile,cls);fprintf(logfile,",\"title\":");quoted(logfile,title);fprintf(logfile,"}\n");
+    if(!under)return;
+    for(k=0;k<6;k++){POINT c=pt;ScreenToClient(under,&c);if(k<5){c.x+=(x==0?5-k:0);c.y+=(y==0?5-k:0);}
+        PostMessageA(under,WM_MOUSEMOVE,0,MAKELPARAM(c.x,c.y));Sleep(80);}
+    Sleep(1500);d=capture();n=difference(before,&d,zone);
+    check("diagnostic: posted WM_MOUSEMOVE reveals panel",n>500,n,500);release(&d);
+}
 static void edges(void)
 {
     const char *names[]={"top","right","bottom","left"};int i,sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN);
@@ -312,6 +331,7 @@ static void edges(void)
         if(i==2)r.top=sh*2/3;
         if(i==3)r.right=sw/3;
         n=difference(&a,&b,r);check(names[i],n>500,n,500);snapshot(names[i]);
+        if(n<=500)diagnose_edge(names[i],&a,r);
         center();c=capture();n=difference(&b,&c,r);check("edge panel hides",n>500,n,500);
         check("edge retains fullscreen",fullscreen(),fullscreen(),1);release(&a);release(&b);release(&c);}
     move(sw-1,sh-1);Sleep(600);snapshot("bottom-right-corner");

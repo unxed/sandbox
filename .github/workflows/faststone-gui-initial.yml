@@ -10,6 +10,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'faststone/**'
       - '.github/workflows/faststone-gui-initial.yml'
 
 permissions:
