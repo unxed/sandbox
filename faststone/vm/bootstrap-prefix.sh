@@ -10,6 +10,11 @@ export DISPLAY=:0
 case "$WINEPREFIX" in /work/guest-state/*) ;; *) echo 'Prefix must be workspace backed' >&2; exit 2 ;; esac
 test ! -e "$WINEPREFIX/.initialized"
 mkdir -p "$WINEPREFIX"
+# Host seeding happens before the 9p mount, so stamp the guest's ownership
+# mapping before Wine checks its prefix.  mapped-xattr keeps this metadata
+# without requiring the GitHub runner user to own files as guest root.
+chown -R "$(id -u):$(id -g)" "$WINEPREFIX"
+test "$(stat -c %u "$WINEPREFIX")" = "$(id -u)"
 openbox --sm-disable >/work/evidence/guest-bootstrap-wm.log 2>&1 &
 wm_pid=$!
 trap 'kill "$wm_pid" 2>/dev/null || true' EXIT
