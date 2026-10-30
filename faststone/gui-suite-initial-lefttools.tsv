@@ -1,15 +1,17 @@
-# Initial actual-click smoke. Captions must exist in the observed UI; no
+# Panel entries are owner-drawn (no child HWND with a caption), so click-at uses coordinates
+# read from the 1280x800 screenshots of 5.6 and 8.5 in CI run 40685649078 (identical layout:
+# Crop Board at 53,320 and Draw Board at 54,340). Initial actual-click smoke. Captions must exist in the observed UI; no
 # keyboard substitution or unobserved coordinate guesses are permitted.
 edge	left
 capture	left-before-crop
-click-text	Crop Board
+click-at	53	320
 expect	Crop
 capture	crop-foreground
 close
 capture	fullscreen-after-crop
 edge	left
 capture	left-before-draw
-click-text	Draw Board
+click-at	54	340
 expect	Draw
 capture	draw-foreground-and-nested-controls
 close
