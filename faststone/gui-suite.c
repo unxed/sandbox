@@ -568,10 +568,10 @@ static void plan(const char *path)
             /* Run 40713928345: the panel was gone (white repaint for ~3 s) by the first frame after
                the approach jump. Glide from the current pointer position in small steps and sample
                the display before, during and after to see when the panel closes. */
-            /* Run 41783440836: without the old GDI capture between edge and click-at the panel was gone at
-               click time; with it (run 40718260593) Crop opened. The capture only delayed the glide, so let
-               the panel finish opening first (it animates slowly under TCG) and sample it before moving. */
-            Sleep(2500);
+            /* Run 41817710049: with the 2.5 s idle pause after the edge the panel was gone (white screen in
+               x11 frames 1-3, no panel from frame 4 on) and Crop did not open in 5.6 and 8.5. Only run 40718260593
+               opened Crop: GDI capture (left-before-crop) and then an immediate glide. Do not idle at the edge:
+               the panel hides itself when the pointer rests there. */
             GetCursorPos(&cur);
             sprintf(nm,"before-glide-%d-%d",cx,cy);x11_snapshot(nm);
             for(k=1;k<=16;k++){move(cur.x+(cx-cur.x)*k/16,cur.y+(cy-cur.y)*k/16);Sleep(80);
