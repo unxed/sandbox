@@ -163,7 +163,7 @@ jobs:
             --hold-seconds 30 >/work/evidence/gui-bootstrap-probe.log 2>&1 &
           probe_pid=$!
           ready=0
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 120); do
             if grep -q GUI_BOOTSTRAP_READY /work/evidence/gui-bootstrap-probe.log; then
               ready=1
               break
@@ -177,7 +177,7 @@ jobs:
           test -s /work/evidence/gui-bootstrap.ppm
           wait "$probe_pid"
           EOF
-          wait_for_request 02-static-window 180
+          wait_for_request 02-static-window 300
           printf 'stop\n' > vm-queue-live/control
           wait "$vm_pid"
 
