@@ -3,12 +3,14 @@
 # Crop Board at 53,320 and Draw Board at 54,340). Initial actual-click smoke. Captions must exist in the observed UI; no
 # keyboard substitution or unobserved coordinate guesses are permitted.
 edge	left
+capture	left-before-crop
 click-at	53	320
 expect	Crop
 capture	crop-foreground
 close
 capture	fullscreen-after-crop
 edge	left
+capture	left-before-draw
 click-at	54	340
 expect	Draw
 capture	draw-foreground-and-nested-controls
