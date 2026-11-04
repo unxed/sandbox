@@ -4,14 +4,14 @@
 # keyboard substitution or unobserved coordinate guesses are permitted.
 edge	left
 capture	left-before-crop
-click-at	53	320
+click-at	53	320	Crop
 expect	Crop
 capture	crop-foreground
 close
 capture	fullscreen-after-crop
 edge	left
 capture	left-before-draw
-click-at	54	340
+click-at	54	340	Draw
 expect	Draw
 capture	draw-foreground-and-nested-controls
 close

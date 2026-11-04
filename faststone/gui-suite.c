@@ -222,6 +222,10 @@ static void assert_front(HWND dialog,HWND parent)
     HWND fg,owner;GUITHREADINFO gi;DWORD thread,start=GetTickCount();int linked=0,got;
     if(!dialog){check("expected dialog exists",0,0,1);return;}
     while(IsWindowVisible(dialog)&&!within(GetForegroundWindow(),dialog)&&GetTickCount()-start<min(deadline/4,10000))Sleep(100);
+    {DWORD fstart=GetTickCount();
+        for(;;){GUITHREADINFO g;memset(&g,0,sizeof(g));g.cbSize=sizeof(g);
+            if(!IsWindowVisible(dialog)||(GetGUIThreadInfo(GetWindowThreadProcessId(dialog,NULL),&g)&&g.hwndFocus&&within(g.hwndFocus,dialog))||GetTickCount()-fstart>3000)break;
+            Sleep(100);}}
     fg=GetForegroundWindow();
     check("dialog visible",IsWindowVisible(dialog),IsWindowVisible(dialog),1);
     check("dialog is foreground input target",within(fg,dialog),within(fg,dialog),1);
@@ -550,9 +554,25 @@ static int edit_marker(HWND dialog,const char *marker)
     Sleep(200);GetWindowTextA(edit,text,sizeof(text));check("typing reaches expected nested edit",strstr(text,marker)!=NULL,strstr(text,marker)!=NULL,1);
     return strstr(text,marker)!=NULL;
 }
+/* Glide from the current pointer position to a panel entry in small steps, click, and (with a title) report
+   whether that window appeared. Frames are sampled before, during and after for the host to read. */
+static int glide_click(int cx,int cy,const char *title,HWND parent,int attempt)
+{
+    int k,q,found=0;POINT cur;char nm[80];
+    GetCursorPos(&cur);
+    sprintf(nm,"a%d-before-glide-%d-%d",attempt,cx,cy);x11_snapshot(nm);
+    for(k=1;k<=16;k++){move(cur.x+(cx-cur.x)*k/16,cur.y+(cy-cur.y)*k/16);Sleep(80);
+        if(k==4||k==8||k==12){sprintf(nm,"a%d-glide-%d-%d-s%d",attempt,cx,cy,k);x11_snapshot(nm);}}
+    Sleep(800);
+    for(q=0;q<3;q++){sprintf(nm,"a%d-hover-%d-%d-t%d",attempt,cx,cy,q);x11_snapshot(nm);Sleep(700);}
+    click();
+    for(q=0;q<8;q++){HWND w;Sleep(1500);sprintf(nm,"a%d-after-click-%d-%d-t%d",attempt,cx,cy,q);x11_snapshot(nm);
+        if(title){w=locate(title,0);if(w&&w!=parent){found=1;if(q>=1)break;}}}
+    return found;
+}
 static void plan(const char *path)
 {
-    FILE *f=fopen(path,"rb");char line[1024],*action,*arg,*arg2;HWND stack[24];int depth=0,line_no=0;
+    FILE *f=fopen(path,"rb");char line[1024],last_edge[16]="",*action,*arg,*arg2,*arg3;HWND stack[24];int depth=0,line_no=0;
     Frame remembered={0,0,NULL};RECT remembered_region={0,0,0,0};HWND remembered_window=NULL;char remembered_name[80]="";
     check("E2E plan opens",f!=NULL,f!=NULL,1);if(!f)return;
     /* FastStone replaces its window when entering fullscreen (TForm -> TFullScreenWindow, run 40718260593):
@@ -560,26 +580,19 @@ static void plan(const char *path)
     {HWND current=main_window();if(current)fullscreen_window=current;}stack[0]=fullscreen_window;
     while(fgets(line,sizeof(line),f)&&alive()){
         int prior=failures;line_no++;line[strcspn(line,"\r\n")]=0;if(!line[0]||line[0]=='#')continue;
-        action=strtok(line,"\t");arg=strtok(NULL,"\t");arg2=strtok(NULL,"\t");
+        action=strtok(line,"\t");arg=strtok(NULL,"\t");arg2=strtok(NULL,"\t");arg3=strtok(NULL,"\t");
         fprintf(logfile,"{\"event\":\"plan-step\",\"line\":%d,\"action\":",line_no);quoted(logfile,action);fprintf(logfile,"}\n");
-        if(!strcmp(action,"edge")&&arg){edge(arg);if(!depth)refresh_base(&stack[0]);}
+        if(!strcmp(action,"edge")&&arg){snprintf(last_edge,sizeof(last_edge),"%s",arg);edge(arg);if(!depth)refresh_base(&stack[0]);}
         else if(!strcmp(action,"click-text")&&arg)click_control(arg,depth?stack[depth]:NULL);
-        else if(!strcmp(action,"click-at")&&arg&&arg2){int cx=atoi(arg),cy=atoi(arg2),k;POINT cur;char nm[64];
-            /* Run 40713928345: the panel was gone (white repaint for ~3 s) by the first frame after
-               the approach jump. Glide from the current pointer position in small steps and sample
-               the display before, during and after to see when the panel closes. */
-            /* Run 41817710049: with the 2.5 s idle pause after the edge the panel was gone (white screen in
-               x11 frames 1-3, no panel from frame 4 on) and Crop did not open in 5.6 and 8.5. Only run 40718260593
-               opened Crop: GDI capture (left-before-crop) and then an immediate glide. Do not idle at the edge:
-               the panel hides itself when the pointer rests there. */
-            GetCursorPos(&cur);
-            sprintf(nm,"before-glide-%d-%d",cx,cy);x11_snapshot(nm);
-            for(k=1;k<=16;k++){move(cur.x+(cx-cur.x)*k/16,cur.y+(cy-cur.y)*k/16);Sleep(80);
-                if(k==4||k==8||k==12){sprintf(nm,"glide-%d-%d-s%d",cx,cy,k);x11_snapshot(nm);}}
-            Sleep(800);
-            {int q;for(q=0;q<3;q++){sprintf(nm,"hover-%d-%d-t%d",cx,cy,q);x11_snapshot(nm);Sleep(700);}}
-            click();
-            {int q;for(q=0;q<8;q++){Sleep(1500);sprintf(nm,"after-click-%d-%d-t%d",cx,cy,q);x11_snapshot(nm);}}}
+        else if(!strcmp(action,"click-at")&&arg&&arg2){int cx=atoi(arg),cy=atoi(arg2),attempt;
+            /* Run 41821773843: after dropping the idle pause Crop opened in 8.5 but not in 5.6 (panel gone, white
+               frames, no panel from frame 5). The panel is not stable under the emulator, so with the optional
+               fourth column (expected window title) re-approach the edge and retry up to three times. */
+            for(attempt=1;attempt<=3;attempt++){
+                if(glide_click(cx,cy,arg3,stack[depth],attempt)||!arg3)break;
+                fprintf(logfile,"{\"event\":\"click-at-retry\",\"attempt\":%d,\"x\":%d,\"y\":%d}\n",attempt,cx,cy);
+                if(attempt<3&&last_edge[0]){edge(last_edge);if(!depth)refresh_base(&stack[0]);}
+            }}
         else if(!strcmp(action,"expect")&&arg){HWND w=expect_dialog(arg,stack[depth]);
             if(w&&depth<23)stack[++depth]=w;else if(depth>=23)check("plan nesting bound",0,depth,23);}
         else if(!strcmp(action,"edit")&&arg)edit_marker(stack[depth],arg);
