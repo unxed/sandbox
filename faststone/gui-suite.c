@@ -216,6 +216,7 @@ static int above(HWND front,HWND back)
         if(w==front)return 1;
         if(w==back)return 0;}return 0;
 }
+static void refresh_base(HWND *base){HWND c=main_window();if(c){*base=c;fullscreen_window=c;}}
 static void assert_front(HWND dialog,HWND parent)
 {
     HWND fg,owner;GUITHREADINFO gi;DWORD thread,start=GetTickCount();int linked=0,got;
@@ -561,7 +562,7 @@ static void plan(const char *path)
         int prior=failures;line_no++;line[strcspn(line,"\r\n")]=0;if(!line[0]||line[0]=='#')continue;
         action=strtok(line,"\t");arg=strtok(NULL,"\t");arg2=strtok(NULL,"\t");
         fprintf(logfile,"{\"event\":\"plan-step\",\"line\":%d,\"action\":",line_no);quoted(logfile,action);fprintf(logfile,"}\n");
-        if(!strcmp(action,"edge")&&arg)edge(arg);
+        if(!strcmp(action,"edge")&&arg){edge(arg);if(!depth)refresh_base(&stack[0]);}
         else if(!strcmp(action,"click-text")&&arg)click_control(arg,depth?stack[depth]:NULL);
         else if(!strcmp(action,"click-at")&&arg&&arg2){int cx=atoi(arg),cy=atoi(arg2),k;POINT cur;char nm[64];
             /* Run 40713928345: the panel was gone (white repaint for ~3 s) by the first frame after
@@ -580,12 +581,12 @@ static void plan(const char *path)
         else if(!strcmp(action,"edit")&&arg)edit_marker(stack[depth],arg);
         else if(!strcmp(action,"active"))assert_front(stack[depth],depth?stack[depth-1]:NULL);
         else if(!strcmp(action,"close")){if(depth){HWND old=stack[depth--];key(VK_ESCAPE);Sleep(700);
-                check("nested dialog closed or hidden",!IsWindowVisible(old),IsWindowVisible(old),0);assert_front(stack[depth],depth?stack[depth-1]:NULL);}
+                check("nested dialog closed or hidden",!IsWindowVisible(old),IsWindowVisible(old),0);if(!depth)refresh_base(&stack[0]);assert_front(stack[depth],depth?stack[depth-1]:NULL);}
             else check("close has expected parent",0,depth,1);}
         else if(!strcmp(action,"return")){if(depth){HWND old=stack[depth];DWORD begin=GetTickCount();
                 while(IsWindowVisible(old)&&GetTickCount()-begin<deadline/2)Sleep(100);
                 check("clicked action closed nested dialog",!IsWindowVisible(old),IsWindowVisible(old),0);
-                if(!IsWindowVisible(old)){depth--;assert_front(stack[depth],depth?stack[depth-1]:NULL);}}
+                if(!IsWindowVisible(old)){depth--;if(!depth)refresh_base(&stack[0]);assert_front(stack[depth],depth?stack[depth-1]:NULL);}}
             else check("return has expected parent",0,depth,1);}
         else if(!strcmp(action,"remember")&&arg){release(&remembered);remembered=capture();remembered_window=stack[depth];
             GetWindowRect(remembered_window,&remembered_region);InflateRect(&remembered_region,-40,-40);
