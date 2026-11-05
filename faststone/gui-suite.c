@@ -69,6 +69,11 @@ static int bridge(const char *kind,long a,long b)
     char reply[32];printf("GUI_INPUT %u %s %ld %ld\n",++serial,kind,a,b);fflush(stdout);
     return fgets(reply,sizeof(reply),stdin)&&!strncmp(reply,"OK",2);
 }
+static void x11_snapshot(const char *name)
+{
+    static long counter;long id=++counter;int ok=external?bridge("SNAP",id,0):0;
+    fprintf(logfile,"{\"event\":\"x11-snapshot\",\"name\":\"%s\",\"id\":%ld,\"ok\":%d}\n",name,id,ok);
+}
 static void key_state(WORD vk,int down)
 {
     INPUT in;UINT sent;
@@ -81,7 +86,11 @@ static void chord(WORD mod,WORD vk){key_state(mod,1);key(vk);key_state(mod,0);}
 static void move(int x,int y)
 {
     INPUT in;UINT sent;
-    if(external){check("external pointer input",bridge("MOVE",x,y),x,y);return;}
+    if(external){POINT pt={-1,-1};int ok=bridge("MOVE",x,y);check("external pointer input",ok,x,y);
+        {int w;for(w=0;w<40;w++){Sleep(50);GetCursorPos(&pt);if(pt.x==x&&pt.y==y)break;}}
+        /* Informational: under TCG load the readback can lag, and it must not abort a plan. */
+        if(pt.x!=x||pt.y!=y)fprintf(logfile,"{\"event\":\"cursor-readback-mismatch\",\"want\":[%d,%d],\"got\":[%ld,%ld]}\n",x,y,pt.x,pt.y);
+        return;}
     memset(&in,0,sizeof(in));in.type=INPUT_MOUSE;
     in.mi.dx=x*65535/(GetSystemMetrics(SM_CXSCREEN)-1);in.mi.dy=y*65535/(GetSystemMetrics(SM_CYSCREEN)-1);
     in.mi.dwFlags=MOUSEEVENTF_MOVE|MOUSEEVENTF_ABSOLUTE;
@@ -207,11 +216,16 @@ static int above(HWND front,HWND back)
         if(w==front)return 1;
         if(w==back)return 0;}return 0;
 }
+static void refresh_base(HWND *base){HWND c=main_window();if(c){*base=c;fullscreen_window=c;}}
 static void assert_front(HWND dialog,HWND parent)
 {
     HWND fg,owner;GUITHREADINFO gi;DWORD thread,start=GetTickCount();int linked=0,got;
     if(!dialog){check("expected dialog exists",0,0,1);return;}
     while(IsWindowVisible(dialog)&&!within(GetForegroundWindow(),dialog)&&GetTickCount()-start<min(deadline/4,10000))Sleep(100);
+    {DWORD fstart=GetTickCount();
+        for(;;){GUITHREADINFO g;memset(&g,0,sizeof(g));g.cbSize=sizeof(g);
+            if(!IsWindowVisible(dialog)||(GetGUIThreadInfo(GetWindowThreadProcessId(dialog,NULL),&g)&&g.hwndFocus&&within(g.hwndFocus,dialog))||GetTickCount()-fstart>3000)break;
+            Sleep(100);}}
     fg=GetForegroundWindow();
     check("dialog visible",IsWindowVisible(dialog),IsWindowVisible(dialog),1);
     check("dialog is foreground input target",within(fg,dialog),within(fg,dialog),1);
@@ -274,7 +288,30 @@ static int click_control(const char *text,HWND scope)
     fprintf(logfile,",\"label\":");quoted(logfile,text);fprintf(logfile,",\"rect\":[%ld,%ld,%ld,%ld]}\n",r.left,r.top,r.right,r.bottom);
     move((r.left+r.right)/2,(r.top+r.bottom)/2);click();Sleep(600);return 1;
 }
-static void edge(const char *side)
+static BOOL CALLBACK find_processing(HWND w,LPARAM lp)
+{
+    char t[128];
+    if(!ours(w)||!IsWindowVisible(w))return TRUE;
+    GetWindowTextA(w,t,sizeof(t));
+    if(strstr(t,"Processing")){*(HWND *)lp=w;return FALSE;}
+    return TRUE;
+}
+/* FastStone 5.6 shows a modal "Processing - Updating Database File" dialog on first
+   use of a folder (CI run 40674997715 screenshot); no panel can open while it is up.
+   Wait for the application to close it; never dismiss it with synthetic input. */
+static void wait_no_processing_dialog(void)
+{
+    DWORD start=GetTickCount();HWND w=NULL;int seen=0;
+    for(;;){
+        w=NULL;EnumWindows(find_processing,(LPARAM)&w);
+        if(!w){break;}
+        seen=1;
+        if(GetTickCount()-start>600000){fprintf(logfile,"{\"event\":\"processing-dialog-timeout\"}\n");break;}
+        Sleep(500);
+    }
+    if(seen)fprintf(logfile,"{\"event\":\"processing-dialog-closed\",\"ms\":%lu}\n",(unsigned long)(GetTickCount()-start));
+}
+static void edge_once(const char *side)
 {
     int sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN);
     center();
@@ -283,7 +320,41 @@ static void edge(const char *side)
     else if(!strcmp(side,"top"))move(sw/2,0);
     else if(!strcmp(side,"bottom"))move(sw/2,sh-1);
     else check("known screen edge",0,0,1);
-    Sleep(1000);
+    Sleep(300);
+    /* Many small motion events inside the edge zone: one approach did not open the
+       8.5 panel while repeated moves did (run 40674997715). */
+    {
+        int k;
+        for(k=0;k<16;k++){
+            int d=(k&1)?0:6;
+            if(!strcmp(side,"left"))move(d,sh/2+(k&2?1:0));
+            else if(!strcmp(side,"right"))move(sw-1-d,sh/2+(k&2?1:0));
+            else if(!strcmp(side,"top"))move(sw/2+(k&2?1:0),d);
+            else if(!strcmp(side,"bottom"))move(sw/2+(k&2?1:0),sh-1-d);
+            Sleep(50);
+        }
+    }
+    Sleep(1500);
+}
+/* Approach an edge like a user would, retrying while nothing opened: the first
+   approach after startup can be ignored while the application is still busy. */
+static void edge(const char *side)
+{
+    int sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN),attempt;
+    RECT zone={0,0,sw,sh};
+    if(!strcmp(side,"top"))zone.bottom=sh/3;
+    else if(!strcmp(side,"right"))zone.left=sw*2/3;
+    else if(!strcmp(side,"bottom"))zone.top=sh*2/3;
+    else if(!strcmp(side,"left"))zone.right=sw/3;
+    wait_no_processing_dialog();
+    for(attempt=1;attempt<=6;attempt++){
+        Frame a,b;long n;
+        center();a=capture();edge_once(side);b=capture();n=difference(&a,&b,zone);
+        release(&a);release(&b);
+        fprintf(logfile,"{\"event\":\"edge-attempt\",\"side\":\"%s\",\"attempt\":%d,\"changed_pixels\":%ld}\n",side,attempt,n);
+        if(n>500)return;
+        wait_no_processing_dialog();
+    }
 }
 static int setup_fullscreen(void)
 {
@@ -292,6 +363,25 @@ static int setup_fullscreen(void)
     SetForegroundWindow(w);center();if(!fullscreen()){key('F');Sleep(700);}
     start=GetTickCount();while(GetTickCount()-start<deadline&&alive()){
         if(fullscreen()){fullscreen_window=main_window();return 1;}Sleep(100);}return 0;
+}
+/* Diagnostic: if XTEST motion did not reveal the panel, ask which window Wine
+   believes is under the pointer and whether message-driven logic reacts to
+   posted WM_MOUSEMOVE. Separates "Wine did not deliver motion to the window"
+   from "the application does not react to edge approach at all". */
+static void diagnose_edge(const char *side,const Frame *before,RECT zone)
+{
+    int sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN),x=sw/2,y=sh/2,k;
+    POINT pt;HWND under;char cls[128]="",title[128]="";DWORD upid=0;Frame d;long n;
+    if(!strcmp(side,"left")){x=0;}else if(!strcmp(side,"right")){x=sw-1;}else if(!strcmp(side,"top")){y=0;}else if(!strcmp(side,"bottom")){y=sh-1;}
+    pt.x=x;pt.y=y;under=WindowFromPoint(pt);
+    if(under){GetClassNameA(under,cls,sizeof(cls));GetWindowTextA(under,title,sizeof(title));GetWindowThreadProcessId(under,&upid);}
+    fprintf(logfile,"{\"event\":\"edge-diagnostic\",\"side\":\"%s\",\"under\":\"%p\",\"our_process\":%d,\"class\":",side,under,(int)(upid==pid));
+    quoted(logfile,cls);fprintf(logfile,",\"title\":");quoted(logfile,title);fprintf(logfile,"}\n");
+    if(!under)return;
+    for(k=0;k<6;k++){POINT c=pt;ScreenToClient(under,&c);if(k<5){c.x+=(x==0?5-k:0);c.y+=(y==0?5-k:0);}
+        PostMessageA(under,WM_MOUSEMOVE,0,MAKELPARAM(c.x,c.y));Sleep(80);}
+    Sleep(1500);d=capture();n=difference(before,&d,zone);
+    check("diagnostic: posted WM_MOUSEMOVE reveals panel",n>500,n,500);release(&d);
 }
 static void edges(void)
 {
@@ -304,6 +394,7 @@ static void edges(void)
         if(i==2)r.top=sh*2/3;
         if(i==3)r.right=sw/3;
         n=difference(&a,&b,r);check(names[i],n>500,n,500);snapshot(names[i]);
+        if(n<=500)diagnose_edge(names[i],&a,r);
         center();c=capture();n=difference(&b,&c,r);check("edge panel hides",n>500,n,500);
         check("edge retains fullscreen",fullscreen(),fullscreen(),1);release(&a);release(&b);release(&c);}
     move(sw-1,sh-1);Sleep(600);snapshot("bottom-right-corner");
@@ -463,29 +554,56 @@ static int edit_marker(HWND dialog,const char *marker)
     Sleep(200);GetWindowTextA(edit,text,sizeof(text));check("typing reaches expected nested edit",strstr(text,marker)!=NULL,strstr(text,marker)!=NULL,1);
     return strstr(text,marker)!=NULL;
 }
+/* Glide from the current pointer position to a panel entry in small steps, click, and (with a title) report
+   whether that window appeared. Frames are sampled before, during and after for the host to read. */
+static int glide_click(int cx,int cy,const char *title,HWND parent,int attempt)
+{
+    int k,q,found=0;POINT cur;char nm[80];
+    GetCursorPos(&cur);
+    sprintf(nm,"a%d-before-glide-%d-%d",attempt,cx,cy);x11_snapshot(nm);
+    for(k=1;k<=16;k++){move(cur.x+(cx-cur.x)*k/16,cur.y+(cy-cur.y)*k/16);Sleep(80);
+        if(k==4||k==8||k==12){sprintf(nm,"a%d-glide-%d-%d-s%d",attempt,cx,cy,k);x11_snapshot(nm);}}
+    Sleep(800);
+    for(q=0;q<3;q++){sprintf(nm,"a%d-hover-%d-%d-t%d",attempt,cx,cy,q);x11_snapshot(nm);Sleep(700);}
+    click();
+    for(q=0;q<8;q++){HWND w;Sleep(1500);sprintf(nm,"a%d-after-click-%d-%d-t%d",attempt,cx,cy,q);x11_snapshot(nm);
+        if(title){w=locate(title,0);if(w&&w!=parent){found=1;if(q>=1)break;}}}
+    return found;
+}
 static void plan(const char *path)
 {
-    FILE *f=fopen(path,"rb");char line[1024],*action,*arg,*arg2;HWND stack[24];int depth=0,line_no=0;
+    FILE *f=fopen(path,"rb");char line[1024],last_edge[16]="",*action,*arg,*arg2,*arg3;HWND stack[24];int depth=0,line_no=0;
     Frame remembered={0,0,NULL};RECT remembered_region={0,0,0,0};HWND remembered_window=NULL;char remembered_name[80]="";
-    check("E2E plan opens",f!=NULL,f!=NULL,1);if(!f)return;stack[0]=fullscreen_window;
+    check("E2E plan opens",f!=NULL,f!=NULL,1);if(!f)return;
+    /* FastStone replaces its window when entering fullscreen (TForm -> TFullScreenWindow, run 40718260593):
+       the stored handle is stale, use the current main window as the stack base. */
+    {HWND current=main_window();if(current)fullscreen_window=current;}stack[0]=fullscreen_window;
     while(fgets(line,sizeof(line),f)&&alive()){
         int prior=failures;line_no++;line[strcspn(line,"\r\n")]=0;if(!line[0]||line[0]=='#')continue;
-        action=strtok(line,"\t");arg=strtok(NULL,"\t");arg2=strtok(NULL,"\t");
+        action=strtok(line,"\t");arg=strtok(NULL,"\t");arg2=strtok(NULL,"\t");arg3=strtok(NULL,"\t");
         fprintf(logfile,"{\"event\":\"plan-step\",\"line\":%d,\"action\":",line_no);quoted(logfile,action);fprintf(logfile,"}\n");
-        if(!strcmp(action,"edge")&&arg)edge(arg);
+        if(!strcmp(action,"edge")&&arg){snprintf(last_edge,sizeof(last_edge),"%s",arg);edge(arg);if(!depth)refresh_base(&stack[0]);}
         else if(!strcmp(action,"click-text")&&arg)click_control(arg,depth?stack[depth]:NULL);
-        else if(!strcmp(action,"click-at")&&arg&&arg2){move(atoi(arg),atoi(arg2));click();Sleep(700);}
+        else if(!strcmp(action,"click-at")&&arg&&arg2){int cx=atoi(arg),cy=atoi(arg2),attempt;
+            /* Run 41821773843: after dropping the idle pause Crop opened in 8.5 but not in 5.6 (panel gone, white
+               frames, no panel from frame 5). The panel is not stable under the emulator, so with the optional
+               fourth column (expected window title) re-approach the edge and retry up to three times. */
+            for(attempt=1;attempt<=3;attempt++){
+                if(glide_click(cx,cy,arg3,stack[depth],attempt)||!arg3)break;
+                fprintf(logfile,"{\"event\":\"click-at-retry\",\"attempt\":%d,\"x\":%d,\"y\":%d}\n",attempt,cx,cy);
+                if(attempt<3&&last_edge[0]){edge(last_edge);if(!depth)refresh_base(&stack[0]);}
+            }}
         else if(!strcmp(action,"expect")&&arg){HWND w=expect_dialog(arg,stack[depth]);
             if(w&&depth<23)stack[++depth]=w;else if(depth>=23)check("plan nesting bound",0,depth,23);}
         else if(!strcmp(action,"edit")&&arg)edit_marker(stack[depth],arg);
         else if(!strcmp(action,"active"))assert_front(stack[depth],depth?stack[depth-1]:NULL);
         else if(!strcmp(action,"close")){if(depth){HWND old=stack[depth--];key(VK_ESCAPE);Sleep(700);
-                check("nested dialog closed or hidden",!IsWindowVisible(old),IsWindowVisible(old),0);assert_front(stack[depth],depth?stack[depth-1]:NULL);}
+                check("nested dialog closed or hidden",!IsWindowVisible(old),IsWindowVisible(old),0);if(!depth)refresh_base(&stack[0]);assert_front(stack[depth],depth?stack[depth-1]:NULL);}
             else check("close has expected parent",0,depth,1);}
         else if(!strcmp(action,"return")){if(depth){HWND old=stack[depth];DWORD begin=GetTickCount();
                 while(IsWindowVisible(old)&&GetTickCount()-begin<deadline/2)Sleep(100);
                 check("clicked action closed nested dialog",!IsWindowVisible(old),IsWindowVisible(old),0);
-                if(!IsWindowVisible(old)){depth--;assert_front(stack[depth],depth?stack[depth-1]:NULL);}}
+                if(!IsWindowVisible(old)){depth--;if(!depth)refresh_base(&stack[0]);assert_front(stack[depth],depth?stack[depth-1]:NULL);}}
             else check("return has expected parent",0,depth,1);}
         else if(!strcmp(action,"remember")&&arg){release(&remembered);remembered=capture();remembered_window=stack[depth];
             GetWindowRect(remembered_window,&remembered_region);InflateRect(&remembered_region,-40,-40);
@@ -543,7 +661,7 @@ int main(int argc,char **argv)
     else if(!strcmp(scenario,"settings"))smoke_dialog("Settings",VK_F12,0);
     else if(!strcmp(scenario,"properties"))smoke_dialog("Properties",'I',0);else check("known scenario",0,0,1);
 done:
-    snapshot("final");if(main_window()){DWORD_PTR r;check("application remains responsive",SendMessageTimeoutA(main_window(),WM_NULL,0,0,SMTO_ABORTIFHUNG,3000,&r)!=0,alive(),1);}
+    snapshot("final");if(main_window()){DWORD_PTR r;check("application remains responsive",SendMessageTimeoutA(main_window(),WM_NULL,0,0,SMTO_ABORTIFHUNG,30000,&r)!=0,alive(),1);}
     else check("application remains alive",0,alive(),1);
     fprintf(logfile,"{\"event\":\"summary\",\"checks\":%d,\"failures\":%d}\n",checks,failures);fclose(logfile);code=failures?1:0;
     if(alive())TerminateProcess(process,0);

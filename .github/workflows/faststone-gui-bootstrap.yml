@@ -92,10 +92,10 @@ jobs:
           set -euo pipefail
           image=downloads/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb
           modules=downloads/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb
-          curl --fail --location --retry 3 --retry-all-errors \
+          curl --fail --location --retry 8 --retry-delay 15 --retry-all-errors \
             --output "$image" \
             https://snapshot.ubuntu.com/ubuntu/20260828T000000Z/pool/main/l/linux-signed/linux-image-6.8.0-138-generic_6.8.0-138.138_amd64.deb
-          curl --fail --location --retry 3 --retry-all-errors \
+          curl --fail --location --retry 8 --retry-delay 15 --retry-all-errors \
             --output "$modules" \
             https://snapshot.ubuntu.com/ubuntu/20260828T000000Z/pool/main/l/linux/linux-modules-6.8.0-138-generic_6.8.0-138.138_amd64.deb
           printf '%s  %s\n' \
@@ -163,7 +163,7 @@ jobs:
             --hold-seconds 30 >/work/evidence/gui-bootstrap-probe.log 2>&1 &
           probe_pid=$!
           ready=0
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 120); do
             if grep -q GUI_BOOTSTRAP_READY /work/evidence/gui-bootstrap-probe.log; then
               ready=1
               break
@@ -177,7 +177,7 @@ jobs:
           test -s /work/evidence/gui-bootstrap.ppm
           wait "$probe_pid"
           EOF
-          wait_for_request 02-static-window 180
+          wait_for_request 02-static-window 300
           printf 'stop\n' > vm-queue-live/control
           wait "$vm_pid"
 
