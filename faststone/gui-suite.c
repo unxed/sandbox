@@ -243,7 +243,10 @@ static void assert_front(HWND dialog,HWND parent)
 static HWND expect_dialog(const char *name,HWND parent)
 {
     DWORD start=GetTickCount();HWND w=NULL;
-    while(GetTickCount()-start<deadline/2&&alive()){
+    /* Run 41883527628: 8.5 Draw became visible after the half-deadline lookup
+       expired; the immediately following window-tree snapshot found it. Allow
+       the asynchronous dialog the full per-driver timeout before failing. */
+    while(GetTickCount()-start<deadline&&alive()){
         w=locate(name,0);if(w&&w!=parent)break;Sleep(100);}
     if(w==parent)w=NULL;
     check(name,w!=NULL,w!=NULL,1);if(w)assert_front(w,parent);snapshot(name);return w;
