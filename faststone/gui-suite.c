@@ -367,6 +367,17 @@ static int setup_fullscreen(void)
     start=GetTickCount();while(GetTickCount()-start<deadline&&alive()){
         if(fullscreen()){fullscreen_window=main_window();return 1;}Sleep(100);}return 0;
 }
+static void edge_hide_diagnostic(const char *side,const Frame *f)
+{
+    POINT pt;HWND w;char cls[128]="",title[512]="";RECT r={0,0,0,0};
+    GetCursorPos(&pt);w=WindowFromPoint(pt);
+    if(w){GetClassNameA(w,cls,sizeof(cls));GetWindowTextA(w,title,sizeof(title));GetWindowRect(w,&r);}
+    fprintf(logfile,"{\"event\":\"edge-hide-diagnostic\",\"side\":");quoted(logfile,side);
+    fprintf(logfile,",\"cursor\":[%ld,%ld],\"under\":\"%p\",\"class\":",pt.x,pt.y,w);
+    quoted(logfile,cls);fprintf(logfile,",\"title\":");quoted(logfile,title);
+    fprintf(logfile,",\"rect\":[%ld,%ld,%ld,%ld]}\n",r.left,r.top,r.right,r.bottom);
+    EnumWindows(dump,0);fflush(logfile);save("edge-hide-top",f);
+}
 /* Diagnostic: if XTEST motion did not reveal the panel, ask which window Wine
    believes is under the pointer and whether message-driven logic reacts to
    posted WM_MOUSEMOVE. Separates "Wine did not deliver motion to the window"
@@ -398,7 +409,7 @@ static void edges(void)
         if(i==3)r.right=sw/3;
         n=difference(&a,&b,r);check(names[i],n>500,n,500);snapshot(names[i]);
         if(n<=500)diagnose_edge(names[i],&a,r);
-        center();c=capture();n=difference(&b,&c,r);check("edge panel hides",n>500,n,500);
+        center();c=capture();n=difference(&b,&c,r);if(i==0)edge_hide_diagnostic(names[i],&c);check("edge panel hides",n>500,n,500);
         check("edge retains fullscreen",fullscreen(),fullscreen(),1);release(&a);release(&b);release(&c);}
     move(sw-1,sh-1);Sleep(600);snapshot("bottom-right-corner");
     skip("Windows Taskbar corner","No desktop shell runs on isolated Xvfb.");center();
