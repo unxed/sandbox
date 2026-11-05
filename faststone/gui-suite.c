@@ -397,6 +397,20 @@ static void diagnose_edge(const char *side,const Frame *before,RECT zone)
     Sleep(1500);d=capture();n=difference(before,&d,zone);
     check("diagnostic: posted WM_MOUSEMOVE reveals panel",n>500,n,500);release(&d);
 }
+/* Diagnostic: the top panel did not hide 700 ms after the pointer returned to
+   the centre. Sample the hide region over several seconds to tell "hides later
+   than the oracle waits" from "never hides". */
+static void edge_hide_series(const char *side,const Frame *revealed,RECT r)
+{
+    int k;
+    for(k=1;k<=8;k++){
+        Frame s;long n;Sleep(500);s=capture();n=difference(revealed,&s,r);
+        fprintf(logfile,"{\"event\":\"edge-hide-series\",\"side\":\"%s\",\"after_ms\":%d,\"changed_pixels\":%ld}\n",side,700+k*500,n);
+        if(k==8)save("edge-hide-late",&s);
+        release(&s);
+    }
+    fflush(logfile);
+}
 static void edges(void)
 {
     const char *names[]={"top","right","bottom","left"};int i,sw=GetSystemMetrics(SM_CXSCREEN),sh=GetSystemMetrics(SM_CYSCREEN);
@@ -409,7 +423,7 @@ static void edges(void)
         if(i==3)r.right=sw/3;
         n=difference(&a,&b,r);check(names[i],n>500,n,500);snapshot(names[i]);
         if(n<=500)diagnose_edge(names[i],&a,r);
-        center();c=capture();n=difference(&b,&c,r);if(i==0)edge_hide_diagnostic(names[i],&c);check("edge panel hides",n>500,n,500);
+        center();c=capture();n=difference(&b,&c,r);if(i==0){edge_hide_diagnostic(names[i],&c);edge_hide_series(names[i],&b,r);}check("edge panel hides",n>500,n,500);
         check("edge retains fullscreen",fullscreen(),fullscreen(),1);release(&a);release(&b);release(&c);}
     move(sw-1,sh-1);Sleep(600);snapshot("bottom-right-corner");
     skip("Windows Taskbar corner","No desktop shell runs on isolated Xvfb.");center();
