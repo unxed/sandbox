@@ -398,15 +398,15 @@ static void diagnose_edge(const char *side,const Frame *before,RECT zone)
     check("diagnostic: posted WM_MOUSEMOVE reveals panel",n>500,n,500);release(&d);
 }
 /* Diagnostic: the top panel did not hide 700 ms after the pointer returned to
-   the centre. Sample the hide region over several seconds to tell "hides later
-   than the oracle waits" from "never hides". */
+   the centre. Sample through 10.7 s: the previous series found it still visible
+   at 4.7 s in 8.5, while 5.6 hid between 3.7 and 4.2 s. */
 static void edge_hide_series(const char *side,const Frame *revealed,RECT r)
 {
     int k;
-    for(k=1;k<=8;k++){
+    for(k=1;k<=20;k++){
         Frame s;long n;Sleep(500);s=capture();n=difference(revealed,&s,r);
         fprintf(logfile,"{\"event\":\"edge-hide-series\",\"side\":\"%s\",\"after_ms\":%d,\"changed_pixels\":%ld}\n",side,700+k*500,n);
-        if(k==8)save("edge-hide-late",&s);
+        if(k==20)save("edge-hide-late",&s);
         release(&s);
     }
     fflush(logfile);
