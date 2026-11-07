@@ -447,22 +447,36 @@ static void log_item_geometry(HWND w,const char *phase,int count)
     }
     fputs("}\n",logfile);
 }
+static void log_scroll_state(HWND w,const char *phase)
+{
+    SCROLLINFO si;HWND parent=GetParent(w);char cls[128]="";LONG_PTR style=GetWindowLongPtr(w,GWL_STYLE);
+    memset(&si,0,sizeof(si));si.cbSize=sizeof(si);si.fMask=SIF_ALL;
+    if(parent)GetClassNameA(parent,cls,sizeof(cls));
+    fprintf(logfile,"scroll-state phase=%s hwnd=%p style=%08llx exstyle=%08llx parent=%p parent-class=%s ",
+        phase,(void *)w,(unsigned long long)style,(unsigned long long)GetWindowLongPtr(w,GWL_EXSTYLE),(void *)parent,cls);
+    if(GetScrollInfo(w,SB_HORZ,&si))
+        fprintf(logfile,"info=1 min=%d max=%d page=%u pos=%d track=%d\n",si.nMin,si.nMax,si.nPage,si.nPos,si.nTrackPos);
+    else fprintf(logfile,"info=0 error=%lu\n",GetLastError());
+}
 static void top(void)
 {
     HWND lv;RECT r,client;POINT origin={0,0};Frame a,b;long before,after;int i,target=-1,visible=0;LRESULT count;
     edge("top");lv=visible_strip();check("thumbnail strip exists",lv!=NULL,lv!=NULL,1);snapshot("top-open");if(!lv)return;
     count=msg(lv,LVM_GETITEMCOUNT,0,0);check("164 thumbnails",count>=164,(long)count,164);
     log_item_geometry(lv,"before-input",(int)count);
+    log_scroll_state(lv,"before-wheel");
     GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);a=capture();
     before=GetScrollPos(lv,SB_HORZ);for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,-WHEEL_DELTA);Sleep(700);
     after=GetScrollPos(lv,SB_HORZ);
     if(after==before){for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,WHEEL_DELTA);Sleep(700);after=GetScrollPos(lv,SB_HORZ);}
     check("wheel advances horizontal strip in either direction",after!=before,after,before);
+    log_scroll_state(lv,"after-wheel");
     log_item_geometry(lv,"after-wheel",(int)count);
     {LRESULT scrolled=msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);
      fprintf(logfile,"LVM_SCROLL horizontal dx=%d result=%ld\n",GetSystemMetrics(SM_CXSCREEN)*3,(long)scrolled);}
     Sleep(1000);
     after=GetScrollPos(lv,SB_HORZ);
+    log_scroll_state(lv,"after-LVM_SCROLL");
     log_item_geometry(lv,"after-LVM_SCROLL",(int)count);
     check("thumbnail scrollbar passes one screen width",after>GetSystemMetrics(SM_CXSCREEN),after,GetSystemMetrics(SM_CXSCREEN)+1);
     b=capture();
