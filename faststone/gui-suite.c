@@ -433,7 +433,10 @@ static void top(void)
     GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);a=capture();
     before=GetScrollPos(lv,SB_HORZ);for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,-WHEEL_DELTA);Sleep(700);
     after=GetScrollPos(lv,SB_HORZ);check("wheel advances horizontal strip",after>before,after,before+1);
-    msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);Sleep(1000);b=capture();
+    msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);Sleep(1000);
+    after=GetScrollPos(lv,SB_HORZ);
+    check("thumbnail scrollbar passes one screen width",after>GetSystemMetrics(SM_CXSCREEN),after,GetSystemMetrics(SM_CXSCREEN)+1);
+    b=capture();
     before=colorful(&a,r);after=colorful(&b,r);check("scrolled thumbnails stay painted",after>500&&after*2>=before,after,before/2);
     for(i=0;i<(int)count;i++){RECT ir;if(item_rect(lv,i,&ir)&&ir.left>=0&&ir.right<=client.right&&ir.top>=0&&ir.bottom<=client.bottom){
         RECT screen=ir;char name[96];int bins;
