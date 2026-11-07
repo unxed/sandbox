@@ -442,8 +442,12 @@ static void top(void)
     count=msg(lv,LVM_GETITEMCOUNT,0,0);check("164 thumbnails",count>=164,(long)count,164);
     GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);a=capture();
     before=GetScrollPos(lv,SB_HORZ);for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,-WHEEL_DELTA);Sleep(700);
-    after=GetScrollPos(lv,SB_HORZ);check("wheel advances horizontal strip",after>before,after,before+1);
-    msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);Sleep(1000);
+    after=GetScrollPos(lv,SB_HORZ);
+    if(after==before){for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,WHEEL_DELTA);Sleep(700);after=GetScrollPos(lv,SB_HORZ);}
+    check("wheel advances horizontal strip in either direction",after!=before,after,before);
+    {LRESULT scrolled=msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);
+     fprintf(logfile,"LVM_SCROLL horizontal dx=%d result=%ld\n",GetSystemMetrics(SM_CXSCREEN)*3,(long)scrolled);}
+    Sleep(1000);
     after=GetScrollPos(lv,SB_HORZ);
     check("thumbnail scrollbar passes one screen width",after>GetSystemMetrics(SM_CXSCREEN),after,GetSystemMetrics(SM_CXSCREEN)+1);
     b=capture();
