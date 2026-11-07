@@ -408,7 +408,7 @@ static BOOL CALLBACK find_strip(HWND w,LPARAM unused)
 {
     char cls[128];RECT r;long area;(void)unused;
     if(!ours(w)||!IsWindowVisible(w))return TRUE;
-    GetClassNameA(w,cls,sizeof(cls));if(strcmp(cls,"SysListView32"))return TRUE;
+    GetClassNameA(w,cls,sizeof(cls));if(strcmp(cls,"SysListView32")&&strcmp(cls,"TTntListView.UnicodeClass"))return TRUE;
     GetWindowRect(w,&r);area=(r.right-r.left)*(r.bottom-r.top);
     if(r.top<GetSystemMetrics(SM_CYSCREEN)/3&&r.bottom<GetSystemMetrics(SM_CYSCREEN)/2&&
        r.right-r.left>GetSystemMetrics(SM_CXSCREEN)/2&&area>largest){largest=area;result=w;}return TRUE;
