@@ -415,6 +415,16 @@ static BOOL CALLBACK find_strip(HWND w,LPARAM unused)
 }
 static BOOL CALLBACK strip_top(HWND w,LPARAM unused){find_strip(w,unused);EnumChildWindows(w,find_strip,0);return TRUE;}
 static HWND strip(void){largest=0;result=NULL;EnumWindows(strip_top,0);return result;}
+static HWND visible_strip(void)
+{
+    DWORD start=GetTickCount();HWND w;RECT r;int sh=GetSystemMetrics(SM_CYSCREEN);
+    while(GetTickCount()-start<10000&&alive()){
+        w=strip();
+        if(w&&GetWindowRect(w,&r)&&r.bottom>0&&r.top<sh/2&&r.bottom-r.top>0)return w;
+        Sleep(100);
+    }
+    return NULL;
+}
 static int item_rect(HWND w,int index,RECT *r)
 {
     HANDLE p=OpenProcess(PROCESS_VM_OPERATION|PROCESS_VM_READ|PROCESS_VM_WRITE,FALSE,pid);void *remote;int ok=0;
@@ -428,7 +438,7 @@ static int item_rect(HWND w,int index,RECT *r)
 static void top(void)
 {
     HWND lv;RECT r,client;POINT origin={0,0};Frame a,b;long before,after;int i,target=-1,visible=0;LRESULT count;
-    edge("top");lv=strip();check("thumbnail strip exists",lv!=NULL,lv!=NULL,1);snapshot("top-open");if(!lv)return;
+    edge("top");lv=visible_strip();check("thumbnail strip exists",lv!=NULL,lv!=NULL,1);snapshot("top-open");if(!lv)return;
     count=msg(lv,LVM_GETITEMCOUNT,0,0);check("164 thumbnails",count>=164,(long)count,164);
     GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);a=capture();
     before=GetScrollPos(lv,SB_HORZ);for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,-WHEEL_DELTA);Sleep(700);
