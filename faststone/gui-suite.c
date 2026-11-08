@@ -408,13 +408,23 @@ static BOOL CALLBACK find_strip(HWND w,LPARAM unused)
 {
     char cls[128];RECT r;long area;(void)unused;
     if(!ours(w)||!IsWindowVisible(w))return TRUE;
-    GetClassNameA(w,cls,sizeof(cls));if(strcmp(cls,"SysListView32"))return TRUE;
+    GetClassNameA(w,cls,sizeof(cls));if(strcmp(cls,"SysListView32")&&strcmp(cls,"TTntListView.UnicodeClass"))return TRUE;
     GetWindowRect(w,&r);area=(r.right-r.left)*(r.bottom-r.top);
     if(r.top<GetSystemMetrics(SM_CYSCREEN)/3&&r.bottom<GetSystemMetrics(SM_CYSCREEN)/2&&
        r.right-r.left>GetSystemMetrics(SM_CXSCREEN)/2&&area>largest){largest=area;result=w;}return TRUE;
 }
 static BOOL CALLBACK strip_top(HWND w,LPARAM unused){find_strip(w,unused);EnumChildWindows(w,find_strip,0);return TRUE;}
 static HWND strip(void){largest=0;result=NULL;EnumWindows(strip_top,0);return result;}
+static HWND visible_strip(void)
+{
+    DWORD start=GetTickCount();HWND w;RECT r;int sh=GetSystemMetrics(SM_CYSCREEN);
+    while(GetTickCount()-start<10000&&alive()){
+        w=strip();
+        if(w&&GetWindowRect(w,&r)&&r.bottom>0&&r.top<sh/2&&r.bottom-r.top>0)return w;
+        Sleep(100);
+    }
+    return NULL;
+}
 static int item_rect(HWND w,int index,RECT *r)
 {
     HANDLE p=OpenProcess(PROCESS_VM_OPERATION|PROCESS_VM_READ|PROCESS_VM_WRITE,FALSE,pid);void *remote;int ok=0;
@@ -425,17 +435,70 @@ static int item_rect(HWND w,int index,RECT *r)
     if(remote)VirtualFreeEx(p,remote,0,MEM_RELEASE);
     CloseHandle(p);return ok;
 }
+static void log_item_geometry(HWND w,const char *phase,int count)
+{
+    int samples[4]={0,count/3,(count*2)/3,count-1},i;RECT r;
+    fprintf(logfile,"{\"event\":\"thumbnail-geometry\",\"phase\":");quoted(logfile,phase);
+    for(i=0;i<4;i++){
+        if(i&&samples[i]==samples[i-1])continue;
+        if(item_rect(w,samples[i],&r))
+            fprintf(logfile,",\"item_%d\":[%ld,%ld,%ld,%ld]",samples[i],r.left,r.top,r.right,r.bottom);
+        else fprintf(logfile,",\"item_%d\":null",samples[i]);
+    }
+    fputs("}\n",logfile);
+}
+static void log_scroll_state(HWND w,const char *phase)
+{
+    SCROLLINFO si;HWND parent=GetParent(w);char cls[128]="",window_class[128]="";
+    DWORD owner_pid=0,thread_id=GetWindowThreadProcessId(w,&owner_pid),error;BOOL valid_before=IsWindow(w),info_ok;
+    LONG_PTR style=GetWindowLongPtr(w,GWL_STYLE);
+    memset(&si,0,sizeof(si));si.cbSize=sizeof(si);si.fMask=SIF_ALL;
+    if(parent)GetClassNameA(parent,cls,sizeof(cls));
+    GetClassNameA(w,window_class,sizeof(window_class));
+    SetLastError(ERROR_SUCCESS);
+    info_ok=GetScrollInfo(w,SB_HORZ,&si);error=GetLastError();
+    fprintf(logfile,"scroll-state phase=%s hwnd=%p valid=%d class=%s thread=%lu owner-pid=%lu "
+        "style=%08llx exstyle=%08llx parent=%p parent-class=%s scroll-info=%d error=%lu ",
+        phase,(void *)w,valid_before,window_class,thread_id,owner_pid,(unsigned long long)style,
+        (unsigned long long)GetWindowLongPtr(w,GWL_EXSTYLE),(void *)parent,cls,info_ok,error);
+    if(info_ok)fprintf(logfile,"min=%d max=%d page=%u pos=%d track=%d\n",si.nMin,si.nMax,si.nPage,si.nPos,si.nTrackPos);
+    else fputs("\n",logfile);
+}
 static void top(void)
 {
-    HWND lv;RECT r,client;POINT origin={0,0};Frame a,b;long before,after;int i,target=-1,visible=0;LRESULT count;
-    edge("top");lv=strip();check("thumbnail strip exists",lv!=NULL,lv!=NULL,1);snapshot("top-open");if(!lv)return;
+    HWND lv;RECT r,client,wheel_before,wheel_after,scroll_before,scroll_after;POINT origin={0,0};
+    Frame a,b;long before,after;int i,target=-1,visible=0;LRESULT count,scrolled;BOOL have_wheel_before,have_wheel_after,have_scroll_before,have_scroll_after;
+    edge("top");lv=visible_strip();check("thumbnail strip exists",lv!=NULL,lv!=NULL,1);snapshot("top-open");if(!lv)return;
     count=msg(lv,LVM_GETITEMCOUNT,0,0);check("164 thumbnails",count>=164,(long)count,164);
+    log_item_geometry(lv,"before-input",(int)count);
+    log_scroll_state(lv,"before-wheel");
+    have_wheel_before=item_rect(lv,0,&wheel_before);
     GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);a=capture();
     before=GetScrollPos(lv,SB_HORZ);for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,-WHEEL_DELTA);Sleep(700);
-    after=GetScrollPos(lv,SB_HORZ);check("wheel advances horizontal strip",after>before,after,before+1);
-    msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);Sleep(1000);
+    have_wheel_after=item_rect(lv,0,&wheel_after);
     after=GetScrollPos(lv,SB_HORZ);
-    check("thumbnail scrollbar passes one screen width",after>GetSystemMetrics(SM_CXSCREEN),after,GetSystemMetrics(SM_CXSCREEN)+1);
+    if(have_wheel_before&&have_wheel_after&&wheel_before.left==wheel_after.left&&wheel_before.top==wheel_after.top){
+        for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,WHEEL_DELTA);
+        Sleep(700);
+        have_wheel_after=item_rect(lv,0,&wheel_after);after=GetScrollPos(lv,SB_HORZ);
+    }
+    check("wheel advances horizontal strip in either direction",have_wheel_before&&have_wheel_after&&
+        (wheel_before.left!=wheel_after.left||wheel_before.top!=wheel_after.top),
+        have_wheel_after?wheel_before.left-wheel_after.left:0,1);
+    fprintf(logfile,"wheel-scroll-pos before=%ld after=%ld\n",before,after);
+    log_scroll_state(lv,"after-wheel");
+    log_item_geometry(lv,"after-wheel",(int)count);
+    have_scroll_before=item_rect(lv,0,&scroll_before);
+    scrolled=msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);
+    fprintf(logfile,"LVM_SCROLL horizontal dx=%d result=%ld\n",GetSystemMetrics(SM_CXSCREEN)*3,(long)scrolled);
+    Sleep(1000);
+    have_scroll_after=item_rect(lv,0,&scroll_after);
+    after=GetScrollPos(lv,SB_HORZ);
+    log_scroll_state(lv,"after-LVM_SCROLL");
+    log_item_geometry(lv,"after-LVM_SCROLL",(int)count);
+    check("LVM_SCROLL moves thumbnail items by one screen",scrolled&&have_scroll_before&&have_scroll_after&&
+        scroll_before.left-scroll_after.left>=GetSystemMetrics(SM_CXSCREEN),
+        have_scroll_before&&have_scroll_after?scroll_before.left-scroll_after.left:0,GetSystemMetrics(SM_CXSCREEN));
     b=capture();
     before=colorful(&a,r);after=colorful(&b,r);check("scrolled thumbnails stay painted",after>500&&after*2>=before,after,before/2);
     for(i=0;i<(int)count;i++){RECT ir;if(item_rect(lv,i,&ir)&&ir.left>=0&&ir.right<=client.right&&ir.top>=0&&ir.bottom<=client.bottom){

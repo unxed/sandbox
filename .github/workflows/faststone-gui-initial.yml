@@ -1,8 +1,8 @@
 name: FastStone Wine GUI initial matrix
 
 # Real GUI baseline for faststone/HANDOFF.md: pinned Wine source build, pinned
-# Wayback FastStone archives, offline QEMU guest, four isolated Xvfb/Openbox
-# jobs (5.6/8.5 edges and left-panel tools). Evidence only; a green workflow
+# Wayback FastStone archives, offline QEMU guest, six isolated Xvfb/Openbox
+# jobs (5.6/8.5 edges, thumbnails, and left-panel tools). Evidence only; a green workflow
 # means the harness ran, the per-job driver.exit/assertions files are the result.
 
 on:
@@ -166,7 +166,7 @@ jobs:
           test "$(stat -c %s "$kernel")" = 15055240
           printf '%s  %s\n' d74be574189057a036866309fd5546724a92390a4f6ba086e93ddab2f6e0e01d "$kernel" | sha256sum -c -
 
-      - name: Boot the guest, bootstrap one golden prefix, run the four GUI jobs
+      - name: Boot the guest, bootstrap one golden prefix, run the six GUI jobs
         shell: bash
         env:
           VM_MEM: '8192'
@@ -206,7 +206,7 @@ jobs:
           wait_for_request 01-bootstrap 1200
           test -f guest-state/golden-prefix/.initialized
           mkdir -p guest-state/preclone
-          for job in 5.6-edges 8.5-edges 5.6-lefttools 8.5-lefttools probe-openbox probe-nowm; do
+          for job in 5.6-edges 8.5-edges 5.6-top 8.5-top 5.6-lefttools 8.5-lefttools probe-openbox probe-nowm; do
             cp -a --reflink=auto guest-state/golden-prefix "guest-state/preclone/$job"
           done
           mkdir -p guest-state/preclone-msg
