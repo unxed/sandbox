@@ -467,7 +467,7 @@ static void log_scroll_state(HWND w,const char *phase)
 static void top(void)
 {
     HWND lv;RECT r,client,wheel_before,wheel_after,scroll_before,scroll_after;POINT origin={0,0};
-    Frame a,b;long before,after;int i,target=-1,visible=0;LRESULT count,scrolled;BOOL have_wheel_before,have_wheel_after,have_scroll_before,have_scroll_after;
+    Frame a,b,redrawn;long before,after,redrawn_colors;int i,target=-1,visible=0;LRESULT count,scrolled;BOOL have_wheel_before,have_wheel_after,have_scroll_before,have_scroll_after,redraw_ok;
     edge("top");lv=visible_strip();check("thumbnail strip exists",lv!=NULL,lv!=NULL,1);snapshot("top-open");if(!lv)return;
     count=msg(lv,LVM_GETITEMCOUNT,0,0);check("164 thumbnails",count>=164,(long)count,164);
     log_item_geometry(lv,"before-input",(int)count);
@@ -501,6 +501,10 @@ static void top(void)
         have_scroll_before&&have_scroll_after?scroll_before.left-scroll_after.left:0,GetSystemMetrics(SM_CXSCREEN));
     b=capture();
     before=colorful(&a,r);after=colorful(&b,r);check("scrolled thumbnails stay painted",after>500&&after*2>=before,after,before/2);
+    redraw_ok=RedrawWindow(lv,NULL,NULL,RDW_INVALIDATE|RDW_ERASE|RDW_UPDATENOW|RDW_ALLCHILDREN);
+    Sleep(300);redrawn=capture();redrawn_colors=colorful(&redrawn,r);
+    fprintf(logfile,"thumbnail-redraw result=%d natural-colors=%ld forced-redraw-colors=%ld\n",redraw_ok,after,redrawn_colors);
+    save("top-scrolled-forced-redraw",&redrawn);
     for(i=0;i<(int)count;i++){RECT ir;if(item_rect(lv,i,&ir)&&ir.left>=0&&ir.right<=client.right&&ir.top>=0&&ir.bottom<=client.bottom){
         RECT screen=ir;char name[96];int bins;
         OffsetRect(&screen,origin.x,origin.y);bins=fixture_color_bins(&b,screen);visible++;
@@ -508,7 +512,7 @@ static void top(void)
         check(name,bins>=3,bins,3);
     }}
     check("at least one fully visible thumbnail tested",visible>0,visible,1);
-    snapshot("top-scrolled");release(&a);release(&b);
+    snapshot("top-scrolled");release(&a);release(&b);release(&redrawn);
     for(i=0;i<(int)count;i++){RECT ir;if(item_rect(lv,i,&ir)&&ir.left>=0&&ir.right<=client.right&&ir.top>=0&&ir.bottom<=client.bottom){
         target=i;move(origin.x+(ir.left+ir.right)/2,origin.y+(ir.top+ir.bottom)/2);click();break;}}
     check("visible scrolled item reachable",target>=0,target,0);if(target>=0){Sleep(500);
