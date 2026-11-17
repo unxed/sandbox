@@ -161,7 +161,7 @@ static void scroll_record(const char *test,const char *stage,HWND lv,int bar)
            "\"bar\":\"%s\",\"info_ok\":%d,\"last_error\":%lu,"
            "\"info\":[%d,%d,%u,%d,%d],\"range_ok\":%d,\"range\":[%d,%d],"
            "\"scrollbar_info_ok\":%d,\"scrollbar_rect\":[%ld,%ld,%ld,%ld],"
-           "\"line_button\":%d,\"scrollbar_states\":[%d,%d,%d,%d,%d,%d]}\n",
+           "\"line_button\":%lu,\"scrollbar_states\":[%lu,%lu,%lu,%lu,%lu,%lu]}\n",
            test,stage,bar==SB_HORZ?"horizontal":"vertical",info_ok,error,
            si.nMin,si.nMax,si.nPage,si.nPos,si.nTrackPos,range_ok,minimum,maximum,
            bar_ok,sbi.rcScrollBar.left,sbi.rcScrollBar.top,sbi.rcScrollBar.right,sbi.rcScrollBar.bottom,
