@@ -144,6 +144,32 @@ static void point_record(const char *test,const char *stage,HWND lv,int index,
     check(test,"position-origin-icon-queries-succeed",p&&o&&r);
 }
 
+static void scroll_record(const char *test,const char *stage,HWND lv,int bar)
+{
+    SCROLLINFO si;
+    SCROLLBARINFO sbi;
+    BOOL info_ok,bar_ok,range_ok;
+    DWORD error;
+    int minimum=-1,maximum=-1;
+    memset(&si,0,sizeof(si));si.cbSize=sizeof(si);si.fMask=SIF_ALL;
+    SetLastError(ERROR_SUCCESS);
+    info_ok=GetScrollInfo(lv,bar,&si);error=GetLastError();
+    memset(&sbi,0,sizeof(sbi));sbi.cbSize=sizeof(sbi);
+    bar_ok=GetScrollBarInfo(lv,bar==SB_HORZ?OBJID_HSCROLL:OBJID_VSCROLL,&sbi);
+    range_ok=GetScrollRange(lv,bar,&minimum,&maximum);
+    printf("{\"type\":\"scroll-state\",\"test\":\"%s\",\"stage\":\"%s\","
+           "\"bar\":\"%s\",\"info_ok\":%d,\"last_error\":%lu,"
+           "\"info\":[%d,%d,%u,%d,%d],\"range_ok\":%d,\"range\":[%d,%d],"
+           "\"scrollbar_info_ok\":%d,\"scrollbar_rect\":[%ld,%ld,%ld,%ld],"
+           "\"line_button\":%d,\"scrollbar_states\":[%d,%d,%d,%d,%d,%d]}\n",
+           test,stage,bar==SB_HORZ?"horizontal":"vertical",info_ok,error,
+           si.nMin,si.nMax,si.nPage,si.nPos,si.nTrackPos,range_ok,minimum,maximum,
+           bar_ok,sbi.rcScrollBar.left,sbi.rcScrollBar.top,sbi.rcScrollBar.right,sbi.rcScrollBar.bottom,
+           sbi.dxyLineButton,sbi.rgstate[0],sbi.rgstate[1],sbi.rgstate[2],
+           sbi.rgstate[3],sbi.rgstate[4],sbi.rgstate[5]);
+    fflush(stdout);
+}
+
 static void neighbors(HWND lv,int index,int results[4])
 {
     static const UINT directions[]={LVNI_TOLEFT,LVNI_TORIGHT,LVNI_ABOVE,LVNI_BELOW};
@@ -163,9 +189,13 @@ static void test_coordinates(HWND parent,DWORD style,const char *test)
     UINT selected;
     const int index=34;
     if (!lv) return;
+    scroll_record(test,"before-scroll",lv,SB_HORZ);
+    scroll_record(test,"before-scroll",lv,SB_VERT);
     point_record(test,"before",lv,index,&before,&origin_before,&rect_before);
     neighbors(lv,index,adjacent_before);
     check(test,"scroll-call",ListView_Scroll(lv,300,220)); pump();
+    scroll_record(test,"after-scroll",lv,SB_HORZ);
+    scroll_record(test,"after-scroll",lv,SB_VERT);
     point_record(test,"scrolled",lv,index,&after,&origin_after,&rect_after);
     check(test,"both-axes-actually-scrolled",origin_after.x>origin_before.x && origin_after.y>origin_before.y);
     check(test,"public-position-stays-in-view-coordinates",before.x==after.x && before.y==after.y);
@@ -251,7 +281,9 @@ static void test_wheel(HWND parent,DWORD style,unsigned columns,unsigned rows,co
            test,horizontal?"true":"false",(unsigned long)window_style);
     check(test,"intended-scrollbar-present",!!(window_style&(horizontal?WS_HSCROLL:WS_VSCROLL)));
     check(test,"other-scrollbar-absent",!(window_style&(horizontal?WS_VSCROLL:WS_HSCROLL)));
+    scroll_record(test,"before-wheel",lv,sb);
     reset_scroll(lv); wheel_record(test,"full-down",lv,-WHEEL_DELTA);
+    scroll_record(test,"after-wheel",lv,sb);
     full=GetScrollPos(lv,sb);
     check(test,"full-down-moves-correct-axis",full>0 && GetScrollPos(lv,other)==0);
     wheel_record(test,"full-up",lv,WHEEL_DELTA);
