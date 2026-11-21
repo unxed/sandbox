@@ -468,7 +468,7 @@ static void log_scroll_state(HWND w,const char *phase)
     bar_ok=GetScrollBarInfo(w,OBJID_HSCROLL,&bar);error=GetLastError();
     fprintf(logfile,"scrollbar-object phase=%s hwnd=%p valid=%d class=%s thread=%lu owner-pid=%lu "
         "query=%d error=%lu ",phase,(void *)w,valid_before,window_class,thread_id,owner_pid,bar_ok,error);
-    if(bar_ok)fprintf(logfile,"rect=[%ld,%ld,%ld,%ld] line=%d thumb=[%ld,%ld] state=%08lx,%08lx,%08lx,%08lx,%08lx,%08lx\n",
+    if(bar_ok)fprintf(logfile,"rect=[%ld,%ld,%ld,%ld] line=%d thumb=[%d,%d] state=%08lx,%08lx,%08lx,%08lx,%08lx,%08lx\n",
         bar.rcScrollBar.left,bar.rcScrollBar.top,bar.rcScrollBar.right,bar.rcScrollBar.bottom,
         bar.dxyLineButton,bar.xyThumbTop,bar.xyThumbBottom,bar.rgstate[0],bar.rgstate[1],
         bar.rgstate[2],bar.rgstate[3],bar.rgstate[4],bar.rgstate[5]);
