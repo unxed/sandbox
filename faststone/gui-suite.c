@@ -488,6 +488,7 @@ static void top(void)
     fprintf(logfile,"wheel-scroll-pos before=%ld after=%ld\n",before,after);
     log_scroll_state(lv,"after-wheel");
     log_item_geometry(lv,"after-wheel",(int)count);
+    release(&a);a=capture();before=colorful(&a,r);
     have_scroll_before=item_rect(lv,0,&scroll_before);
     scrolled=msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);
     fprintf(logfile,"LVM_SCROLL horizontal dx=%d result=%ld\n",GetSystemMetrics(SM_CXSCREEN)*3,(long)scrolled);
@@ -500,7 +501,7 @@ static void top(void)
         scroll_before.left-scroll_after.left>=GetSystemMetrics(SM_CXSCREEN),
         have_scroll_before&&have_scroll_after?scroll_before.left-scroll_after.left:0,GetSystemMetrics(SM_CXSCREEN));
     b=capture();
-    before=colorful(&a,r);after=colorful(&b,r);check("scrolled thumbnails stay painted",after>500&&after*2>=before,after,before/2);
+    after=colorful(&b,r);check("scrolled thumbnails stay painted",after>500&&after*2>=before,after,before/2);
     redraw_ok=RedrawWindow(lv,NULL,NULL,RDW_INVALIDATE|RDW_ERASE|RDW_UPDATENOW|RDW_ALLCHILDREN);
     Sleep(300);redrawn=capture();redrawn_colors=colorful(&redrawn,r);
     fprintf(logfile,"thumbnail-redraw result=%d natural-colors=%ld forced-redraw-colors=%ld\n",redraw_ok,after,redrawn_colors);
