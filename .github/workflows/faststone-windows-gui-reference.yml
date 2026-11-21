@@ -1,0 +1,77 @@
+name: FastStone native Windows GUI reference
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'faststone/**'
+      - '.github/workflows/faststone-windows-gui-reference.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  faststone-top:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch and verify pinned FastStone 8.5 archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force downloads | Out-Null
+          $archive = 'downloads/FSViewer85.zip'
+          curl.exe --fail --location --retry 5 --retry-all-errors --retry-delay 10 `
+            --output "$archive.part" `
+            'https://web.archive.org/web/20260624231629id_/https://www.faststonesoft.net/DN/FSViewer85.zip'
+          if ($LASTEXITCODE) { throw "FastStone download failed: $LASTEXITCODE" }
+          $actual = (Get-FileHash "$archive.part" -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne '685282a063b91daf4388b84be9e0daf3c5feed4073651137eb9fe9421cf39439') {
+            throw "Pinned FastStone SHA256 mismatch: $actual"
+          }
+          Move-Item "$archive.part" $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath downloads/FastStone85
+          if (-not (Test-Path 'downloads/FastStone85/FSViewer85/FSViewer.exe')) {
+            throw 'Pinned archive did not contain FSViewer85/FSViewer.exe'
+          }
+          Get-FileHash 'downloads/FastStone85/FSViewer85/FSViewer.exe' -Algorithm SHA256 |
+            Format-List | Out-File evidence-app-sha256.txt -Encoding utf8
+
+      - name: Build synthetic fixtures and native GUI driver
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          py -3 -m pip install --disable-pip-version-check Pillow
+          py -3 faststone/gui-suite.py --fixtures-only test-fixtures
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dev = Join-Path $vs 'Common7\Tools\VsDevCmd.bat'
+          cmd /c "`"$dev`" -arch=x86 && cl /nologo /std:c11 /W4 faststone\gui-suite.c /Fe:gui-suite.exe user32.lib gdi32.lib comctl32.lib"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - name: Run one pinned native top-thumbnail scenario
+        id: gui
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force results | Out-Null
+          & .\gui-suite.exe `
+            --app "$PWD\downloads\FastStone85\FSViewer85\FSViewer.exe" `
+            --image "$PWD\test-fixtures\image-000.jpg" `
+            --out "$PWD\results" --scenario top --timeout-ms 120000 2>&1 |
+            Tee-Object -FilePath results\driver.log
+          "driver_exit=$LASTEXITCODE" | Out-File results\driver-exit.txt -Encoding utf8
+
+      - name: Upload exact-run GUI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: faststone-windows-gui-${{ github.sha }}
+          if-no-files-found: warn
+          path: |
+            results/
+            evidence-app-sha256.txt
+            test-fixtures/fixtures.json
