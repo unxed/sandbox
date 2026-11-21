@@ -449,8 +449,8 @@ static void log_item_geometry(HWND w,const char *phase,int count)
 }
 static void log_scroll_state(HWND w,const char *phase)
 {
-    SCROLLINFO si;HWND parent=GetParent(w);char cls[128]="",window_class[128]="";
-    DWORD owner_pid=0,thread_id=GetWindowThreadProcessId(w,&owner_pid),error;BOOL valid_before=IsWindow(w),info_ok;
+    SCROLLINFO si;SCROLLBARINFO bar;HWND parent=GetParent(w);char cls[128]="",window_class[128]="";
+    DWORD owner_pid=0,thread_id=GetWindowThreadProcessId(w,&owner_pid),error;BOOL valid_before=IsWindow(w),info_ok,bar_ok;
     LONG_PTR style=GetWindowLongPtr(w,GWL_STYLE);
     memset(&si,0,sizeof(si));si.cbSize=sizeof(si);si.fMask=SIF_ALL;
     if(parent)GetClassNameA(parent,cls,sizeof(cls));
@@ -462,6 +462,16 @@ static void log_scroll_state(HWND w,const char *phase)
         phase,(void *)w,valid_before,window_class,thread_id,owner_pid,(unsigned long long)style,
         (unsigned long long)GetWindowLongPtr(w,GWL_EXSTYLE),(void *)parent,cls,info_ok,error);
     if(info_ok)fprintf(logfile,"min=%d max=%d page=%u pos=%d track=%d\n",si.nMin,si.nMax,si.nPage,si.nPos,si.nTrackPos);
+    else fputs("\n",logfile);
+    memset(&bar,0,sizeof(bar));bar.cbSize=sizeof(bar);
+    SetLastError(ERROR_SUCCESS);
+    bar_ok=GetScrollBarInfo(w,OBJID_HSCROLL,&bar);error=GetLastError();
+    fprintf(logfile,"scrollbar-object phase=%s hwnd=%p valid=%d class=%s thread=%lu owner-pid=%lu "
+        "query=%d error=%lu ",phase,(void *)w,valid_before,window_class,thread_id,owner_pid,bar_ok,error);
+    if(bar_ok)fprintf(logfile,"rect=[%ld,%ld,%ld,%ld] line=%d thumb=[%d,%d] state=%08lx,%08lx,%08lx,%08lx,%08lx,%08lx\n",
+        bar.rcScrollBar.left,bar.rcScrollBar.top,bar.rcScrollBar.right,bar.rcScrollBar.bottom,
+        bar.dxyLineButton,bar.xyThumbTop,bar.xyThumbBottom,bar.rgstate[0],bar.rgstate[1],
+        bar.rgstate[2],bar.rgstate[3],bar.rgstate[4],bar.rgstate[5]);
     else fputs("\n",logfile);
 }
 static void top(void)
