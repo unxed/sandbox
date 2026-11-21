@@ -77,7 +77,8 @@ export DISPLAY=:$display_number
 if test -d /work/test-bin/x11-libs; then
   export LD_LIBRARY_PATH=/work/test-bin/x11-libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
 fi
-Xvfb "$DISPLAY" -displayfd 3 -screen 0 1280x800x24 -nolisten tcp -ac -extension GLX \
+# Match the 1024x768 Windows Server desktop used by the native GUI reference.
+Xvfb "$DISPLAY" -displayfd 3 -screen 0 1024x768x24 -nolisten tcp -ac -extension GLX \
   3>"$state/x-ready" >"$artifacts/xvfb.log" 2>&1 &
 xpid=$!
 ready_attempt=0
