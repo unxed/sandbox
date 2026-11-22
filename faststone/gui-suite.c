@@ -103,6 +103,15 @@ static void mouse(DWORD flags,LONG data)
     memset(&in,0,sizeof(in));in.type=INPUT_MOUSE;in.mi.dwFlags=flags;in.mi.mouseData=data;
     sent=SendInput(1,&in,sizeof(in));check("SendInput mouse",sent==1,sent,1);
 }
+static void log_wheel_target(HWND expected)
+{
+    POINT point;HWND target,root;char cls[128]="";DWORD owner=0;
+    GetCursorPos(&point);target=WindowFromPoint(point);root=target?GetAncestor(target,GA_ROOT):NULL;
+    if(target){GetClassNameA(target,cls,sizeof(cls));GetWindowThreadProcessId(target,&owner);}
+    fprintf(logfile,"wheel-target point=[%ld,%ld] expected=%p target=%p root=%p class=%s owner-pid=%lu expected-or-child=%d\n",
+        point.x,point.y,(void *)expected,(void *)target,(void *)root,cls,owner,
+        target==expected||(target&&IsChild(expected,target)));
+}
 static void click(void){mouse(MOUSEEVENTF_LEFTDOWN,0);mouse(MOUSEEVENTF_LEFTUP,0);}
 static void center(void){move(GetSystemMetrics(SM_CXSCREEN)/2,GetSystemMetrics(SM_CYSCREEN)/2);Sleep(700);}
 
@@ -483,7 +492,7 @@ static void top(void)
     log_item_geometry(lv,"before-input",(int)count);
     log_scroll_state(lv,"before-wheel");
     have_wheel_before=item_rect(lv,0,&wheel_before);
-    GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);a=capture();
+    GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);log_wheel_target(lv);a=capture();
     before=GetScrollPos(lv,SB_HORZ);for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,-WHEEL_DELTA);Sleep(700);
     have_wheel_after=item_rect(lv,0,&wheel_after);
     after=GetScrollPos(lv,SB_HORZ);
