@@ -269,8 +269,20 @@ jobs:
           wait "$vm_pid" || true
           cp vm-queue-live/02-gui-initial.response evidence/gui-initial.response 2>/dev/null || true
           echo "gui-initial request status: $gui_status"
-          # The harness result is archived either way; per-job driver.exit files decide pass/fail.
-          for f in evidence/gui-initial1/*.exit; do echo "$f=$(cat "$f")"; done || true
+          # Preserve evidence below, but make assertion failures visible to Actions.
+          shopt -s nullglob
+          exits=(evidence/gui-initial1/*.exit)
+          failed=0
+          if [ "$gui_status" -ne 0 ] || [ "${#exits[@]}" -ne 6 ]; then
+            failed=1
+            echo "expected six GUI driver exit files; found ${#exits[@]}" >&2
+          fi
+          for f in "${exits[@]}"; do
+            result=$(cat "$f")
+            echo "$f=$result"
+            if [ "$result" != 0 ]; then failed=1; fi
+          done
+          exit "$failed"
 
       - name: Upload GUI evidence
         if: always()
