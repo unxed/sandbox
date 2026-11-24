@@ -173,7 +173,23 @@ jobs:
         run: |
           set -euo pipefail
           runtime="$PWD/wine-stage/opt/faststone-wine"
+          record_pe_inventory() {
+            local label="$1" root="$2"
+            {
+              printf '=== %s ===\n' "$label"
+              for name in comctl32.dll winspool.drv avifil32.dll quartz.dll comdlg32.dll msvfw32.dll compstui.dll; do
+                printf '%s:\n' "$name"
+                find -L "$root" -type f -iname "$name" -print0 | sort -z | xargs -0 -r sha256sum
+              done
+            } >> evidence/pe-inventory.txt
+          }
+          wine_pe="$runtime/lib/wine"
+          if [ ! -d "$wine_pe/x86_64-windows" ]; then wine_pe="$runtime/lib64/wine"; fi
+          record_pe_inventory 'runtime x86_64' "$wine_pe/x86_64-windows"
+          record_pe_inventory 'runtime i386' "$wine_pe/i386-windows"
           sh patch-export/faststone/vm/prepare-prefix-host.sh "$runtime" "$PWD/guest-state/golden-prefix"
+          record_pe_inventory 'seeded prefix system32' "$PWD/guest-state/golden-prefix/drive_c/windows/system32"
+          record_pe_inventory 'seeded prefix syswow64' "$PWD/guest-state/golden-prefix/drive_c/windows/syswow64"
           VM_WINE_ROOT="$runtime" python3 patch-export/faststone/vm/prepare.py
           sh patch-export/faststone/vm/run.sh > evidence/guest-console.log 2>&1 &
           vm_pid=$!
@@ -205,13 +221,19 @@ jobs:
           EOF
           wait_for_request 01-bootstrap 1200
           test -f guest-state/golden-prefix/.initialized
+          record_pe_inventory 'initialized prefix system32' "$PWD/guest-state/golden-prefix/drive_c/windows/system32"
+          record_pe_inventory 'initialized prefix syswow64' "$PWD/guest-state/golden-prefix/drive_c/windows/syswow64"
           mkdir -p guest-state/preclone
           for job in 5.6-edges 8.5-edges 5.6-top 8.5-top 5.6-lefttools 8.5-lefttools probe-openbox probe-nowm; do
             cp -a --reflink=auto guest-state/golden-prefix "guest-state/preclone/$job"
+            record_pe_inventory "preclone $job system32" "$PWD/guest-state/preclone/$job/drive_c/windows/system32"
+            record_pe_inventory "preclone $job syswow64" "$PWD/guest-state/preclone/$job/drive_c/windows/syswow64"
           done
           mkdir -p guest-state/preclone-msg
           for job in 5.6-top 8.5-top; do
             cp -a --reflink=auto guest-state/golden-prefix "guest-state/preclone-msg/$job"
+            record_pe_inventory "message preclone $job system32" "$PWD/guest-state/preclone-msg/$job/drive_c/windows/system32"
+            record_pe_inventory "message preclone $job syswow64" "$PWD/guest-state/preclone-msg/$job/drive_c/windows/syswow64"
           done
           cat > vm-queue-live/02-gui-initial.request <<'EOF'
           set -eu
