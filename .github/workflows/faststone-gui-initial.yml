@@ -138,6 +138,8 @@ jobs:
           set -euo pipefail
           i686-w64-mingw32-gcc -O2 -Wall -Wextra -Werror \
             patch-export/faststone/gui-suite.c -o test-bin/gui-suite.exe -lcomctl32 -lgdi32 -luser32
+          i686-w64-mingw32-gcc -shared -O2 -Wall -Wextra -Werror \
+            patch-export/faststone/scroll-query-probe.c -o test-bin/scroll-query-probe.dll -lcomctl32 -luser32
           cc -O2 -Wall -Wextra -Werror patch-export/faststone/gui-suite-x11-bridge.c \
             -o test-bin/gui-suite-x11-bridge -lX11 -ldl
           cc -O2 -Wall -Wextra -Werror patch-export/faststone/gui-suite-x11-snapshot.c \
