@@ -69,6 +69,14 @@ static int input(Display *d,const char *kind,long a,long b)
                 result&=fake_button(d,button,True,CurrentTime);
                 result&=fake_button(d,button,False,CurrentTime);
             }XSync(d,False);return result;
+        }
+        case 0x1000:{
+            int i,n=(int)(labs(b)/120);if(n<1)n=1;
+            button=b>0?7:6;result=1;
+            for(i=0;i<n;i++){
+                result&=fake_button(d,button,True,CurrentTime);
+                result&=fake_button(d,button,False,CurrentTime);
+            }XSync(d,False);return result;
         }}
         if(button)result=fake_button(d,button,down,CurrentTime);
     }XSync(d,False);return result;

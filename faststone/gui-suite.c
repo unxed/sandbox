@@ -544,7 +544,7 @@ done:
 }
 static void top(void)
 {
-    HWND lv;RECT r,client,wheel_before,wheel_after,scroll_before,scroll_after;POINT origin={0,0};
+    HWND lv;RECT r,client,wheel_before,wheel_after,hwheel_before,hwheel_after,scroll_before,scroll_after;POINT origin={0,0};
     Frame a,b,redrawn;long before,after,redrawn_colors;int i,target=-1,visible=0;LRESULT count,scrolled;BOOL have_wheel_before,have_wheel_after,have_scroll_before,have_scroll_after,redraw_ok;
     edge("top");lv=visible_strip();check("thumbnail strip exists",lv!=NULL,lv!=NULL,1);snapshot("top-open");if(!lv)return;
     count=msg(lv,LVM_GETITEMCOUNT,0,0);check("164 thumbnails",count>=164,(long)count,164);
@@ -561,13 +561,32 @@ static void top(void)
         Sleep(700);
         have_wheel_after=item_rect(lv,0,&wheel_after);after=GetScrollPos(lv,SB_HORZ);
     }
-    check("wheel advances horizontal strip in either direction",have_wheel_before&&have_wheel_after&&
+    check("vertical wheel advances horizontal strip in either direction",have_wheel_before&&have_wheel_after&&
         (wheel_before.left!=wheel_after.left||wheel_before.top!=wheel_after.top),
         have_wheel_after?wheel_before.left-wheel_after.left:0,1);
-    fprintf(logfile,"wheel-scroll-pos before=%ld after=%ld\n",before,after);
-    log_scroll_state(lv,"after-wheel");
-    log_inprocess_scroll_state(lv,"after-wheel");
-    log_item_geometry(lv,"after-wheel",(int)count);
+    fprintf(logfile,"vertical-wheel-scroll-pos before=%ld after=%ld\n",before,after);
+    log_scroll_state(lv,"after-vertical-wheel");
+    log_inprocess_scroll_state(lv,"after-vertical-wheel");
+    log_item_geometry(lv,"after-vertical-wheel",(int)count);
+    have_wheel_before=item_rect(lv,0,&hwheel_before);
+    move((r.left+r.right)/2,(r.top+r.bottom)/2);log_wheel_target(lv);
+    before=GetScrollPos(lv,SB_HORZ);
+    for(i=0;i<4;i++)mouse(MOUSEEVENTF_HWHEEL,-WHEEL_DELTA);
+    Sleep(700);
+    have_wheel_after=item_rect(lv,0,&hwheel_after);
+    after=GetScrollPos(lv,SB_HORZ);
+    if(have_wheel_before&&have_wheel_after&&hwheel_before.left==hwheel_after.left&&hwheel_before.top==hwheel_after.top){
+        for(i=0;i<4;i++)mouse(MOUSEEVENTF_HWHEEL,WHEEL_DELTA);
+        Sleep(700);
+        have_wheel_after=item_rect(lv,0,&hwheel_after);after=GetScrollPos(lv,SB_HORZ);
+    }
+    check("horizontal wheel advances thumbnail strip in either direction",have_wheel_before&&have_wheel_after&&
+        (hwheel_before.left!=hwheel_after.left||hwheel_before.top!=hwheel_after.top),
+        have_wheel_after?hwheel_before.left-hwheel_after.left:0,1);
+    fprintf(logfile,"horizontal-wheel-scroll-pos before=%ld after=%ld\n",before,after);
+    log_scroll_state(lv,"after-horizontal-wheel");
+    log_inprocess_scroll_state(lv,"after-horizontal-wheel");
+    log_item_geometry(lv,"after-horizontal-wheel",(int)count);
     release(&a);a=capture();before=colorful(&a,r);
     have_scroll_before=item_rect(lv,0,&scroll_before);
     scrolled=msg(lv,LVM_SCROLL,GetSystemMetrics(SM_CXSCREEN)*3,0);

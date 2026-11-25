@@ -100,7 +100,7 @@ substitution. The broad 20-scenario shortcut matrix is opt-in, not the default.
 | Scenario | Assertions | Limits |
 | --- | --- | --- |
 | `edges` | All four panels visibly appear and hide; fullscreen remains active. | Pixel/window-tree evidence is not proof that every panel command works. |
-| `top` | At least164 thumbnails; wheel increases horizontal scroll; fixture-colored thumbnails remain painted after three screen widths; clicking an item selected from real ListView bounds selects that item. | Pixel coverage oracle assumes the supplied deliberately colorful fixtures. |
+| `top` | At least164 thumbnails; vertical-wheel and horizontal-wheel input are tested separately for horizontal-strip movement; fixture-colored thumbnails remain painted after three screen widths; clicking an item selected from real ListView bounds selects that item. | Pixel coverage oracle assumes the supplied deliberately colorful fixtures. X11 button 4/5 represents vertical wheel; button 6/7 represents horizontal wheel. |
 | `navigation` | Next/previous/first/last shortcuts change displayed pixels and retain fullscreen. | Exact filename semantics need additional checks. |
 | `zoom` | Actual-size/best-fit, Ctrl+wheel and bottom-toolbar wheel change image rendering. | Selected-image identity is checked when the version exposes a ListView; otherwise explicitly skipped. |
 | `pan-select` | Drag pans an oversized image; Ctrl+drag selects/zooms; image identity is preserved when observable. | Primary fixture is1800×1200 for the default1280×800 display. |
