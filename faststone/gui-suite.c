@@ -5,7 +5,6 @@
 #define _WIN32_WINNT 0x0601
 #include <windows.h>
 #include <commctrl.h>
-#include <tlhelp32.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -488,9 +487,9 @@ static void log_scroll_state(HWND w,const char *phase)
 }
 static void log_inprocess_scroll_state(HWND w,const char *phase)
 {
-    char mapping_name[96],dll_path[MAX_PATH],*slash;HANDLE mapping,remote_process,thread,snapshot;
-    ScrollProbeResult *shared;MODULEENTRY32A module;HMODULE local_dll,local_kernel;
-    FARPROC load_local,probe_local;LPTHREAD_START_ROUTINE load_remote,probe_remote;
+    char mapping_name[96],dll_path[MAX_PATH],*slash;HANDLE mapping,remote_process,thread;
+    ScrollProbeResult *shared;HMODULE local_dll,local_kernel;
+    FARPROC load_local,probe_local;LPTHREAD_START_ROUTINE probe_remote;
     LPVOID remote_path;DWORD exit_code,pid=0;uintptr_t offset;int ok=0;
     GetWindowThreadProcessId(w,&pid);
     snprintf(mapping_name,sizeof(mapping_name),SCROLL_PROBE_MAPPING_PREFIX "%lu",(unsigned long)pid);
@@ -509,24 +508,17 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
     local_kernel=GetModuleHandleA("kernel32.dll");
     if(!local_kernel)goto close_process;
     load_local=GetProcAddress(local_kernel,"LoadLibraryA");if(!load_local)goto close_process;
-    snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPMODULE|TH32CS_SNAPMODULE32,pid);
-    if(snapshot==INVALID_HANDLE_VALUE)goto close_process;
-    memset(&module,0,sizeof(module));module.dwSize=sizeof(module);
-    if(Module32FirstA(snapshot,&module))do{
-        if(!_stricmp(module.szModule,"kernel32.dll"))break;
-    }while(Module32NextA(snapshot,&module));
-    if(_stricmp(module.szModule,"kernel32.dll")){CloseHandle(snapshot);goto close_process;}
-    load_remote=(LPTHREAD_START_ROUTINE)((BYTE *)module.modBaseAddr+
-        ((BYTE *)load_local-(BYTE *)local_kernel));
+    /* The test process and its disposable same-bitness child share the system
+       kernel32 mapping, as required for the standard remote LoadLibrary call. */
     remote_path=VirtualAllocEx(remote_process,NULL,strlen(dll_path)+1,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
     if(!remote_path||!WriteProcessMemory(remote_process,remote_path,dll_path,strlen(dll_path)+1,NULL)){
-        CloseHandle(snapshot);goto close_process;}
-    thread=CreateRemoteThread(remote_process,NULL,0,load_remote,remote_path,0,NULL);
+        goto close_process;}
+    thread=CreateRemoteThread(remote_process,NULL,0,(LPTHREAD_START_ROUTINE)load_local,remote_path,0,NULL);
     if(!thread||WaitForSingleObject(thread,5000)!=WAIT_OBJECT_0||!GetExitCodeThread(thread,&exit_code)||!exit_code){
         if(thread)CloseHandle(thread);
         VirtualFreeEx(remote_process,remote_path,0,MEM_RELEASE);
-        CloseHandle(snapshot);goto close_process;}
-    CloseHandle(thread);VirtualFreeEx(remote_process,remote_path,0,MEM_RELEASE);CloseHandle(snapshot);
+        goto close_process;}
+    CloseHandle(thread);VirtualFreeEx(remote_process,remote_path,0,MEM_RELEASE);
     local_dll=LoadLibraryA(dll_path);if(!local_dll)goto close_process;
     probe_local=GetProcAddress(local_dll,"run_probe");
     if(!probe_local)probe_local=GetProcAddress(local_dll,"_run_probe@0");

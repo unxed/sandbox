@@ -48,7 +48,7 @@ jobs:
           py -3 faststone/gui-suite.py --fixtures-only test-fixtures
           $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
           $dev = Join-Path $vs 'Common7\Tools\VsDevCmd.bat'
-          cmd /c "`"$dev`" -arch=x86 && cl /nologo /std:c11 /W4 faststone\gui-suite.c /Fe:gui-suite.exe user32.lib gdi32.lib comctl32.lib"
+          cmd /c "`"$dev`" -arch=x86 && cl /nologo /std:c11 /W4 faststone\gui-suite.c /Fe:gui-suite.exe user32.lib gdi32.lib comctl32.lib && cl /nologo /std:c11 /W4 /LD faststone\scroll-query-probe.c /Fe:scroll-query-probe.dll user32.lib"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
 
       - name: Run one pinned native top-thumbnail scenario
