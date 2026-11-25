@@ -8,7 +8,9 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
+#include "scroll-query-probe.h"
 
 typedef struct { int w,h; BYTE *p; } Frame;
 static DWORD pid, deadline=120000;
@@ -483,6 +485,63 @@ static void log_scroll_state(HWND w,const char *phase)
         bar.rgstate[2],bar.rgstate[3],bar.rgstate[4],bar.rgstate[5]);
     else fputs("\n",logfile);
 }
+static void log_inprocess_scroll_state(HWND w,const char *phase)
+{
+    char mapping_name[96],dll_path[MAX_PATH],*slash;HANDLE mapping,remote_process,thread;
+    ScrollProbeResult *shared;HMODULE local_dll,local_kernel;
+    FARPROC load_local,probe_local;LPTHREAD_START_ROUTINE probe_remote;
+    LPVOID remote_path;DWORD exit_code,pid=0;uintptr_t offset;int ok=0;
+    GetWindowThreadProcessId(w,&pid);
+    snprintf(mapping_name,sizeof(mapping_name),SCROLL_PROBE_MAPPING_PREFIX "%lu",(unsigned long)pid);
+    mapping=CreateFileMappingA(INVALID_HANDLE_VALUE,NULL,PAGE_READWRITE,0,sizeof(*shared),mapping_name);
+    if(!mapping){fprintf(logfile,"inprocess-scroll phase=%s mapping-error=%lu\n",phase,GetLastError());return;}
+    shared=(ScrollProbeResult *)MapViewOfFile(mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(*shared));
+    if(!shared){fprintf(logfile,"inprocess-scroll phase=%s map-error=%lu\n",phase,GetLastError());CloseHandle(mapping);return;}
+    memset(shared,0,sizeof(*shared));shared->hwnd=w;
+    remote_process=OpenProcess(PROCESS_CREATE_THREAD|PROCESS_QUERY_INFORMATION|PROCESS_VM_OPERATION|
+        PROCESS_VM_READ|PROCESS_VM_WRITE,FALSE,pid);
+    if(!remote_process)goto done;
+    GetModuleFileNameA(NULL,dll_path,sizeof(dll_path));slash=strrchr(dll_path,'\\');
+    if(!slash)slash=strrchr(dll_path,'/');
+    if(!slash)goto close_process;
+    strcpy(slash+1,"scroll-query-probe.dll");
+    local_kernel=GetModuleHandleA("kernel32.dll");
+    if(!local_kernel)goto close_process;
+    load_local=GetProcAddress(local_kernel,"LoadLibraryA");if(!load_local)goto close_process;
+    /* The test process and its disposable same-bitness child share the system
+       kernel32 mapping, as required for the standard remote LoadLibrary call. */
+    remote_path=VirtualAllocEx(remote_process,NULL,strlen(dll_path)+1,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
+    if(!remote_path||!WriteProcessMemory(remote_process,remote_path,dll_path,strlen(dll_path)+1,NULL)){
+        goto close_process;}
+    thread=CreateRemoteThread(remote_process,NULL,0,(LPTHREAD_START_ROUTINE)load_local,remote_path,0,NULL);
+    if(!thread||WaitForSingleObject(thread,5000)!=WAIT_OBJECT_0||!GetExitCodeThread(thread,&exit_code)||!exit_code){
+        if(thread)CloseHandle(thread);
+        VirtualFreeEx(remote_process,remote_path,0,MEM_RELEASE);
+        goto close_process;}
+    CloseHandle(thread);VirtualFreeEx(remote_process,remote_path,0,MEM_RELEASE);
+    local_dll=LoadLibraryA(dll_path);if(!local_dll)goto close_process;
+    probe_local=GetProcAddress(local_dll,"run_probe");
+    if(!probe_local)probe_local=GetProcAddress(local_dll,"_run_probe@0");
+    if(!probe_local)probe_local=GetProcAddress(local_dll,"run_probe@0");
+    if(!probe_local)goto close_process;
+    offset=(uintptr_t)((BYTE *)probe_local-(BYTE *)local_dll);
+    probe_remote=(LPTHREAD_START_ROUTINE)((BYTE *)(uintptr_t)exit_code+offset);
+    thread=CreateRemoteThread(remote_process,NULL,0,probe_remote,NULL,0,NULL);
+    if(thread&&WaitForSingleObject(thread,5000)==WAIT_OBJECT_0&&GetExitCodeThread(thread,&exit_code)&&exit_code==0){
+        DWORD start=GetTickCount();CloseHandle(thread);
+        while(!shared->done&&GetTickCount()-start<1000)Sleep(10);
+        if(shared->done){SCROLLINFO *si=&shared->info;SCROLLBARINFO *bar=&shared->bar;
+            fprintf(logfile,"inprocess-scroll phase=%s hwnd=%p info=%d error=%lu min=%d max=%d page=%u pos=%d track=%d bar=%d bar-error=%lu rect=[%ld,%ld,%ld,%ld] thumb=[%d,%d]\n",
+                phase,(void *)w,shared->info_ok,shared->info_error,si->nMin,si->nMax,si->nPage,si->nPos,si->nTrackPos,
+                shared->bar_ok,shared->bar_error,bar->rcScrollBar.left,bar->rcScrollBar.top,
+                bar->rcScrollBar.right,bar->rcScrollBar.bottom,bar->xyThumbTop,bar->xyThumbBottom);ok=1;}
+    }else if(thread)CloseHandle(thread);
+close_process:
+    CloseHandle(remote_process);
+done:
+    if(!ok)fprintf(logfile,"inprocess-scroll phase=%s unavailable error=%lu\n",phase,GetLastError());
+    UnmapViewOfFile(shared);CloseHandle(mapping);
+}
 static void top(void)
 {
     HWND lv;RECT r,client,wheel_before,wheel_after,scroll_before,scroll_after;POINT origin={0,0};
@@ -491,6 +550,7 @@ static void top(void)
     count=msg(lv,LVM_GETITEMCOUNT,0,0);check("164 thumbnails",count>=164,(long)count,164);
     log_item_geometry(lv,"before-input",(int)count);
     log_scroll_state(lv,"before-wheel");
+    log_inprocess_scroll_state(lv,"before-wheel");
     have_wheel_before=item_rect(lv,0,&wheel_before);
     GetWindowRect(lv,&r);GetClientRect(lv,&client);ClientToScreen(lv,&origin);move((r.left+r.right)/2,(r.top+r.bottom)/2);log_wheel_target(lv);a=capture();
     before=GetScrollPos(lv,SB_HORZ);for(i=0;i<4;i++)mouse(MOUSEEVENTF_WHEEL,-WHEEL_DELTA);Sleep(700);
@@ -506,6 +566,7 @@ static void top(void)
         have_wheel_after?wheel_before.left-wheel_after.left:0,1);
     fprintf(logfile,"wheel-scroll-pos before=%ld after=%ld\n",before,after);
     log_scroll_state(lv,"after-wheel");
+    log_inprocess_scroll_state(lv,"after-wheel");
     log_item_geometry(lv,"after-wheel",(int)count);
     release(&a);a=capture();before=colorful(&a,r);
     have_scroll_before=item_rect(lv,0,&scroll_before);
@@ -515,6 +576,7 @@ static void top(void)
     have_scroll_after=item_rect(lv,0,&scroll_after);
     after=GetScrollPos(lv,SB_HORZ);
     log_scroll_state(lv,"after-LVM_SCROLL");
+    log_inprocess_scroll_state(lv,"after-LVM_SCROLL");
     log_item_geometry(lv,"after-LVM_SCROLL",(int)count);
     check("LVM_SCROLL moves thumbnail items by one screen",scrolled&&have_scroll_before&&have_scroll_after&&
         scroll_before.left-scroll_after.left>=GetSystemMetrics(SM_CXSCREEN),
