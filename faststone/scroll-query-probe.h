@@ -5,10 +5,21 @@
 #include <commctrl.h>
 
 #define SCROLL_PROBE_MAPPING_PREFIX "Local\\LunobotScrollProbe-"
+#define SCROLL_PROBE_MAX_WHEEL_MESSAGES 64
+
+typedef struct {
+    HWND hwnd;
+    UINT message;
+    WPARAM wParam;
+    LPARAM lParam;
+} ScrollProbeWheelMessage;
 
 typedef struct {
     HWND hwnd;
     volatile LONG done;
+    volatile LONG wheel_count;
+    DWORD hook_error;
+    ScrollProbeWheelMessage wheel_messages[SCROLL_PROBE_MAX_WHEEL_MESSAGES];
     BOOL info_ok;
     DWORD info_error;
     SCROLLINFO info;

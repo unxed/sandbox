@@ -3,21 +3,56 @@
 #include <stdio.h>
 #include <string.h>
 
+static HANDLE probe_mapping;
+static ScrollProbeResult *probe_result;
+static HHOOK wheel_hook_handle;
+
+static LRESULT CALLBACK wheel_hook(int code,WPARAM wparam,LPARAM lparam)
+{
+    if(code>=0&&probe_result){
+        const CWPSTRUCT *call=(const CWPSTRUCT *)lparam;
+        if(call->message==WM_MOUSEWHEEL||call->message==WM_MOUSEHWHEEL){
+            LONG slot=InterlockedIncrement(&probe_result->wheel_count)-1;
+            if(slot<SCROLL_PROBE_MAX_WHEEL_MESSAGES){
+                ScrollProbeWheelMessage *event=&probe_result->wheel_messages[slot];
+                event->hwnd=call->hwnd;
+                event->message=call->message;
+                event->wParam=call->wParam;
+                event->lParam=call->lParam;
+            }
+        }
+    }
+    return CallNextHookEx(wheel_hook_handle,code,wparam,lparam);
+}
+
 /* Executed by a remote thread inside the disposable FastStone process. This
-   makes the public scrollbar queries same-process without changing FSViewer. */
+   makes the public scrollbar queries same-process and records delivered wheel
+   messages without changing FSViewer. */
 __declspec(dllexport) DWORD WINAPI run_probe(void)
 {
     char name[96];
-    HANDLE mapping;
     ScrollProbeResult *result;
     DWORD pid=GetCurrentProcessId();
 
     snprintf(name,sizeof(name),SCROLL_PROBE_MAPPING_PREFIX "%lu",(unsigned long)pid);
-    mapping=OpenFileMappingA(FILE_MAP_ALL_ACCESS,FALSE,name);
-    if(!mapping)return GetLastError();
-    result=(ScrollProbeResult *)MapViewOfFile(mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(*result));
-    if(!result){DWORD error=GetLastError();CloseHandle(mapping);return error;}
+    if(!probe_result){
+        probe_mapping=OpenFileMappingA(FILE_MAP_ALL_ACCESS,FALSE,name);
+        if(!probe_mapping)return GetLastError();
+        probe_result=(ScrollProbeResult *)MapViewOfFile(probe_mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(*probe_result));
+        if(!probe_result){DWORD error=GetLastError();CloseHandle(probe_mapping);probe_mapping=NULL;return error;}
+    }
+    result=probe_result;
 
+    if(!wheel_hook_handle){
+        DWORD thread_id=GetWindowThreadProcessId(result->hwnd,NULL);
+        HMODULE module=GetModuleHandleA("scroll-query-probe.dll");
+        if(thread_id&&module){
+            wheel_hook_handle=SetWindowsHookExA(WH_CALLWNDPROC,wheel_hook,module,thread_id);
+            if(!wheel_hook_handle)result->hook_error=GetLastError();
+        }else result->hook_error=GetLastError();
+    }
+
+    result->done=0;
     memset(&result->info,0,sizeof(result->info));
     result->info.cbSize=sizeof(result->info);
     result->info.fMask=SIF_ALL;
@@ -31,7 +66,5 @@ __declspec(dllexport) DWORD WINAPI run_probe(void)
     result->bar_ok=GetScrollBarInfo(result->hwnd,OBJID_HSCROLL,&result->bar);
     result->bar_error=GetLastError();
     InterlockedExchange(&result->done,1);
-    UnmapViewOfFile(result);
-    CloseHandle(mapping);
     return 0;
 }

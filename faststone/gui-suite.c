@@ -488,16 +488,19 @@ static void log_scroll_state(HWND w,const char *phase)
 static void log_inprocess_scroll_state(HWND w,const char *phase)
 {
     char mapping_name[96],dll_path[MAX_PATH],*slash;HANDLE mapping,remote_process,thread;
-    ScrollProbeResult *shared;HMODULE local_dll,local_kernel;
+    ScrollProbeResult *shared;HMODULE local_dll,local_kernel;BOOL fresh_mapping;
     FARPROC load_local,probe_local;LPTHREAD_START_ROUTINE probe_remote;
     LPVOID remote_path;DWORD exit_code,pid=0;uintptr_t offset;int ok=0;
     GetWindowThreadProcessId(w,&pid);
     snprintf(mapping_name,sizeof(mapping_name),SCROLL_PROBE_MAPPING_PREFIX "%lu",(unsigned long)pid);
+    SetLastError(ERROR_SUCCESS);
     mapping=CreateFileMappingA(INVALID_HANDLE_VALUE,NULL,PAGE_READWRITE,0,sizeof(*shared),mapping_name);
     if(!mapping){fprintf(logfile,"inprocess-scroll phase=%s mapping-error=%lu\n",phase,GetLastError());return;}
+    fresh_mapping=GetLastError()!=ERROR_ALREADY_EXISTS;
     shared=(ScrollProbeResult *)MapViewOfFile(mapping,FILE_MAP_ALL_ACCESS,0,0,sizeof(*shared));
     if(!shared){fprintf(logfile,"inprocess-scroll phase=%s map-error=%lu\n",phase,GetLastError());CloseHandle(mapping);return;}
-    memset(shared,0,sizeof(*shared));shared->hwnd=w;
+    if(fresh_mapping)memset(shared,0,sizeof(*shared));
+    shared->hwnd=w;shared->done=0;
     remote_process=OpenProcess(PROCESS_CREATE_THREAD|PROCESS_QUERY_INFORMATION|PROCESS_VM_OPERATION|
         PROCESS_VM_READ|PROCESS_VM_WRITE,FALSE,pid);
     if(!remote_process)goto done;
@@ -530,11 +533,18 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
     if(thread&&WaitForSingleObject(thread,5000)==WAIT_OBJECT_0&&GetExitCodeThread(thread,&exit_code)&&exit_code==0){
         DWORD start=GetTickCount();CloseHandle(thread);
         while(!shared->done&&GetTickCount()-start<1000)Sleep(10);
-        if(shared->done){SCROLLINFO *si=&shared->info;SCROLLBARINFO *bar=&shared->bar;
+        if(shared->done){SCROLLINFO *si=&shared->info;SCROLLBARINFO *bar=&shared->bar;LONG wheel_count=shared->wheel_count;LONG i;
             fprintf(logfile,"inprocess-scroll phase=%s hwnd=%p info=%d error=%lu min=%d max=%d page=%u pos=%d track=%d bar=%d bar-error=%lu rect=[%ld,%ld,%ld,%ld] thumb=[%d,%d]\n",
                 phase,(void *)w,shared->info_ok,shared->info_error,si->nMin,si->nMax,si->nPage,si->nPos,si->nTrackPos,
                 shared->bar_ok,shared->bar_error,bar->rcScrollBar.left,bar->rcScrollBar.top,
-                bar->rcScrollBar.right,bar->rcScrollBar.bottom,bar->xyThumbTop,bar->xyThumbBottom);ok=1;}
+                bar->rcScrollBar.right,bar->rcScrollBar.bottom,bar->xyThumbTop,bar->xyThumbBottom);
+            fprintf(logfile,"wheel-hook phase=%s error=%lu count=%ld%s\n",phase,shared->hook_error,wheel_count,
+                wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES?" (truncated)":"");
+            if(wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES)wheel_count=SCROLL_PROBE_MAX_WHEEL_MESSAGES;
+            for(i=0;i<wheel_count;i++){ScrollProbeWheelMessage *event=&shared->wheel_messages[i];
+                fprintf(logfile,"wheel-message phase=%s hwnd=%p message=0x%04lx wparam=0x%08lx lparam=0x%08lx\n",
+                    phase,(void *)event->hwnd,(unsigned long)event->message,(unsigned long)event->wParam,(unsigned long)event->lParam);}
+            ok=1;}
     }else if(thread)CloseHandle(thread);
 close_process:
     CloseHandle(remote_process);
