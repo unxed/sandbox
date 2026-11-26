@@ -15,10 +15,20 @@ static LRESULT CALLBACK wheel_hook(int code,WPARAM wparam,LPARAM lparam)
             LONG slot=InterlockedIncrement(&probe_result->wheel_count)-1;
             if(slot<SCROLL_PROBE_MAX_WHEEL_MESSAGES){
                 ScrollProbeWheelMessage *event=&probe_result->wheel_messages[slot];
+                HWND target=probe_result->hwnd,parent;
+                LONG depth=0;
                 event->hwnd=call->hwnd;
                 event->message=call->message;
                 event->wParam=call->wParam;
                 event->lParam=call->lParam;
+                event->relation_depth=-1;
+                event->class_name[0]='\0';
+                for(parent=target;parent&&depth<16;parent=GetParent(parent),depth++){
+                    if(parent==call->hwnd){event->relation_depth=depth;break;}
+                }
+                if(event->relation_depth==-1&&IsChild(target,call->hwnd))
+                    event->relation_depth=-2;
+                GetClassNameA(call->hwnd,event->class_name,sizeof(event->class_name));
             }
         }
     }

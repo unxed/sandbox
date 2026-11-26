@@ -542,8 +542,9 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
                 wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES?" (truncated)":"");
             if(wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES)wheel_count=SCROLL_PROBE_MAX_WHEEL_MESSAGES;
             for(i=0;i<wheel_count;i++){ScrollProbeWheelMessage *event=&shared->wheel_messages[i];
-                fprintf(logfile,"wheel-message phase=%s hwnd=%p message=0x%04lx wparam=0x%08lx lparam=0x%08lx\n",
-                    phase,(void *)event->hwnd,(unsigned long)event->message,(unsigned long)event->wParam,(unsigned long)event->lParam);}
+                fprintf(logfile,"wheel-message phase=%s hwnd=%p relation-depth=%ld class=%s message=0x%04lx wparam=0x%08lx lparam=0x%08lx\n",
+                    phase,(void *)event->hwnd,event->relation_depth,event->class_name,
+                    (unsigned long)event->message,(unsigned long)event->wParam,(unsigned long)event->lParam);}
             ok=1;}
     }else if(thread)CloseHandle(thread);
 close_process:

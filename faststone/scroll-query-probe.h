@@ -12,6 +12,8 @@ typedef struct {
     UINT message;
     WPARAM wParam;
     LPARAM lParam;
+    LONG relation_depth;
+    char class_name[64];
 } ScrollProbeWheelMessage;
 
 typedef struct {
