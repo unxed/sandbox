@@ -549,10 +549,16 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
             if(shared->window_proc_count>0){LONG proc_count=shared->window_proc_count;
                 if(proc_count>9)proc_count=9;
                 for(i=0;i<proc_count;i++){ScrollProbeWindowProc *entry=&shared->window_procs[i];
-                    fprintf(logfile,"window-proc phase=%s depth=%ld hwnd=%p class=%s window-proc=%llx window-module=%s class-proc=%llx class-module=%s\n",
+                    fprintf(logfile,"window-proc phase=%s depth=%ld hwnd=%p class=%s window-proc=%llx window-module=%s window-base=%llx window-rva=%llx window-type=%lx window-error=%lu class-proc=%llx class-module=%s class-base=%llx class-rva=%llx class-type=%lx class-error=%lu\n",
                         phase,(long)i,(void *)entry->hwnd,entry->class_name,
                         (unsigned long long)entry->window_proc,entry->window_module,
-                        (unsigned long long)entry->class_proc,entry->class_module);}}
+                        (unsigned long long)entry->window_module_base,
+                        (unsigned long long)entry->window_proc_rva,
+                        (unsigned long)entry->window_module_type,(unsigned long)entry->window_module_error,
+                        (unsigned long long)entry->class_proc,entry->class_module,
+                        (unsigned long long)entry->class_module_base,
+                        (unsigned long long)entry->class_proc_rva,
+                        (unsigned long)entry->class_module_type,(unsigned long)entry->class_module_error);}}
             ok=1;}
     }else if(thread)CloseHandle(thread);
 close_process:

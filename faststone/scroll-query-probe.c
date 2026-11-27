@@ -8,6 +8,33 @@ static ScrollProbeResult *probe_result;
 static HHOOK wheel_hook_handle;
 static HHOOK wheel_return_hook_handle;
 
+static void resolve_proc_module(uintptr_t address,HMODULE *module,char *path,DWORD path_size,
+                                uintptr_t *base,uintptr_t *rva,DWORD *memory_type,DWORD *error)
+{
+    MEMORY_BASIC_INFORMATION info;
+    DWORD size;
+    *module=NULL;*path=0;*base=0;*rva=0;*memory_type=0;
+    SetLastError(ERROR_SUCCESS);
+    if(address&&GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)address,module)){
+        *base=(uintptr_t)*module;
+    }else{
+        *error=GetLastError();
+        if(address&&VirtualQuery((LPCVOID)address,&info,sizeof(info))==sizeof(info)){
+            *memory_type=info.Type;
+            if(info.Type==MEM_IMAGE){
+                *module=(HMODULE)info.AllocationBase;
+                *base=(uintptr_t)info.AllocationBase;
+            }
+        }
+    }
+    if(*module){
+        size=GetModuleFileNameA(*module,path,path_size);
+        if(size==0&&!*error)*error=GetLastError();
+        if(address>=*base)*rva=address-*base;
+    }
+}
+
 static void record_window_proc(HWND hwnd,ScrollProbeResult *result)
 {
     LONG_PTR window_proc=GetWindowLongPtrA(hwnd,GWLP_WNDPROC);
@@ -22,12 +49,12 @@ static void record_window_proc(HWND hwnd,ScrollProbeResult *result)
     entry->window_proc=(uintptr_t)window_proc;
     entry->class_proc=(uintptr_t)class_proc;
     GetClassNameA(hwnd,entry->class_name,sizeof(entry->class_name));
-    if(window_proc&&GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|
-        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)(uintptr_t)window_proc,&window_module))
-        GetModuleFileNameA(window_module,entry->window_module,sizeof(entry->window_module));
-    if(class_proc&&GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|
-        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)(uintptr_t)class_proc,&class_module))
-        GetModuleFileNameA(class_module,entry->class_module,sizeof(entry->class_module));
+    resolve_proc_module((uintptr_t)window_proc,&window_module,entry->window_module,
+        sizeof(entry->window_module),&entry->window_module_base,&entry->window_proc_rva,
+        &entry->window_module_type,&entry->window_module_error);
+    resolve_proc_module((uintptr_t)class_proc,&class_module,entry->class_module,
+        sizeof(entry->class_module),&entry->class_module_base,&entry->class_proc_rva,
+        &entry->class_module_type,&entry->class_module_error);
 }
 
 static void record_window_proc_chain(HWND target,ScrollProbeResult *result)
