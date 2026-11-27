@@ -21,6 +21,10 @@ typedef struct {
     volatile LONG done;
     volatile LONG wheel_count;
     DWORD hook_error;
+    BOOL direct_probe;
+    LONG direct_before;
+    LONG direct_after;
+    LRESULT direct_result;
     ScrollProbeWheelMessage wheel_messages[SCROLL_PROBE_MAX_WHEEL_MESSAGES];
     BOOL info_ok;
     DWORD info_error;

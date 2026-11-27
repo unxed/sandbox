@@ -501,6 +501,7 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
     if(!shared){fprintf(logfile,"inprocess-scroll phase=%s map-error=%lu\n",phase,GetLastError());CloseHandle(mapping);return;}
     if(fresh_mapping)memset(shared,0,sizeof(*shared));
     shared->hwnd=w;shared->done=0;
+    shared->direct_probe=!strcmp(phase,"direct-horizontal-wheel");
     remote_process=OpenProcess(PROCESS_CREATE_THREAD|PROCESS_QUERY_INFORMATION|PROCESS_VM_OPERATION|
         PROCESS_VM_READ|PROCESS_VM_WRITE,FALSE,pid);
     if(!remote_process)goto done;
@@ -538,6 +539,9 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
                 phase,(void *)w,shared->info_ok,shared->info_error,si->nMin,si->nMax,si->nPage,si->nPos,si->nTrackPos,
                 shared->bar_ok,shared->bar_error,bar->rcScrollBar.left,bar->rcScrollBar.top,
                 bar->rcScrollBar.right,bar->rcScrollBar.bottom,bar->xyThumbTop,bar->xyThumbBottom);
+            if(shared->direct_probe)
+                fprintf(logfile,"direct-horizontal-wheel phase=%s result=%ld scroll-before=%ld scroll-after=%ld\n",
+                    phase,(long)shared->direct_result,shared->direct_before,shared->direct_after);
             fprintf(logfile,"wheel-hook phase=%s error=%lu count=%ld%s\n",phase,shared->hook_error,wheel_count,
                 wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES?" (truncated)":"");
             if(wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES)wheel_count=SCROLL_PROBE_MAX_WHEEL_MESSAGES;
@@ -629,6 +633,7 @@ static void top(void)
         target=i;move(origin.x+(ir.left+ir.right)/2,origin.y+(ir.top+ir.bottom)/2);click();break;}}
     check("visible scrolled item reachable",target>=0,target,0);if(target>=0){Sleep(500);
         after=(long)msg(lv,LVM_GETNEXTITEM,(WPARAM)-1,LVNI_SELECTED);check("scrolled item hit testing",after==target,after,target);snapshot("top-selected");}center();
+    log_inprocess_scroll_state(lv,"direct-horizontal-wheel");
 }
 static void changed(const char *name,WORD vk,WORD mod)
 {

@@ -62,6 +62,18 @@ __declspec(dllexport) DWORD WINAPI run_probe(void)
         }else result->hook_error=GetLastError();
     }
 
+    if(result->direct_probe){
+        RECT rect;
+        WPARAM wp=MAKEWPARAM(0,(WORD)-WHEEL_DELTA);
+        LPARAM lp=0;
+        InterlockedExchange(&result->wheel_count,0);
+        result->direct_before=GetScrollPos(result->hwnd,SB_HORZ);
+        if(GetWindowRect(result->hwnd,&rect))
+            lp=MAKELPARAM((SHORT)((rect.left+rect.right)/2),(SHORT)((rect.top+rect.bottom)/2));
+        result->direct_result=SendMessage(result->hwnd,WM_MOUSEHWHEEL,wp,lp);
+        result->direct_after=GetScrollPos(result->hwnd,SB_HORZ);
+    }
+
     result->done=0;
     memset(&result->info,0,sizeof(result->info));
     result->info.cbSize=sizeof(result->info);
