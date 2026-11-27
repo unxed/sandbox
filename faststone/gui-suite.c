@@ -546,6 +546,13 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
                 fprintf(logfile,"wheel-message phase=%s hook=%s hwnd=%p relation-depth=%ld class=%s message=0x%04lx wparam=0x%08lx lparam=0x%08lx result=%ld\n",
                     phase,event->hook_phase?"return":"call",(void *)event->hwnd,event->relation_depth,event->class_name,
                     (unsigned long)event->message,(unsigned long)event->wParam,(unsigned long)event->lParam,(long)event->result);}
+            if(shared->window_proc_count>0){LONG proc_count=shared->window_proc_count;
+                if(proc_count>9)proc_count=9;
+                for(i=0;i<proc_count;i++){ScrollProbeWindowProc *entry=&shared->window_procs[i];
+                    fprintf(logfile,"window-proc phase=%s depth=%ld hwnd=%p class=%s window-proc=%llx window-module=%s class-proc=%llx class-module=%s\n",
+                        phase,(long)i,(void *)entry->hwnd,entry->class_name,
+                        (unsigned long long)entry->window_proc,entry->window_module,
+                        (unsigned long long)entry->class_proc,entry->class_module);}}
             ok=1;}
     }else if(thread)CloseHandle(thread);
 close_process:

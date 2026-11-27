@@ -19,6 +19,11 @@ panel, nested dialogs, foreground/focus, visible stacking, actual input and
 return to the parent/fullscreen image. Read [the test matrix](docs/test-matrix.md)
 for implemented checks and remaining coverage; a written scenario is not a pass.
 
+The in-process wheel probe also records each target/ancestor window's current
+and class WndProc addresses and containing module paths. These identify the
+active entry points for comparison, but do not enumerate an application's
+complete subclass chain or by themselves explain message handling.
+
 `patch-candidates/` contains unverified candidates for the coordinate and empty
 label issues. Do not submit them as confirmed fixes. The original label MR
 10093 has a painting regression concern; the original coordinate proposal can
