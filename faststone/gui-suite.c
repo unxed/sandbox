@@ -538,13 +538,14 @@ static void log_inprocess_scroll_state(HWND w,const char *phase)
                 phase,(void *)w,shared->info_ok,shared->info_error,si->nMin,si->nMax,si->nPage,si->nPos,si->nTrackPos,
                 shared->bar_ok,shared->bar_error,bar->rcScrollBar.left,bar->rcScrollBar.top,
                 bar->rcScrollBar.right,bar->rcScrollBar.bottom,bar->xyThumbTop,bar->xyThumbBottom);
-            fprintf(logfile,"wheel-hook phase=%s error=%lu count=%ld%s\n",phase,shared->hook_error,wheel_count,
+            fprintf(logfile,"wheel-hook phase=%s call-error=%lu return-error=%lu count=%ld%s\n",phase,
+                shared->hook_error,shared->return_hook_error,wheel_count,
                 wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES?" (truncated)":"");
             if(wheel_count>SCROLL_PROBE_MAX_WHEEL_MESSAGES)wheel_count=SCROLL_PROBE_MAX_WHEEL_MESSAGES;
             for(i=0;i<wheel_count;i++){ScrollProbeWheelMessage *event=&shared->wheel_messages[i];
-                fprintf(logfile,"wheel-message phase=%s hwnd=%p relation-depth=%ld class=%s message=0x%04lx wparam=0x%08lx lparam=0x%08lx\n",
-                    phase,(void *)event->hwnd,event->relation_depth,event->class_name,
-                    (unsigned long)event->message,(unsigned long)event->wParam,(unsigned long)event->lParam);}
+                fprintf(logfile,"wheel-message phase=%s hook=%s hwnd=%p relation-depth=%ld class=%s message=0x%04lx wparam=0x%08lx lparam=0x%08lx result=%ld\n",
+                    phase,event->hook_phase?"return":"call",(void *)event->hwnd,event->relation_depth,event->class_name,
+                    (unsigned long)event->message,(unsigned long)event->wParam,(unsigned long)event->lParam,(long)event->result);}
             ok=1;}
     }else if(thread)CloseHandle(thread);
 close_process:

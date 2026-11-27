@@ -6,33 +6,51 @@
 static HANDLE probe_mapping;
 static ScrollProbeResult *probe_result;
 static HHOOK wheel_hook_handle;
+static HHOOK wheel_return_hook_handle;
+
+static void record_wheel_message(HWND hwnd,UINT message,WPARAM wparam,LPARAM lparam,
+                                 LONG phase,LRESULT result)
+{
+    LONG slot=InterlockedIncrement(&probe_result->wheel_count)-1;
+    ScrollProbeWheelMessage *event;
+    HWND target=probe_result->hwnd,parent;
+    LONG depth=0;
+    if(slot>=SCROLL_PROBE_MAX_WHEEL_MESSAGES)return;
+    event=&probe_result->wheel_messages[slot];
+    event->hwnd=hwnd;
+    event->message=message;
+    event->wParam=wparam;
+    event->lParam=lparam;
+    event->hook_phase=phase;
+    event->result=result;
+    event->relation_depth=-1;
+    event->class_name[0]='\0';
+    for(parent=target;parent&&depth<16;parent=GetParent(parent),depth++){
+        if(parent==hwnd){event->relation_depth=depth;break;}
+    }
+    if(event->relation_depth==-1&&IsChild(target,hwnd))event->relation_depth=-2;
+    GetClassNameA(hwnd,event->class_name,sizeof(event->class_name));
+}
 
 static LRESULT CALLBACK wheel_hook(int code,WPARAM wparam,LPARAM lparam)
 {
     if(code>=0&&probe_result){
         const CWPSTRUCT *call=(const CWPSTRUCT *)lparam;
         if(call->message==WM_MOUSEWHEEL||call->message==WM_MOUSEHWHEEL){
-            LONG slot=InterlockedIncrement(&probe_result->wheel_count)-1;
-            if(slot<SCROLL_PROBE_MAX_WHEEL_MESSAGES){
-                ScrollProbeWheelMessage *event=&probe_result->wheel_messages[slot];
-                HWND target=probe_result->hwnd,parent;
-                LONG depth=0;
-                event->hwnd=call->hwnd;
-                event->message=call->message;
-                event->wParam=call->wParam;
-                event->lParam=call->lParam;
-                event->relation_depth=-1;
-                event->class_name[0]='\0';
-                for(parent=target;parent&&depth<16;parent=GetParent(parent),depth++){
-                    if(parent==call->hwnd){event->relation_depth=depth;break;}
-                }
-                if(event->relation_depth==-1&&IsChild(target,call->hwnd))
-                    event->relation_depth=-2;
-                GetClassNameA(call->hwnd,event->class_name,sizeof(event->class_name));
-            }
+            record_wheel_message(call->hwnd,call->message,call->wParam,call->lParam,0,0);
         }
     }
     return CallNextHookEx(wheel_hook_handle,code,wparam,lparam);
+}
+
+static LRESULT CALLBACK wheel_return_hook(int code,WPARAM wparam,LPARAM lparam)
+{
+    if(code>=0&&probe_result){
+        const CWPRETSTRUCT *call=(const CWPRETSTRUCT *)lparam;
+        if(call->message==WM_MOUSEWHEEL||call->message==WM_MOUSEHWHEEL)
+            record_wheel_message(call->hwnd,call->message,call->wParam,call->lParam,1,call->lResult);
+    }
+    return CallNextHookEx(wheel_return_hook_handle,code,wparam,lparam);
 }
 
 /* Executed by a remote thread inside the disposable FastStone process. This
@@ -60,6 +78,14 @@ __declspec(dllexport) DWORD WINAPI run_probe(void)
             wheel_hook_handle=SetWindowsHookExA(WH_CALLWNDPROC,wheel_hook,module,thread_id);
             if(!wheel_hook_handle)result->hook_error=GetLastError();
         }else result->hook_error=GetLastError();
+    }
+    if(!wheel_return_hook_handle){
+        DWORD thread_id=GetWindowThreadProcessId(result->hwnd,NULL);
+        HMODULE module=GetModuleHandleA("scroll-query-probe.dll");
+        if(thread_id&&module){
+            wheel_return_hook_handle=SetWindowsHookExA(WH_CALLWNDPROCRET,wheel_return_hook,module,thread_id);
+            if(!wheel_return_hook_handle)result->return_hook_error=GetLastError();
+        }else result->return_hook_error=GetLastError();
     }
 
     result->done=0;
