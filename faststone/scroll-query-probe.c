@@ -8,6 +8,38 @@ static ScrollProbeResult *probe_result;
 static HHOOK wheel_hook_handle;
 static HHOOK wheel_return_hook_handle;
 
+static void record_window_proc(HWND hwnd,ScrollProbeResult *result)
+{
+    LONG_PTR window_proc=GetWindowLongPtrA(hwnd,GWLP_WNDPROC);
+    LONG_PTR class_proc=GetClassLongPtrA(hwnd,GCLP_WNDPROC);
+    HMODULE window_module=NULL,class_module=NULL;
+    ScrollProbeWindowProc *entry;
+    LONG slot=InterlockedIncrement(&result->window_proc_count)-1;
+    if(slot<0||slot>=9)return;
+    entry=&result->window_procs[slot];
+    memset(entry,0,sizeof(*entry));
+    entry->hwnd=hwnd;
+    entry->window_proc=(uintptr_t)window_proc;
+    entry->class_proc=(uintptr_t)class_proc;
+    GetClassNameA(hwnd,entry->class_name,sizeof(entry->class_name));
+    if(window_proc&&GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)(uintptr_t)window_proc,&window_module))
+        GetModuleFileNameA(window_module,entry->window_module,sizeof(entry->window_module));
+    if(class_proc&&GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)(uintptr_t)class_proc,&class_module))
+        GetModuleFileNameA(class_module,entry->class_module,sizeof(entry->class_module));
+}
+
+static void record_window_proc_chain(HWND target,ScrollProbeResult *result)
+{
+    HWND hwnd=target,parent;
+    LONG depth=0;
+    result->window_proc_count=0;
+    record_window_proc(hwnd,result);
+    for(parent=GetParent(target);parent&&depth<8;parent=GetParent(parent),depth++)
+        record_window_proc(parent,result);
+}
+
 static void record_wheel_message(HWND hwnd,UINT message,WPARAM wparam,LPARAM lparam,
                                  LONG phase,LRESULT result)
 {
@@ -70,6 +102,7 @@ __declspec(dllexport) DWORD WINAPI run_probe(void)
         if(!probe_result){DWORD error=GetLastError();CloseHandle(probe_mapping);probe_mapping=NULL;return error;}
     }
     result=probe_result;
+    record_window_proc_chain(result->hwnd,result);
 
     if(!wheel_hook_handle){
         DWORD thread_id=GetWindowThreadProcessId(result->hwnd,NULL);
