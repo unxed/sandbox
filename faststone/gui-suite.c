@@ -5,6 +5,7 @@
 #define _WIN32_WINNT 0x0601
 #include <windows.h>
 #include <commctrl.h>
+#include <tlhelp32.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,27 @@ static void quoted(FILE *f,const char *s)
         else fputc(*p,f);
     }
     fputc('"',f);
+}
+
+static void dump_modules(const char *phase)
+{
+    HANDLE snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPMODULE|TH32CS_SNAPMODULE32,pid);
+    MODULEENTRY32A module;
+    if(snapshot==INVALID_HANDLE_VALUE){
+        fprintf(logfile,"{\"event\":\"module-snapshot-error\",\"phase\":");quoted(logfile,phase);
+        fprintf(logfile,",\"error\":%lu}\n",(unsigned long)GetLastError());fflush(logfile);return;
+    }
+    memset(&module,0,sizeof(module));module.dwSize=sizeof(module);
+    if(!Module32FirstA(snapshot,&module)){
+        fprintf(logfile,"{\"event\":\"module-snapshot-error\",\"phase\":");quoted(logfile,phase);
+        fprintf(logfile,",\"error\":%lu}\n",(unsigned long)GetLastError());
+    }else do{
+        fprintf(logfile,"{\"event\":\"module\",\"phase\":");quoted(logfile,phase);
+        fprintf(logfile,",\"name\":");quoted(logfile,module.szModule);
+        fprintf(logfile,",\"path\":");quoted(logfile,module.szExePath);
+        fprintf(logfile,",\"base\":\"%p\",\"size\":%lu}\n",module.modBaseAddr,(unsigned long)module.modBaseSize);
+    }while(Module32NextA(snapshot,&module));
+    fflush(logfile);CloseHandle(snapshot);
 }
 
 static void check(const char *name,int pass,long actual,long expected)
@@ -839,8 +861,9 @@ int main(int argc,char **argv)
     snprintf(cmd,sizeof(cmd),"\"%s\" \"%s\"",app,image);snprintf(dir,sizeof(dir),"%s",app);slash=strrchr(dir,'\\');if(slash)*slash=0;
     memset(&si,0,sizeof(si));memset(&pi,0,sizeof(pi));si.cb=sizeof(si);
     if(!CreateProcessA(app,cmd,NULL,NULL,FALSE,0,NULL,slash?dir:NULL,&si,&pi)){check("launch",0,GetLastError(),0);fclose(logfile);return 1;}
-    pid=pi.dwProcessId;process=pi.hProcess;CloseHandle(pi.hThread);start=GetTickCount();
+    pid=pi.dwProcessId;process=pi.hProcess;CloseHandle(pi.hThread);dump_modules("after-create");start=GetTickCount();
     while(GetTickCount()-start<deadline&&!main_window()&&alive())Sleep(100);
+    dump_modules("main-window");
     Sleep(1500);snapshot("startup");check("main window exists",main_window()!=NULL,main_window()!=NULL,1);
     if(!setup_fullscreen()){check("enter fullscreen",0,0,1);goto done;}
     check("enter fullscreen",1,1,1);snapshot("fullscreen");
