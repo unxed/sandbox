@@ -37,13 +37,13 @@ static void quoted(FILE *f,const char *s)
 static void dump_modules(const char *phase)
 {
     HANDLE snapshot=CreateToolhelp32Snapshot(TH32CS_SNAPMODULE|TH32CS_SNAPMODULE32,pid);
-    MODULEENTRY32A module;
+    MODULEENTRY32 module;
     if(snapshot==INVALID_HANDLE_VALUE){
         fprintf(logfile,"{\"event\":\"module-snapshot-error\",\"phase\":");quoted(logfile,phase);
         fprintf(logfile,",\"error\":%lu}\n",(unsigned long)GetLastError());fflush(logfile);return;
     }
     memset(&module,0,sizeof(module));module.dwSize=sizeof(module);
-    if(!Module32FirstA(snapshot,&module)){
+    if(!Module32First(snapshot,&module)){
         fprintf(logfile,"{\"event\":\"module-snapshot-error\",\"phase\":");quoted(logfile,phase);
         fprintf(logfile,",\"error\":%lu}\n",(unsigned long)GetLastError());
     }else do{
@@ -51,7 +51,7 @@ static void dump_modules(const char *phase)
         fprintf(logfile,",\"name\":");quoted(logfile,module.szModule);
         fprintf(logfile,",\"path\":");quoted(logfile,module.szExePath);
         fprintf(logfile,",\"base\":\"%p\",\"size\":%lu}\n",module.modBaseAddr,(unsigned long)module.modBaseSize);
-    }while(Module32NextA(snapshot,&module));
+    }while(Module32Next(snapshot,&module));
     fflush(logfile);CloseHandle(snapshot);
 }
 
