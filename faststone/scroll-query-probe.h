@@ -26,6 +26,14 @@ typedef struct {
     char class_name[64];
     char window_module[MAX_PATH];
     char class_module[MAX_PATH];
+    uintptr_t window_module_base;
+    uintptr_t window_proc_rva;
+    uintptr_t class_module_base;
+    uintptr_t class_proc_rva;
+    DWORD window_module_type;
+    DWORD class_module_type;
+    DWORD window_module_error;
+    DWORD class_module_error;
 } ScrollProbeWindowProc;
 
 typedef struct {
